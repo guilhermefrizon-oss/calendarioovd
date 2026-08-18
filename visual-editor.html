@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Editor Visual — Calendário de Postagens</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f4f6fb;--card:#ffffff;--muted:#6b7280;--accent:#7c3aed;--accent-2:#06b6d4;--text:#0f172a;
+      --event-title-weight:600; --event-font-size:13px; --base-font-family: 'Poppins',Inter,Segoe UI,Arial,sans-serif
+    }
+    body{font-family:var(--base-font-family);background:var(--bg);margin:0;padding:28px;color:var(--text)}
+    .container{max-width:1600px;margin:0 auto}
+    h1{font-size:20px;margin:0 0 10px}
+    .topbar{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+    .card{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 6px 14px rgba(12,18,37,0.03)}
+    .controls-row{display:flex;gap:12px;align-items:end}
+    label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+    input[type=text],select{width:100%;padding:9px;border:1px solid #e6e9ef;border-radius:10px;font-size:14px}
+    .grid-month{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:18px}
+    .grid-month{grid-auto-rows:200px}
+    .day{background:linear-gradient(180deg,#fff,#fbfdff);padding:18px 14px 12px 14px;border-radius:12px;min-height:140px;position:relative}
+    .day{display:flex;flex-direction:column}
+    .day .date{position:absolute;top:10px;right:12px;font-size:16px;color:rgba(15,23,42,0.9);font-weight:600;z-index:20;background:transparent;padding:2px 6px;border-radius:6px}
+    .posts{margin-top:18px;flex:1;overflow:hidden;position:relative}
+    .more-badge{position:absolute;top:8px;right:8px;background:#fff;border-radius:999px;padding:6px 8px;border:1px solid rgba(15,23,42,0.04);font-size:12px;color:#ef4444;box-shadow:0 6px 18px rgba(12,18,37,0.03)}
+    .day h3{font-size:14px;margin:0 0 8px;color:#111827}
+    .event{display:flex;gap:10px;align-items:center;background:linear-gradient(90deg,rgba(0,0,0,0.01),rgba(0,0,0,0.00));padding:8px;border-radius:10px;margin-bottom:10px;box-shadow:0 2px 6px rgba(12,18,37,0.03)}
+    .color{width:8px;height:40px;border-radius:6px}
+    .event-body{flex:1}
+    /* compact card styles */
+    .event{padding:6px 8px;border-radius:8px;margin-bottom:8px;min-height:48px;align-items:flex-start}
+    .color{width:6px;height:32px;border-radius:6px;margin-top:6px}
+    .event-body{flex:1}
+    .event-title{font-weight:var(--event-title-weight);font-size:var(--event-font-size);color:rgba(15,23,42,0.95);line-height:1.15;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;text-overflow:ellipsis}
+    .event-sub{font-size:11px;color:var(--muted);display:flex;gap:6px;margin-top:6px;align-items:center}
+    .event .meta{font-size:11px;color:var(--muted);margin-top:6px;display:none}
+    .event:hover{transform:translateY(-2px);box-shadow:0 6px 12px rgba(12,18,37,0.06)}
+    .event:hover .meta{display:block}
+    .avatar{width:28px;height:28px;border-radius:50%;background:#ddd;display:inline-block;flex-shrink:0}
+    .btn{background:var(--accent);color:#fff;padding:8px 10px;border-radius:8px;border:0;cursor:pointer;font-weight:600;font-size:13px}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(124,58,237,0.12);padding:6px 8px;font-size:13px}
+    .btn.ghost.small{padding:4px 6px;font-size:12px}
+    @media (max-width:1000px){.grid-month{grid-template-columns:repeat(2,1fr)}}
+    .event[draggable="true"]{cursor:grab;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .18s}
+    .event.dragging{opacity:0.5;transform:scale(.98)}
+    .day.drag-over{outline:2px dashed rgba(124,58,237,0.18);border-radius:12px}
+    .event.moving{transition:transform .36s cubic-bezier(.2,.9,.2,1)}
+    .select-checkbox{position:absolute;left:10px;bottom:8px;width:18px;height:18px}
+    .net-icon{width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:8px}
+    .ai-badge{position:absolute;left:10px;top:10px;display:flex;gap:8px;align-items:center}
+    .ai-badge .count,.ai-badge .video{background:#fff;border-radius:999px;padding:6px 8px;font-size:12px;box-shadow:0 6px 18px rgba(12,18,37,0.06);border:1px solid rgba(15,23,42,0.04)}
+    .ai-badge .count.low{background:#fff6f6;border-color:#fecaca;color:#b91c1c}
+    .ai-badge .count.ok{background:#f0fdf4;border-color:#bbf7d0;color:#065f46}
+    .ai-badge .video.low{background:#fffbeb;border-color:#fde68a;color:#92400e}
+    .ai-info{margin-left:12px;font-size:13px;color:var(--muted)}
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:60}
+    .modal{background:#fff;border-radius:12px;padding:14px;max-width:820px;width:100%;box-shadow:0 18px 40px rgba(2,6,23,0.22)}
+    .modal h2{margin:0 0 10px;font-size:15px}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid #eef2ff;background:#fff;font-size:13px}
+    .chip button{margin-left:8px;padding:4px 6px;font-size:12px;border-radius:8px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Editor Visual — Calendário de Postagens</h1>
+
+    <div class="card topbar">
+      <div style="flex:1;display:flex;align-items:center;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <button id="prevMonth" class="btn ghost">‹</button>
+          <div style="min-width:220px;text-align:center;font-weight:700" id="monthLabel">Agosto 2026</div>
+          <button id="nextMonth" class="btn ghost">›</button>
+          <button id="undoBtn" class="btn ghost" title="Desfazer (Ctrl+Z)">Desfazer</button>
+          <button id="redoBtn" class="btn ghost" title="Refazer (Ctrl+Y)">Refazer</button>
+          <div id="aiSummary" class="ai-info"></div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button id="openSettings" class="btn ghost">Configurações</button>
+          <button id="openAdd" class="btn">Adicionar postagem</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;padding:12px">
+      <div style="display:flex;align-items:center;margin-bottom:8px">
+        <strong style="font-size:13px">Semana</strong>
+        <span style="color:var(--muted);margin-left:10px;font-size:12px">Visual limpo para preencher posts por dia</span>
+      </div>
+
+      <div>
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">
+          <div id="tabs" style="display:flex;gap:8px"></div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button id="filtersBtn" class="btn ghost">Filtros</button>
+            <button id="importBriefingBtn" class="btn ghost">Importar Briefing</button>
+          </div>
+        </div>
+        <div id="grid" class="grid-month"></div>
+        <div id="suggestionCard" class="card" style="margin-top:12px;display:none"></div>
+        
+        <!-- Filters modal -->
+        <div id="filtersBackdrop" class="modal-backdrop">
+          <div class="modal" role="dialog" aria-modal="true">
+            <h2>Filtros</h2>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-weight:600">Editoria</label>
+                <div id="filterEditoriasContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+              </div>
+              <div>
+                <label style="font-weight:600">Formato</label>
+                <div id="filterPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
+              </div>
+              <div>
+                <label style="font-weight:600">Tipo</label>
+                <div id="filterTypesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
+              </div>
+              <div>
+                <label style="font-weight:600">Collab</label>
+                <div style="display:flex;gap:8px;margin-top:6px">
+                  <label class="chip"><input type="radio" name="fCollab" value="any" checked/> Qualquer</label>
+                  <label class="chip"><input type="radio" name="fCollab" value="only"/> Apenas Collab</label>
+                  <label class="chip"><input type="radio" name="fCollab" value="no"/> Sem Collab</label>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+              <button id="clearFilters" class="btn ghost">Limpar</button>
+              <button id="applyFilters" class="btn">Aplicar</button>
+            </div>
+          </div>
+        </div>
+        <!-- Bulk edit modal -->
+        <div id="bulkEditBackdrop" class="modal-backdrop">
+          <div class="modal" role="dialog" aria-modal="true">
+            <h2>Edição em Lote</h2>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <label>Aplicar somente se preenchido (deixe em branco para pular)</label>
+              <label>Data (YYYY-MM-DD)</label>
+              <input id="bDate" type="date" />
+              <label>Formato</label>
+              <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="bPlace" value="" checked /> Manter</label><label class="chip"><input type="radio" name="bPlace" value="Feed" /> Feed</label><label class="chip"><input type="radio" name="bPlace" value="Story" /> Story</label></div>
+              <label>Tipo</label>
+              <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="bType" value="" checked /> Manter</label><label class="chip"><input type="radio" name="bType" value="Static" /> Estático</label><label class="chip"><input type="radio" name="bType" value="Video" /> Vídeo</label></div>
+              <label><input type="checkbox" id="bCollabToggle" /> Forçar Collab = ligado (desmarque para manter)</label>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+              <button id="cancelBulk" class="btn ghost">Cancelar</button>
+              <button id="applyBulk" class="btn">Aplicar</button>
+            </div>
+          </div>
+        </div>
+        <!-- Settings modal -->
+        <div id="settingsBackdrop" class="modal-backdrop">
+          <div class="modal" role="dialog" aria-modal="true">
+            <h2>Configurações</h2>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <label>Meta diária de posts</label>
+              <input id="sTarget" type="number" min="1" max="20" />
+              <label>Meta semanal de vídeos</label>
+              <input id="sWeekVideos" type="number" min="0" max="20" />
+              <hr />
+              <label style="font-weight:600">Tipografia</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div style="display:flex;flex-direction:column">
+                  <label style="font-size:12px">Fonte</label>
+                  <select id="sFontFamily"><option value="Poppins">Poppins</option><option value="Inter">Inter</option><option value="system">System</option></select>
+                </div>
+                <div style="display:flex;flex-direction:column">
+                  <label style="font-size:12px">Peso título</label>
+                  <select id="sTitleWeight"><option>400</option><option>500</option><option selected>600</option><option>700</option></select>
+                </div>
+                <div style="display:flex;flex-direction:column">
+                  <label style="font-size:12px">Tamanho título</label>
+                  <input id="sTitleSize" type="number" min="10" max="18" value="13" style="width:64px" />
+                </div>
+              </div>
+              <hr />
+              <label style="font-weight:600">Redes</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input id="newNetInput" placeholder="Nova rede" />
+                <button id="addNetBtn" class="btn ghost">Adicionar</button>
+              </div>
+              <div id="netsList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+              <label style="font-weight:600">Editorias</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input id="newEditoriaInput" placeholder="Nova editoria" />
+                <button id="addEditoriaBtn" class="btn ghost">Adicionar</button>
+              </div>
+              <div id="editoriasList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+              <label style="font-weight:600">Formatos</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input id="newPlaceInput" placeholder="Novo formato (ex:Feed)" />
+                <button id="addPlaceBtn" class="btn ghost">Adicionar</button>
+              </div>
+              <div id="placesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+              <button id="cancelSettings" class="btn ghost">Cancelar</button>
+              <button id="saveSettings" class="btn">Salvar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- Modal -->
+    <div id="modalBackdrop" class="modal-backdrop">
+      <div class="modal" role="dialog" aria-modal="true">
+        <h2>Criar postagem</h2>
+        <div class="grid-2">
+          <div>
+            <label>Título</label>
+            <input id="mTitle" type="text" placeholder="Título da postagem" />
+            <label style="margin-top:8px">Data</label>
+            <input id="mDate" type="date" />
+            <label style="margin-top:8px">Formato</label>
+            <div id="mPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
+            <label style="margin-top:8px">Editoria</label>
+            <div id="editoriasContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+            <label style="margin-top:8px">Código do produto</label>
+            <input id="mProductCode" type="text" />
+            <label style="margin-top:8px">Nome do produto</label>
+            <input id="mProductName" type="text" />
+            <label style="margin-top:8px">Tipo</label>
+            <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="mType" value="Static" checked /> Estático</label><label class="chip"><input type="radio" name="mType" value="Video" /> Vídeo</label></div>
+          </div>
+          <div>
+            <label>Redes</label>
+            <div id="netsContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
+            <div style="margin-top:8px"><label><input type="checkbox" id="mCollab" /> <span style="margin-left:8px">Collab (não entra na contagem)</span></label></div>
+            <label style="margin-top:8px">Observações</label>
+            <textarea id="mNotes" rows="4" style="width:100%;padding:8px;border-radius:8px;border:1px solid #e6e9ef"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button id="cancelModal" class="btn ghost">Cancelar</button>
+          <button id="saveModal" class="btn">Salvar</button>
+        </div>
+      </div>
+    </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Simple visual editor — stores in memory (session). User will feed content here.
+    const state = { posts: [] };
+
+    const $ = id => document.getElementById(id);
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    // Default view to August 2026 (current context). Allow navigation beyond.
+    let viewDate = new Date(2026,7,18);
+    let activeTab = 'All';
+    // configurable targets (persisted)
+    let TARGET = 3;
+    let WEEK_VIDEO_TARGET = 3;
+    let isEditing = false;
+    let editingId = null;
+    // filters state
+    const filters = { editorias: [], places: [], types: [], collab: 'any' };
+    // selection / bulk edit
+    let selectMode = false;
+    const selectedIds = new Set();
+
+    function toggleSelectMode(){
+      selectMode = !selectMode;
+      if(!selectMode) selectedIds.clear();
+      // visual cue
+      document.getElementById('toggleSelect').classList.toggle('btn--active', selectMode);
+      render();
+    }
+
+    function openBulkEdit(){
+      if(selectedIds.size===0){ alert('Nenhuma postagem selecionada'); return; }
+      $('bDate').value = '';
+      document.querySelector('input[name="bPlace"][value=""]').checked = true;
+      document.querySelector('input[name="bType"][value=""]').checked = true;
+      $('bCollabToggle').checked = false;
+      $('bulkEditBackdrop').style.display = 'flex';
+    }
+
+    function closeBulkEdit(){ $('bulkEditBackdrop').style.display = 'none'; }
+
+    function applyBulkEdit(){
+      const date = $('bDate').value || null;
+      const place = document.querySelector('input[name="bPlace"]:checked').value || null;
+      const type = document.querySelector('input[name="bType"]:checked').value || null;
+      const collabChecked = $('bCollabToggle').checked;
+      const beforeStates = [];
+      selectedIds.forEach(id=>{ const p = state.posts.find(x=>x.id===id); if(p){ beforeStates.push(Object.assign({},p)); if(date) p.date = date; if(place) p.place = place; if(type) p.type = type; if($('bCollabToggle').checked) p.collab = true; } });
+      saveState(); buildCalendar(); render(); closeBulkEdit();
+      pushUndo({ type:'edit-multi', before: beforeStates }); redoStack = [];
+      // exit selection mode
+      selectMode = false; selectedIds.clear(); document.getElementById('toggleSelect').classList.remove('btn--active');
+    }
+
+    const ICONS = {
+      Instagram: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="5" stroke="#7c3aed" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="3.2" stroke="#7c3aed" stroke-width="1.6" fill="none"/><circle cx="17.5" cy="6.5" r="0.9" fill="#7c3aed"/></svg>`,
+      Twitter: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 5.92c-.63.28-1.3.47-2 .56.72-.43 1.27-1.12 1.53-1.94-.68.4-1.44.69-2.25.85C18.9 4.5 17.7 4 16.4 4c-2.02 0-3.66 1.64-3.66 3.66 0 .29.03.57.09.84C9.2 8.4 6.2 6.7 4.1 4.1c-.32.56-.5 1.2-.5 1.88 0 1.3.66 2.45 1.66 3.12-.6-.02-1.17-.18-1.66-.46v.05c0 1.77 1.26 3.25 2.93 3.59-.31.08-.64.12-.98.12-.24 0-.48-.02-.71-.07.48 1.5 1.87 2.6 3.52 2.63-1.29 1.01-2.92 1.61-4.69 1.61-.3 0-.6-.02-.9-.05C6.95 20.2 9.37 21 12 21c7.07 0 10.94-5.86 10.94-10.94l-.01-.5C22 7.45 22.5 6.7 22 5.92z" fill="#1DA1F2"/></svg>`,
+      LinkedIn: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="3" width="20" height="18" rx="2" stroke="#0A66C2" stroke-width="1.2" fill="none"/><path d="M6 10.5v6M8 7.5v9M11 7.5v9M14 7.5v9" stroke="#0A66C2" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      Blog: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 7.5h18M3 12h12M3 16.5h9" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round"/></svg>`,
+      Email: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="4" width="19" height="16" rx="2" stroke="#374151" stroke-width="1.2" fill="none"/><path d="M3 7l9 6 9-6" stroke="#374151" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    };
+
+    function generateId(){ return 'p-' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+
+    function buildCalendar(){
+      const grid = $('grid');
+      grid.innerHTML = '';
+      const YEAR = viewDate.getFullYear();
+      const MONTH = viewDate.getMonth();
+      const first = new Date(YEAR, MONTH, 1);
+      const last = new Date(YEAR, MONTH + 1, 0);
+      const total = last.getDate();
+      const startDay = first.getDay(); // 0 (Sun) - 6 (Sat)
+      const cells = 42; // show 6 weeks
+      for(let i=0;i<cells;i++){
+        const cell = document.createElement('div');
+        cell.className = 'day';
+        const dayIndex = i - startDay + 1;
+        if(dayIndex>0 && dayIndex<=total){
+          const dateStr = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-${String(dayIndex).padStart(2,'0')}`;
+          cell.dataset.date = dateStr;
+          cell.innerHTML = `<div class="date">${dayIndex}</div><div class="posts"></div>`;
+          // allow drop
+          cell.addEventListener('dragover', ev=>{ ev.preventDefault(); cell.classList.add('drag-over'); });
+          cell.addEventListener('dragleave', ev=>{ cell.classList.remove('drag-over'); });
+          cell.addEventListener('drop', ev=>{
+            ev.preventDefault(); cell.classList.remove('drag-over');
+            const id = ev.dataTransfer.getData('text/plain');
+            if(!id) return;
+            const post = state.posts.find(x=>x.id===id);
+            if(!post) return;
+            const from = post.date;
+            const to = cell.dataset.date;
+            if(from===to) return;
+            // FLIP animation
+            const srcEl = document.querySelector(`.event[data-id="${post.id}"]`) || document.querySelector(`.event[data-id='${post.id}']`);
+            const oldRect = srcEl ? srcEl.getBoundingClientRect() : null;
+            // perform move
+            post.date = to;
+            saveState();
+            buildCalendar();
+            render();
+            // animate from old position to new
+            if(oldRect){
+              const newEl = document.querySelector(`.event[data-id="${post.id}"]`) || document.querySelector(`.event[data-id='${post.id}']`);
+              if(newEl){
+                const newRect = newEl.getBoundingClientRect();
+                const dx = oldRect.left - newRect.left;
+                const dy = oldRect.top - newRect.top;
+                newEl.style.transform = `translate(${dx}px, ${dy}px)`;
+                requestAnimationFrame(()=>{
+                  newEl.classList.add('moving');
+                  newEl.style.transform = '';
+                  setTimeout(()=>{ newEl.classList.remove('moving'); }, 380);
+                });
+              }
+            }
+            // push undo action
+            pushUndo({ type:'move', id: post.id, from, to });
+            // clear redo stack
+            redoStack = [];
+          });
+        } else {
+          cell.classList.add('empty');
+          cell.innerHTML = `<div style="height:18px"></div>`;
+        }
+        grid.appendChild(cell);
+      }
+      // update month label
+      const monthLabel = viewDate.toLocaleString('pt-BR',{month:'long',year:'numeric'});
+      $('monthLabel').textContent = monthLabel.charAt(0).toUpperCase()+monthLabel.slice(1);
+    }
+
+    function render(){
+      // Clear posts in cells
+      document.querySelectorAll('.day').forEach(c=>{ const posts = c.querySelector('.posts'); if(posts) posts.innerHTML = ''; });
+      // Filter by active tab
+      const items = state.posts.filter(p => activeTab==='All' || p.channel===activeTab);
+      // apply filters
+      const filtered = items.filter(p=>{
+        // editorias
+        if(filters.editorias && filters.editorias.length>0){
+          const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
+          if(!eds.some(e=> filters.editorias.includes(e))) return false;
+        }
+        // places (Feed/Story)
+        if(filters.places && filters.places.length>0){
+          const pls = Array.isArray(p.place)?p.place:[p.place].filter(Boolean);
+          if(!pls.some(z=> filters.places.includes(z))) return false;
+        }
+        // types
+        if(filters.types && filters.types.length>0){ if(!filters.types.includes(p.type||'Static')) return false; }
+        // collab
+        if(filters.collab==='only' && !p.collab) return false;
+        if(filters.collab==='no' && p.collab) return false;
+        return true;
+      });
+      // build map of posts per date
+      const postsMap = {};
+      filtered.forEach(p=>{ postsMap[p.date] = postsMap[p.date] || []; postsMap[p.date].push(p); });
+
+      // helper to create event element
+      function createEventElement(p){
+        const div = document.createElement('div'); div.className='event'; div.setAttribute('draggable','true'); div.dataset.id = p.id;
+        const color = p.color || (p.channel && p.channel.toLowerCase().includes('insta')? '#7c3aed' : '#06b6d4');
+        const icon = ICONS[p.channel] || '';
+        const editoriaText = (p.editoria && p.editoria.length)? (Array.isArray(p.editoria)?p.editoria[0]:p.editoria) : '';
+        const productText = p.productCode ? `${escapeHtml(p.productCode)} ${escapeHtml(p.productName||'')}` : '';
+        div.innerHTML = `<div class="color" style="background:${color}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${escapeHtml(p.channel||'')}</span></div><div class="meta">${editoriaText?'<strong>'+escapeHtml(editoriaText)+'</strong>':''} ${productText?escapeHtml(productText):''}</div></div>`;
+        div.addEventListener('dragstart', (ev)=>{ ev.dataTransfer.setData('text/plain', p.id); div.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; });
+        div.addEventListener('dragend', ()=>{ div.classList.remove('dragging'); });
+        div.addEventListener('click', (ev)=>{ if(selectMode){ ev.stopPropagation(); const cb = div.querySelector('.select-checkbox'); if(cb){ cb.checked = !cb.checked; if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); } return; } openEditModal(p.id); });
+        if(selectMode){ const cb = document.createElement('input'); cb.type='checkbox'; cb.className='select-checkbox'; cb.checked = selectedIds.has(p.id); cb.addEventListener('click', (ev)=>{ ev.stopPropagation(); if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); }); div.appendChild(cb); }
+        return div;
+      }
+
+      // render per cell with limit and more-badge
+      const maxVisible = 2;
+      document.querySelectorAll('.day[data-date]').forEach(cell=>{
+        const date = cell.dataset.date;
+        const postsEl = cell.querySelector('.posts');
+        const list = postsMap[date] || [];
+        // append visible items
+        list.slice(0, maxVisible).forEach(p=>{ postsEl.appendChild(createEventElement(p)); });
+        // more badge
+        const more = list.length>maxVisible ? list.length-maxVisible : 0;
+        let mb = cell.querySelector('.more-badge');
+        if(more>0){ if(!mb){ mb = document.createElement('div'); mb.className='more-badge'; cell.appendChild(mb); } mb.textContent = `+${more}`; }
+        else { if(mb) mb.remove(); }
+      });
+
+      // AI badges per day and weekly video summary
+      const TARGET = 3;
+      // compute weekly video count for the week that contains viewDate (Sun-Sat)
+      const weekStart = new Date(viewDate); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+      let weekVideos = 0;
+      document.querySelectorAll('.day[data-date]').forEach(cell=>{
+        const date = cell.dataset.date;
+        if(!date) return;
+        const postsAll = state.posts.filter(p=>p.date===date && !p.collab);
+        const total = postsAll.length;
+        const videoCount = postsAll.filter(p=> (p.type||'').toLowerCase()==='video').length;
+        // count into week
+        const d = new Date(date);
+        if(d >= weekStart && d <= weekEnd) weekVideos += videoCount;
+
+        let badge = cell.querySelector('.ai-badge');
+        if(!badge){ badge = document.createElement('div'); badge.className='ai-badge'; cell.appendChild(badge); }
+        badge.innerHTML = `<div class="count ${total < TARGET ? 'low':'ok'}">${total}/${TARGET}</div>`;
+        badge.title = total < TARGET ? `Sugestão: meta ${TARGET} posts/dia. Atualmente ${total}. Collab não conta.` : 'Meta diária atingida';
+      });
+
+      // update topbar AI summary for videos
+      // show weekly suggestion card outside calendar
+      const suggestion = $('suggestionCard');
+      if(suggestion){
+        suggestion.style.display = 'block';
+        const weekStatus = weekVideos >= 3 ? `<strong style="color:#065f46">${weekVideos}/3 vídeos</strong>` : `<strong style="color:#92400e">${weekVideos}/3 vídeos</strong>`;
+        suggestion.innerHTML = `<strong>Sugestão IA</strong><div style="margin-top:6px;color:#374151">Meta diária: <strong>${TARGET}</strong> posts por dia. Collabs não entram na contagem. Vídeos: ideal 1 por dia — recomendação atual da semana: ${weekStatus}. Dica: se estiver abaixo, considere transformar 1 dos posts do dia em vídeo ou aumentar a frequência esta semana.</div>`;
+      }
+    }
+
+    function addPostFromForm(){
+      // legacy no-op kept for safety
+    }
+
+    function openModal(){
+      $('modalBackdrop').style.display = 'flex';
+      // default date to viewDate's first visible day or today
+      const defaultDate = viewDate.toISOString().slice(0,10);
+      $('mDate').value = defaultDate;
+      // reset fields
+      $('mTitle').value=''; $('mNotes').value=''; $('mProductCode').value=''; $('mProductName').value='';
+      document.querySelectorAll('.mNet').forEach(n=>n.checked=false); document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false);
+      document.querySelectorAll('input[name="mPlace"]').forEach(el=>el.checked=false); const defaultPlace = document.querySelector('input[name="mPlace"][value="Feed"]'); if(defaultPlace) defaultPlace.checked=true;
+      $('mTitle').focus();
+    }
+
+    function closeModal(){
+      $('modalBackdrop').style.display = 'none';
+    }
+
+    function saveModal(){
+      const title = $('mTitle').value.trim() || 'Untitled';
+      const date = $('mDate').value;
+      if(!date){ alert('Escolha uma data'); return; }
+      const place = Array.from(document.querySelectorAll('input[name="mPlace"]:checked')).map(n=>n.value);
+      if(place.length===0) place.push('Feed');
+      const type = document.querySelector('input[name="mType"]:checked').value;
+      const notes = $('mNotes').value.trim();
+      const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
+      const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
+      const productCode = $('mProductCode').value.trim();
+      const productName = $('mProductName').value.trim();
+      if(nets.length===0){ alert('Selecione pelo menos uma rede'); return; }
+      if(isEditing && editingId){
+        // editing single post - update the one post
+        const pid = editingId;
+        const post = state.posts.find(p=>p.id===pid);
+        if(!post) return;
+        const before = Object.assign({}, post);
+        // update properties - respect that only one network was enabled
+        const ch = nets[0];
+        post.title = title; post.date = date; post.place = place.length===1?place[0]:place; post.type = type; post.notes = notes; post.channel = ch; post.collab = $('mCollab').checked;
+        post.editoria = editorias; post.productCode = productCode; post.productName = productName;
+        saveState(); render(); closeModal();
+        pushUndo({ type:'edit', id: pid, before });
+        redoStack = [];
+        closeEditState();
+        return;
+      }
+
+      const created = [];
+      nets.forEach(net=>{
+        const p = { id: generateId(), title, date, channel: net, place: place.length===1?place[0]:place, type, notes, collab: $('mCollab').checked, color: null, editoria: editorias, productCode, productName };
+        state.posts.push(p);
+        created.push(p);
+      });
+      saveState();
+      render();
+      closeModal();
+      // push undo action (delete created posts)
+      pushUndo({ type:'create', posts: created.map(p=>p.id) });
+      // clear redo stack
+      redoStack = [];
+      // clear modal
+      $('mTitle').value=''; $('mNotes').value=''; document.querySelectorAll('.mNet').forEach(n=>n.checked=false); $('mCollab').checked = false;
+      document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false); $('mProductCode').value=''; $('mProductName').value=''; document.querySelectorAll('input[name="mPlace"]').forEach(el=>el.checked=false); const defaultPlace = document.querySelector('input[name="mPlace"][value="Feed"]'); if(defaultPlace) defaultPlace.checked=true;
+    }
+
+    function clearForm(){ }
+
+    function saveState(){
+      localStorage.setItem('calendar_posts_v1', JSON.stringify(state.posts));
+    }
+
+    function loadState(){
+      const raw = localStorage.getItem('calendar_posts_v1');
+      if(raw){ try{ state.posts = JSON.parse(raw) || []; }catch(e){ state.posts=[]; } }
+      // ensure ids
+      state.posts.forEach(p=>{ if(!p.id) p.id = generateId(); });
+    }
+
+    // app settings persistence (networks, editorias, places, typography, targets)
+    const DEFAULT_SETTINGS = {
+      TARGET: 3,
+      WEEK_VIDEO_TARGET: 3,
+      networks: ['Instagram','Twitter','LinkedIn','Blog','Email'],
+      editorias: ['Informativo','Destaques','Lançamentos','Dica VONDER'],
+      places: ['Feed','Story'],
+      typography: { fontFamily: "Poppins", titleWeight: 600, titleSize: 13 }
+    };
+    let APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
+
+    function saveSettings(){
+      // persist app settings and main targets
+      APP_SETTINGS.TARGET = TARGET;
+      APP_SETTINGS.WEEK_VIDEO_TARGET = WEEK_VIDEO_TARGET;
+      localStorage.setItem('calendar_settings_v1', JSON.stringify(APP_SETTINGS));
+    }
+
+    function loadSettings(){
+      const raw = localStorage.getItem('calendar_settings_v1');
+      if(raw){ try{ const s = JSON.parse(raw); APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS, s||{}); TARGET = APP_SETTINGS.TARGET || APP_SETTINGS.TARGET || TARGET; WEEK_VIDEO_TARGET = APP_SETTINGS.WEEK_VIDEO_TARGET || WEEK_VIDEO_TARGET; }catch(e){ APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS); } }
+      // apply typography immediately
+      applyTypographySettings();
+    }
+
+    function applyTypographySettings(){
+      const t = APP_SETTINGS.typography || DEFAULT_SETTINGS.typography;
+      document.documentElement.style.setProperty('--event-title-weight', t.titleWeight || 600);
+      document.documentElement.style.setProperty('--event-font-size', (t.titleSize||13)+'px');
+      if(t.fontFamily) document.documentElement.style.setProperty('--base-font-family', t.fontFamily + ",Inter,Segoe UI,Arial,sans-serif");
+    }
+
+    // dynamic UI rendering for lists
+    function renderTabs(){
+      const tabs = $('tabs'); tabs.innerHTML = '';
+      const allBtn = document.createElement('button'); allBtn.className='btn ghost'; allBtn.dataset.tab='All'; allBtn.id='tabAll'; allBtn.textContent='Todas'; tabs.appendChild(allBtn);
+      APP_SETTINGS.networks.forEach(n=>{ const b = document.createElement('button'); b.className='btn ghost'; b.dataset.tab = n; b.textContent = n; tabs.appendChild(b); });
+      // wire buttons
+      tabs.querySelectorAll('button').forEach(b=>{ b.addEventListener('click', ()=>{ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); b.classList.remove('ghost'); activeTab = b.dataset.tab; render(); }); });
+      // ensure active class
+      const active = Array.from(tabs.children).find(x=>x.dataset.tab===activeTab) || tabs.children[0]; if(active){ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); active.classList.remove('ghost'); }
+    }
+
+    function renderNetsUI(){
+      // modal nets
+      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n)}" /> <span class="net-icon"></span>${escapeHtml(n)}`; c.appendChild(lbl); }); }
+      // settings list
+      const list = $('netsList'); if(list){ list.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const chip = document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `${escapeHtml(n)} <button class="btn ghost small" data-net="${escapeHtml(n)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover rede">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-net]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.net; APP_SETTINGS.networks = APP_SETTINGS.networks.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
+    }
+
+    function renderEditoriasUI(){
+      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e)}" /> ${escapeHtml(e)}`; c.appendChild(lbl); }); }
+      const fc = $('filterEditoriasContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fEditoria" value="${escapeHtml(e)}"/> ${escapeHtml(e)}`; fc.appendChild(lbl); }); }
+      const list = $('editoriasList'); if(list){ list.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `${escapeHtml(e)} <button class="btn ghost small" data-editoria="${escapeHtml(e)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover editoria">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.editoria; APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
+    }
+
+    function renderPlacesUI(){
+      const m = $('mPlacesContainer'); if(m){ m.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" name="mPlace" value="${escapeHtml(p)}" /> ${escapeHtml(p)}`; m.appendChild(lbl); }); }
+      const fc = $('filterPlacesContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" class="fPlace" value="${escapeHtml(p)}"/> ${escapeHtml(p)}`; fc.appendChild(lbl); }); }
+      const bl = document.querySelector('[name="bPlace"]'); // bulk radios are static; rebuild section if present
+      const placesList = $('placesList'); if(placesList){ placesList.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `${escapeHtml(p)} <button class="btn ghost small" data-place="${escapeHtml(p)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover formato">✕</button>`; placesList.appendChild(chip); }); placesList.querySelectorAll('button[data-place]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.place; APP_SETTINGS.places = APP_SETTINGS.places.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
+      // types (Static/Video) - keep as is but ensure filter types container is filled
+      const ft = $('filterTypesContainer'); if(ft){ ft.innerHTML=''; ['Static','Video'].forEach(ti=>{ const lbl = document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fType" value="${ti}"/> ${ti==='Static'?'Estático':'Vídeo'}`; ft.appendChild(lbl); }); }
+    }
+
+    function renderAllDynamicUI(){ renderTabs(); renderNetsUI(); renderEditoriasUI(); renderPlacesUI(); }
+
+    function openSettings(){
+      $('sTarget').value = TARGET;
+      $('sWeekVideos').value = WEEK_VIDEO_TARGET;
+      // typography defaults
+      if($('sFontFamily')) $('sFontFamily').value = (APP_SETTINGS.typography && APP_SETTINGS.typography.fontFamily) || DEFAULT_SETTINGS.typography.fontFamily;
+      if($('sTitleWeight')) $('sTitleWeight').value = (APP_SETTINGS.typography && APP_SETTINGS.typography.titleWeight) || DEFAULT_SETTINGS.typography.titleWeight;
+      if($('sTitleSize')) $('sTitleSize').value = (APP_SETTINGS.typography && APP_SETTINGS.typography.titleSize) || DEFAULT_SETTINGS.typography.titleSize;
+      $('settingsBackdrop').style.display = 'flex';
+    }
+
+    function closeSettings(){ $('settingsBackdrop').style.display = 'none'; }
+
+    function saveSettingsHandler(){
+      const t = parseInt($('sTarget').value,10) || TARGET;
+      const w = parseInt($('sWeekVideos').value,10) || WEEK_VIDEO_TARGET;
+      TARGET = t; WEEK_VIDEO_TARGET = w;
+      // typography
+      try{
+        const ff = $('sFontFamily') ? $('sFontFamily').value : (APP_SETTINGS.typography && APP_SETTINGS.typography.fontFamily);
+        const tw = $('sTitleWeight') ? parseInt($('sTitleWeight').value,10) : APP_SETTINGS.typography.titleWeight;
+        const ts = $('sTitleSize') ? parseInt($('sTitleSize').value,10) : APP_SETTINGS.typography.titleSize;
+        APP_SETTINGS.typography = { fontFamily: ff, titleWeight: tw, titleSize: ts };
+        applyTypographySettings();
+      }catch(e){}
+      saveSettings(); buildCalendar(); render(); closeSettings();
+    }
+
+    // Edit post on click
+    function openEditModal(id){
+      const post = state.posts.find(p=>p.id===id); if(!post) return;
+      isEditing = true; editingId = id;
+      // populate modal
+      $('mTitle').value = post.title || '';
+      $('mDate').value = post.date || '';
+      // populate places (checkboxes)
+      document.querySelectorAll('input[name="mPlace"]').forEach(el=>{ el.checked = false; });
+      if(post.place){ if(Array.isArray(post.place)){ post.place.forEach(pp=>{ const el = document.querySelector(`input[name="mPlace"][value="${pp}"]`); if(el) el.checked = true; }); } else { const el = document.querySelector(`input[name="mPlace"][value="${post.place}"]`); if(el) el.checked = true; } }
+      if(post.type) document.querySelector(`input[name="mType"][value="${post.type}"]`).checked = true;
+      $('mNotes').value = post.notes || '';
+      document.querySelectorAll('.mNet').forEach(n=>{ n.checked = (n.value===post.channel); n.disabled = true; });
+      $('mCollab').checked = !!post.collab;
+      // editorias
+      document.querySelectorAll('.mEditoria').forEach(e=>{ e.checked = false; });
+      if(post.editoria){ const arr = Array.isArray(post.editoria)?post.editoria:[post.editoria]; arr.forEach(ed=>{ const el = Array.from(document.querySelectorAll('.mEditoria')).find(x=>x.value===ed); if(el) el.checked = true; }); }
+      $('mProductCode').value = post.productCode || '';
+      $('mProductName').value = post.productName || '';
+      // change modal title
+      document.querySelector('#modalBackdrop .modal h2').textContent = 'Editar postagem';
+      $('modalBackdrop').style.display = 'flex';
+    }
+
+    function closeEditState(){
+      isEditing = false; editingId = null; document.querySelector('#modalBackdrop .modal h2').textContent = 'Criar postagem';
+      document.querySelectorAll('.mNet').forEach(n=>{ n.disabled = false; n.checked = false; });
+      $('mCollab').checked = false;
+    }
+
+    // Undo/Redo stacks
+    let undoStack = [];
+    let redoStack = [];
+
+    function pushUndo(action){ undoStack.push(action); if(undoStack.length>200) undoStack.shift(); }
+
+    function doAction(action, pushingInverse=true){
+      // returns inverse action
+      if(action.type==='move'){
+        const post = state.posts.find(p=>p.id===action.id);
+        if(!post) return null;
+        const from = post.date;
+        post.date = action.to;
+        saveState();
+        buildCalendar(); render();
+        return { type:'move', id:action.id, from:action.to, to:from };
+      }
+      if(action.type==='create'){
+        // action.posts contains array of post objects or ids? we store ids in pushUndo
+        // on redo create we cannot reconstruct full data, so create stores ids; inverse is delete with ids
+        // here action.posts may be ids (nothing to do) or full objects
+        if(action.posts && action.posts.length && typeof action.posts[0] === 'object'){
+          action.posts.forEach(p=> state.posts.push(p));
+          saveState(); buildCalendar(); render();
+          return { type:'delete', ids: action.posts.map(p=>p.id), posts: action.posts };
+        }
+        return null;
+      }
+      if(action.type==='delete'){
+        // delete posts by ids
+        const removed = [];
+        action.ids.forEach(id=>{
+          const idx = state.posts.findIndex(p=>p.id===id);
+          if(idx>-1) removed.push(state.posts.splice(idx,1)[0]);
+        });
+        saveState(); buildCalendar(); render();
+        return { type:'create', posts: removed };
+      }
+      return null;
+    }
+
+    function undo(){
+      if(undoStack.length===0) { alert('Nada para desfazer'); return; }
+      const action = undoStack.pop();
+      let inverse = null;
+      if(action.type==='move'){
+        // move back
+        const post = state.posts.find(p=>p.id===action.id);
+        if(post){ const prev = post.date; post.date = action.from; inverse = { type:'move', id:action.id, from: action.from, to: prev }; saveState(); buildCalendar(); render(); }
+      } else if(action.type==='create'){
+        // created posts -> delete them
+        const ids = action.posts; // ids array
+        const removed = [];
+        ids.forEach(id=>{ const idx = state.posts.findIndex(p=>p.id===id); if(idx>-1) removed.push(state.posts.splice(idx,1)[0]); });
+        inverse = { type:'create', posts: removed };
+        saveState(); buildCalendar(); render();
+      } else if(action.type==='delete'){
+        // recreate
+        const restored = [];
+        (action.posts||[]).forEach(p=>{ state.posts.push(p); restored.push(p); });
+        inverse = { type:'delete', ids: (action.posts||[]).map(p=>p.id) };
+        saveState(); buildCalendar(); render();
+      } else if(action.type==='edit'){
+        // restore previous
+        const post = state.posts.find(p=>p.id===action.id);
+        if(post){ const after = Object.assign({}, post); // current
+          // replace fields with before
+          Object.assign(post, action.before);
+          inverse = { type:'edit', id: action.id, before: after };
+          saveState(); buildCalendar(); render(); }
+      }
+      else if(action.type==='edit-multi'){
+        // restore multiple previous states
+        const afterStates = [];
+        (action.before||[]).forEach(prev=>{
+          const post = state.posts.find(p=>p.id===prev.id);
+          if(post){ afterStates.push(Object.assign({}, post)); Object.assign(post, prev); }
+        });
+        inverse = { type:'edit-multi', before: afterStates };
+        saveState(); buildCalendar(); render();
+      }
+      if(inverse) redoStack.push(inverse);
+    }
+
+    function redo(){
+      if(redoStack.length===0) { alert('Nada para refazer'); return; }
+      const action = redoStack.pop();
+      // action is inverse of undo; perform it and push inverse back to undo
+      if(action.type==='move'){
+        const post = state.posts.find(p=>p.id===action.id);
+        if(post){ const prev = post.date; post.date = action.to; pushUndo({ type:'move', id:action.id, from:action.to, to:prev }); saveState(); buildCalendar(); render(); }
+      } else if(action.type==='create'){
+        // create posts (action.posts are full objects)
+        action.posts.forEach(p=> state.posts.push(p));
+        pushUndo({ type:'delete', ids: action.posts.map(p=>p.id), posts: action.posts });
+        saveState(); buildCalendar(); render();
+      } else if(action.type==='delete'){
+        const removed=[];
+        action.ids.forEach(id=>{ const idx = state.posts.findIndex(p=>p.id===id); if(idx>-1) removed.push(state.posts.splice(idx,1)[0]); });
+        pushUndo({ type:'create', posts: removed });
+        saveState(); buildCalendar(); render();
+      } else if(action.type==='edit'){
+        // redo edit: action.before contains 'before' state, but redo expects to reapply the change stored as inverse
+        const post = state.posts.find(p=>p.id===action.id);
+        if(post){ const prev = Object.assign({}, post); Object.assign(post, action.before); pushUndo({ type:'edit', id:action.id, before: prev }); saveState(); buildCalendar(); render(); }
+      }
+      else if(action.type==='edit-multi'){
+        // reapply a multi-edit: action.before contains states to apply
+        const prevStates = [];
+        (action.before||[]).forEach(st=>{
+          const post = state.posts.find(p=>p.id===st.id);
+          if(post){ prevStates.push(Object.assign({}, post)); Object.assign(post, st); }
+        });
+        pushUndo({ type:'edit-multi', before: prevStates });
+        saveState(); buildCalendar(); render();
+      }
+    }
+
+    // keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); }
+      if((e.ctrlKey || e.metaKey) && (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){ e.preventDefault(); redo(); }
+    });
+
+    function download(name, text){
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text],{type:'text/plain'}));
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    function csvEscape(v){ if(v==null) return ''; const s = String(v); if(s.includes(',')||s.includes('"')||s.includes('\n')) return '"'+s.replace(/"/g,'""')+'"'; return s; }
+
+    function exportCSV(){
+      if(!state.posts || state.posts.length===0){ alert('Nenhuma postagem para exportar'); return; }
+      const rows = [];
+      const header = ['Date','Title','Channel','Place','Type','Collab','Notes','Editorias','ProductCode','ProductName','id'];
+      rows.push(header.join(','));
+      // sort by date then channel
+      const copy = state.posts.slice().sort((a,b)=> a.date.localeCompare(b.date) || (a.channel||'').localeCompare(b.channel||''));
+      copy.forEach(p=>{
+        const placeVal = Array.isArray(p.place)? p.place.join('|') : (p.place||'');
+        const editoriasVal = Array.isArray(p.editoria)? p.editoria.join('|') : (p.editoria||'');
+        rows.push([csvEscape(p.date), csvEscape(p.title), csvEscape(p.channel), csvEscape(placeVal), csvEscape(p.type), csvEscape(p.collab? 'true':'false'), csvEscape(p.notes), csvEscape(editoriasVal), csvEscape(p.productCode||''), csvEscape(p.productName||''), csvEscape(p.id)].join(','));
+      });
+      download('calendar_posts.csv', rows.join('\n'));
+    }
+
+    function escapeHtml(s){ return String(s||'').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+    // wire
+    $('openAdd').addEventListener('click', ()=>{ closeEditState(); openModal(); });
+    $('openSettings').addEventListener('click', openSettings);
+    $('cancelSettings').addEventListener('click', closeSettings);
+    $('saveSettings').addEventListener('click', saveSettingsHandler);
+    $('cancelModal').addEventListener('click', closeModal);
+    $('saveModal').addEventListener('click', saveModal);
+    document.getElementById('prevMonth').addEventListener('click', ()=>{ viewDate.setMonth(viewDate.getMonth()-1); buildCalendar(); render(); });
+    document.getElementById('nextMonth').addEventListener('click', ()=>{ viewDate.setMonth(viewDate.getMonth()+1); buildCalendar(); render(); });
+    
+
+    // Import briefing (CSV or JSON with columns)
+    $('importBriefingBtn').addEventListener('click', ()=>{
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx';
+      input.onchange = e => {
+        const f = e.target.files[0]; if(!f) return;
+        // handle docx directly
+        if(f.name.toLowerCase().endsWith('.docx')){ handleDocxFile(f); return; }
+        const r = new FileReader();
+        r.onload = ev => {
+          try{
+            const txt = ev.target.result;
+            if(f.name.toLowerCase().endsWith('.csv')) parseBriefingCSV(txt);
+            else if(f.name.toLowerCase().endsWith('.json')){ const rows = JSON.parse(txt); importBriefingRows(rows); }
+            else { alert('Formato não reconhecido. Para .docx selecione o arquivo .docx diretamente — o import irá processá-lo.'); }
+          }catch(err){ alert('Arquivo de briefing inválido'); console.error(err); }
+        };
+        r.readAsText(f);
+      };
+      input.click();
+    });
+
+    // dynamic script loader
+    function loadScriptOnce(url){
+      return new Promise((resolve,reject)=>{
+        if(document.querySelector(`script[src="${url}"]`)) return resolve();
+        const s = document.createElement('script'); s.src = url; s.onload = ()=>resolve(); s.onerror = ()=>reject(new Error('Failed to load '+url)); document.head.appendChild(s);
+      });
+    }
+
+    async function handleDocxFile(file){
+      try{
+        // load mammoth from CDN (includes unzip/processing)
+        await loadScriptOnce('https://cdn.jsdelivr.net/npm/mammoth/mammoth.browser.min.js');
+        const arr = await file.arrayBuffer();
+        const result = await mammoth.convertToHtml({arrayBuffer: arr});
+        const html = result.value;
+        // parse html and extract first table if present
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html,'text/html');
+        const table = doc.querySelector('table');
+        if(!table){ alert('Arquivo .docx processado, mas não foi encontrada tabela no documento. Coloque os briefings em tabela no Word.'); return; }
+        const rows = [];
+        const trs = Array.from(table.querySelectorAll('tr'));
+        if(trs.length<2){ alert('Tabela do briefing não contém linhas suficientes (cabeçalho + dados).'); return; }
+        const headers = Array.from(trs[0].querySelectorAll('td,th')).map(h=>h.textContent.trim());
+        trs.slice(1).forEach(tr=>{
+          const cols = Array.from(tr.querySelectorAll('td,th')).map(td=>td.textContent.trim());
+          const obj = {};
+          headers.forEach((h,i)=> obj[h] = cols[i] || '');
+          rows.push(obj);
+        });
+        importBriefingRows(rows);
+      }catch(err){ console.error(err); alert('Erro ao processar .docx: '+err.message); }
+    }
+
+    // override file input handling for .docx specifically (separate listener)
+    // attach a delegated drop handler in case user drags a .docx file
+    document.addEventListener('paste', ()=>{});
+
+    function splitCsvLine(line){
+      // split by commas not inside quotes
+      const parts = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/);
+      return parts.map(p=>{ p = p.trim(); if(p.startsWith('"') && p.endsWith('"')) p = p.slice(1,-1).replace(/""/g,'"'); return p; });
+    }
+
+    function parseBriefingCSV(text){
+      const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
+      if(lines.length<2){ alert('CSV vazio ou inválido'); return; }
+      const headers = splitCsvLine(lines[0]).map(h=>h.trim());
+      const rows = lines.slice(1).map(l=>{
+        const cols = splitCsvLine(l);
+        const obj = {};
+        headers.forEach((h,i)=> obj[h] = cols[i] || '');
+        return obj;
+      });
+      importBriefingRows(rows);
+    }
+
+    function importBriefingRows(rows){
+      // rows: array of objects with keys like Date,Title,Channel,Place,Editoria,ProductCode,ProductName,Type,Collab,Notes
+      const created = [];
+      rows.forEach(r=>{
+        const date = r.Date || r.date || r.DATA || '';
+        if(!date) return;
+        const title = r.Title || r.title || r.Titulo || r.Título || '';
+        const channels = (r.Channel||r.channel||r.Channeles||r.Channels||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean) || ['Instagram'];
+        const places = (r.Place||r.place||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean);
+        const editorias = (r.Editoria||r.editoria||r.Category||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean);
+        const productCode = r.ProductCode||r.productCode||r.Codigo||r.Código||'';
+        const productName = r.ProductName||r.productName||r.Produto||r.Product||'';
+        const type = r.Type||r.type||'Static';
+        const collab = (String(r.Collab||r.collab||'').toLowerCase()==='true');
+        const notes = r.Notes||r.notes||r.Observacoes||'';
+        channels.forEach(ch=>{
+          if(places.length>0){ places.forEach(pl=>{ const p = { id: generateId(), title, date, channel: ch, place: pl, type, notes, collab, color:null, editoria: editorias, productCode, productName }; state.posts.push(p); created.push(p); }); }
+          else { const p = { id: generateId(), title, date, channel: ch, place: 'Feed', type, notes, collab, color:null, editoria: editorias, productCode, productName }; state.posts.push(p); created.push(p); }
+        });
+      });
+      if(created.length>0){ saveState(); buildCalendar(); render(); pushUndo({ type:'create', posts: created.map(p=>p.id) }); redoStack = []; alert(`Importados ${created.length} posts do briefing.`); }
+      else alert('Nenhum post importado do briefing.');
+    }
+    const _exportCsvBtn = $('exportCsvBtn'); if(_exportCsvBtn) _exportCsvBtn.addEventListener('click', exportCSV);
+    const _toggleSelectBtn = $('toggleSelect'); if(_toggleSelectBtn) _toggleSelectBtn.addEventListener('click', toggleSelectMode);
+    const _bulkEditBtn = $('bulkEditBtn'); if(_bulkEditBtn) _bulkEditBtn.addEventListener('click', openBulkEdit);
+    const _cancelBulk = $('cancelBulk'); if(_cancelBulk) _cancelBulk.addEventListener('click', closeBulkEdit);
+    const _applyBulk = $('applyBulk'); if(_applyBulk) _applyBulk.addEventListener('click', applyBulkEdit);
+    // filters button
+    const _filtersBtn = $('filtersBtn'); if(_filtersBtn) _filtersBtn.addEventListener('click', ()=>{ $('filtersBackdrop').style.display='flex'; });
+    if($('applyFilters')) $('applyFilters').addEventListener('click', ()=>{
+      // read selections
+      filters.editorias = Array.from(document.querySelectorAll('.fEditoria:checked')).map(x=>x.value);
+      filters.places = Array.from(document.querySelectorAll('.fPlace:checked')).map(x=>x.value);
+      filters.types = Array.from(document.querySelectorAll('.fType:checked')).map(x=>x.value);
+      const coll = document.querySelector('input[name="fCollab"]:checked'); filters.collab = coll?coll.value:'any';
+      $('filtersBackdrop').style.display='none'; buildCalendar(); render();
+    });
+    if($('clearFilters')) $('clearFilters').addEventListener('click', ()=>{
+      document.querySelectorAll('.fEditoria').forEach(x=>x.checked=false);
+      document.querySelectorAll('.fPlace').forEach(x=>x.checked=false);
+      document.querySelectorAll('.fType').forEach(x=>x.checked=false);
+      const any = document.querySelector('input[name="fCollab"][value="any"]'); if(any) any.checked = true;
+      filters.editorias = []; filters.places = []; filters.types = []; filters.collab='any'; $('filtersBackdrop').style.display='none'; buildCalendar(); render();
+    });
+
+    // load persisted settings and state
+    loadSettings();
+    renderAllDynamicUI();
+    // wire add buttons
+    if($('addNetBtn')) $('addNetBtn').addEventListener('click', ()=>{ const v=$('newNetInput').value.trim(); if(!v) return; APP_SETTINGS.networks.push(v); $('newNetInput').value=''; saveSettings(); renderAllDynamicUI(); });
+    if($('addEditoriaBtn')) $('addEditoriaBtn').addEventListener('click', ()=>{ const v=$('newEditoriaInput').value.trim(); if(!v) return; APP_SETTINGS.editorias.push(v); $('newEditoriaInput').value=''; saveSettings(); renderAllDynamicUI(); });
+    if($('addPlaceBtn')) $('addPlaceBtn').addEventListener('click', ()=>{ const v=$('newPlaceInput').value.trim(); if(!v) return; APP_SETTINGS.places.push(v); $('newPlaceInput').value=''; saveSettings(); renderAllDynamicUI(); });
+    loadState();
+    // Build calendar and add sample posts if empty
+    buildCalendar();
+    if(state.posts.length===0){
+      state.posts.push({ id: generateId(), title: 'Campanha: Lançamento Comunidade', date: '2026-08-18', channel: 'Instagram', color:'#7c3aed' });
+      state.posts.push({ id: generateId(), title: 'Blog: Anúncio oficial', date: '2026-08-20', channel: 'Blog', color:'#06b6d4' });
+      state.posts.push({ id: generateId(), title: 'Postagem de teste — Social', date: '2026-08-19', channel: 'Twitter', color:'#f97316' });
+      saveState();
+    }
+    const tbAll = document.querySelector('#tabs button[data-tab="All"]'); if(tbAll) tbAll.classList.remove('ghost');
+    // wire undo/redo buttons
+    $('undoBtn').addEventListener('click', undo);
+    $('redoBtn').addEventListener('click', redo);
+    render();
+  </script>
+</body>
+</html>
