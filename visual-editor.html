@@ -11,7 +11,7 @@
       --border:#e5e7eb;--border-strong:#d7dae1;--surface-muted:#f8f9fc;--accent-weak:#f1ecff;--text-faint:#9aa1ac;
       --radius-sm:8px;--radius-md:12px;--radius-lg:16px;
       --shadow-sm:0 1px 2px rgba(15,23,42,.05);--shadow-md:0 6px 16px rgba(15,23,42,.07);--shadow-lg:0 20px 40px rgba(15,23,42,.14);
-      --event-title-weight:600; --event-font-size:13px; --base-font-family: 'Poppins',Inter,Segoe UI,Arial,sans-serif
+      --base-font-family: 'Poppins',Inter,Segoe UI,Arial,sans-serif
     }
     *{box-sizing:border-box}
     body{font-family:var(--base-font-family);background:var(--bg);margin:0;padding:28px;color:var(--text);-webkit-font-smoothing:antialiased}
@@ -68,7 +68,7 @@
     /* Weekday header + grid */
     .weekday-header{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:16px}
     .weekday-header div{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);padding-left:6px}
-    .grid-month{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:8px;grid-auto-rows:224px}
+    .grid-month{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:8px;grid-auto-rows:250px}
     .day{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px;position:relative;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s}
     .day:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
     .day.empty{background:transparent;border:1px dashed var(--border);box-shadow:none}
@@ -83,17 +83,17 @@
     .more-badge{position:absolute;right:8px;bottom:8px;background:#fff;border-radius:999px;padding:3px 9px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--accent);box-shadow:var(--shadow-sm)}
 
     /* Event card */
-    .event{position:relative;display:flex;background:#fff;border:1px solid var(--border);border-radius:10px;padding:7px 9px 7px 12px;margin-bottom:7px;box-shadow:var(--shadow-sm);cursor:grab;overflow:hidden;transition:box-shadow .15s,border-color .15s,transform .15s}
+    .event{position:relative;display:flex;background:#fff;border:1px solid var(--border);border-radius:9px;padding:6px 8px 6px 10px;margin-bottom:5px;box-shadow:var(--shadow-sm);cursor:grab;overflow:hidden;transition:box-shadow .15s,border-color .15s,transform .15s}
     .event:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong);transform:translateY(-1px)}
     .event[draggable="true"]{transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .18s,box-shadow .15s,border-color .15s}
     .event.dragging{opacity:0.5;transform:scale(.98)}
     .event.moving{transition:transform .36s cubic-bezier(.2,.9,.2,1)}
-    .event-bar{position:absolute;left:0;top:0;bottom:0;width:4px}
-    .event-body{flex:1;min-width:0;padding-left:4px}
-    .event-title{font-weight:var(--event-title-weight);font-size:var(--event-font-size);color:var(--text);line-height:1.25;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;text-overflow:ellipsis}
-    .event-sub{font-size:11px;color:var(--muted);display:flex;gap:5px;margin-top:4px;align-items:center}
-    .event-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-    .tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;line-height:1.5;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+    .event-bar{position:absolute;left:0;top:0;bottom:0;width:3px}
+    .event-body{flex:1;min-width:0;padding-left:3px}
+    .event-title{font-weight:600;font-size:12.5px;color:var(--text);line-height:1.25;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;text-overflow:ellipsis}
+    .event-sub{font-size:10.5px;color:var(--muted);display:flex;gap:5px;margin-top:3px;align-items:center}
+    .event-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+    .tag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;line-height:1.5;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
     .tag--outline{background:var(--surface-muted);color:var(--muted);border:1px solid var(--border)}
     .tag--collab{background:#fce7f3;color:#db2777;border:1px solid #fbcfe8}
     .event .meta{font-size:11px;color:var(--muted);margin-top:4px;display:none}
@@ -124,7 +124,7 @@
     .list-row-tags{display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0}
     .list-empty{padding:44px 20px;text-align:center;color:var(--muted);background:#fff;border-radius:var(--radius-md);border:1px dashed var(--border);font-size:13px}
 
-    .net-icon{width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px}
+    .net-icon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:6px}
 
     /* Modal */
     .modal-backdrop{position:fixed;inset:0;background:rgba(15,20,35,0.45);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
@@ -251,25 +251,11 @@
             <label class="field-gap">Meta semanal de vídeos</label>
             <input id="sWeekVideos" type="number" min="0" max="20" />
             <hr />
-            <label style="font-weight:600">Tipografia</label>
-            <div style="display:flex;gap:8px;align-items:center">
-              <div style="display:flex;flex-direction:column">
-                <label style="font-size:12px">Fonte</label>
-                <select id="sFontFamily"><option value="Poppins">Poppins</option><option value="Inter">Inter</option><option value="system">System</option></select>
-              </div>
-              <div style="display:flex;flex-direction:column">
-                <label style="font-size:12px">Peso título</label>
-                <select id="sTitleWeight"><option>400</option><option>500</option><option selected>600</option><option>700</option></select>
-              </div>
-              <div style="display:flex;flex-direction:column">
-                <label style="font-size:12px">Tamanho título</label>
-                <input id="sTitleSize" type="number" min="10" max="18" value="13" style="width:64px" />
-              </div>
-            </div>
-            <hr />
             <label style="font-weight:600">Redes</label>
+            <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Ícone e cor usados nos cards do calendário.</div>
             <div style="display:flex;gap:8px;align-items:center">
               <input id="newNetInput" placeholder="Nova rede" />
+              <input id="newNetColor" type="color" value="#7c3aed" />
               <button id="addNetBtn" class="btn ghost">Adicionar</button>
             </div>
             <div id="netsList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
@@ -286,6 +272,7 @@
             </div>
             <div id="placesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
             <label style="font-weight:600">Status (fluxo de produção)</label>
+            <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Cor de cada etapa — aparece na barra lateral dos cards.</div>
             <div style="display:flex;gap:8px;align-items:center">
               <input id="newStatusInput" placeholder="Novo status" />
               <input id="newStatusColor" type="color" value="#7c3aed" />
@@ -379,6 +366,14 @@
     function statusColor(name){
       const s = APP_SETTINGS.statuses.find(x=>x.name===name);
       return (s && s.color) || '#94a3b8';
+    }
+    function networkColor(name){
+      const n = (APP_SETTINGS.networks||[]).find(x=>x.name===name);
+      if(n && n.color) return n.color;
+      return tagColor(name, (APP_SETTINGS.networks||[]).map(x=>x.name));
+    }
+    function networkIcon(name){
+      return ICONS[name] || `<span class="dot" style="background:${networkColor(name)}"></span>`;
     }
 
     function toggleSelectMode(){
@@ -525,17 +520,16 @@
     function createEventElement(p){
       const div = document.createElement('div'); div.className='event'; div.setAttribute('draggable','true'); div.dataset.id = p.id;
       const stColor = statusColor(p.status);
-      const icon = ICONS[p.channel] || '';
+      const icon = networkIcon(p.channel);
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
-      const places = Array.isArray(p.place)?p.place:[p.place].filter(Boolean);
+      const placeText = Array.isArray(p.place)?p.place.join('/'):(p.place||'');
       const tagsHtml = [
-        p.status ? `<span class="tag" style="${tagStyle(stColor)}">${escapeHtml(p.status)}</span>` : '',
         ...eds.map(e=>`<span class="tag" style="${tagStyle(tagColor(e, APP_SETTINGS.editorias))}">${escapeHtml(e)}</span>`),
-        ...places.map(pl=>`<span class="tag tag--outline">${escapeHtml(pl)}</span>`),
         (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : '',
         p.collab ? `<span class="tag tag--collab">Collab</span>` : ''
       ].filter(Boolean).join('');
       const productText = p.productCode ? `${escapeHtml(p.productCode)} ${escapeHtml(p.productName||'')}` : '';
+      div.title = [p.status, placeText].filter(Boolean).join(' · ');
       div.innerHTML = `<div class="event-bar" style="background:${stColor}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${escapeHtml(p.channel||'')}</span></div>${tagsHtml?`<div class="event-tags">${tagsHtml}</div>`:''}<div class="meta">${productText?escapeHtml(productText):''}</div></div>`;
       div.addEventListener('dragstart', (ev)=>{ ev.dataTransfer.setData('text/plain', p.id); div.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; });
       div.addEventListener('dragend', ()=>{ div.classList.remove('dragging'); });
@@ -547,7 +541,7 @@
     function createListRow(p){
       const row = document.createElement('div'); row.className='list-row'; row.dataset.id = p.id;
       const stColor = statusColor(p.status);
-      const icon = ICONS[p.channel] || '';
+      const icon = networkIcon(p.channel);
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
       const tagsHtml = [
         ...eds.map(e=>`<span class="tag" style="${tagStyle(tagColor(e, APP_SETTINGS.editorias))}">${escapeHtml(e)}</span>`),
@@ -605,7 +599,7 @@
       filtered.forEach(p=>{ postsMap[p.date] = postsMap[p.date] || []; postsMap[p.date].push(p); });
 
       // render per cell with limit and more-badge
-      const maxVisible = 2;
+      const maxVisible = 3;
       document.querySelectorAll('.day[data-date]').forEach(cell=>{
         const date = cell.dataset.date;
         const postsEl = cell.querySelector('.posts');
@@ -745,11 +739,18 @@
       state.posts.forEach(p=>{ if(!p.id) p.id = generateId(); if(!p.status) p.status = defaultStatus; });
     }
 
-    // app settings persistence (networks, editorias, places, typography, targets)
+    // app settings persistence (networks, editorias, places, statuses, targets)
+    const BRAND_COLORS = { Instagram:'#7c3aed', Twitter:'#1DA1F2', LinkedIn:'#0A66C2', Blog:'#ef4444', Email:'#374151' };
     const DEFAULT_SETTINGS = {
       TARGET: 3,
       WEEK_VIDEO_TARGET: 3,
-      networks: ['Instagram','Twitter','LinkedIn','Blog','Email'],
+      networks: [
+        { name:'Instagram', color:'#7c3aed' },
+        { name:'Twitter', color:'#1DA1F2' },
+        { name:'LinkedIn', color:'#0A66C2' },
+        { name:'Blog', color:'#ef4444' },
+        { name:'Email', color:'#374151' }
+      ],
       editorias: ['Informativo','Destaques','Lançamentos','Dica VONDER'],
       places: ['Feed','Story'],
       statuses: [
@@ -757,8 +758,7 @@
         { name:'Em produção', color:'#f59e0b' },
         { name:'Aprovado', color:'#10b981' },
         { name:'Agendado', color:'#6366f1' }
-      ],
-      typography: { fontFamily: "Poppins", titleWeight: 600, titleSize: 13 }
+      ]
     };
     let APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
 
@@ -772,22 +772,15 @@
     function loadSettings(){
       const raw = localStorage.getItem('calendar_settings_v1');
       if(raw){ try{ const s = JSON.parse(raw); APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS, s||{}); if(!APP_SETTINGS.statuses || !APP_SETTINGS.statuses.length) APP_SETTINGS.statuses = DEFAULT_SETTINGS.statuses.slice(); TARGET = APP_SETTINGS.TARGET || TARGET; WEEK_VIDEO_TARGET = APP_SETTINGS.WEEK_VIDEO_TARGET || WEEK_VIDEO_TARGET; }catch(e){ APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS); } }
-      // apply typography immediately
-      applyTypographySettings();
-    }
-
-    function applyTypographySettings(){
-      const t = APP_SETTINGS.typography || DEFAULT_SETTINGS.typography;
-      document.documentElement.style.setProperty('--event-title-weight', t.titleWeight || 600);
-      document.documentElement.style.setProperty('--event-font-size', (t.titleSize||13)+'px');
-      if(t.fontFamily) document.documentElement.style.setProperty('--base-font-family', t.fontFamily + ",Inter,Segoe UI,Arial,sans-serif");
+      // migrate legacy string-based networks to {name,color}
+      APP_SETTINGS.networks = (APP_SETTINGS.networks||[]).map((n,i)=> typeof n === 'string' ? { name:n, color: BRAND_COLORS[n] || TAG_PALETTE[i % TAG_PALETTE.length] } : n);
     }
 
     // dynamic UI rendering for lists
     function renderTabs(){
       const tabs = $('tabs'); tabs.innerHTML = '';
       const allBtn = document.createElement('button'); allBtn.className='btn ghost'; allBtn.dataset.tab='All'; allBtn.id='tabAll'; allBtn.textContent='Todas'; tabs.appendChild(allBtn);
-      APP_SETTINGS.networks.forEach(n=>{ const b = document.createElement('button'); b.className='btn ghost'; b.dataset.tab = n; b.textContent = n; tabs.appendChild(b); });
+      APP_SETTINGS.networks.forEach(n=>{ const b = document.createElement('button'); b.className='btn ghost'; b.dataset.tab = n.name; b.textContent = n.name; tabs.appendChild(b); });
       // wire buttons
       tabs.querySelectorAll('button').forEach(b=>{ b.addEventListener('click', ()=>{ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); b.classList.remove('ghost'); activeTab = b.dataset.tab; render(); }); });
       // ensure active class
@@ -796,9 +789,9 @@
 
     function renderNetsUI(){
       // modal nets
-      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n)}" /> <span class="net-icon"></span>${escapeHtml(n)}`; c.appendChild(lbl); }); }
+      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n.name)}" /> <span class="net-icon">${networkIcon(n.name)}</span>${escapeHtml(n.name)}`; c.appendChild(lbl); }); }
       // settings list
-      const list = $('netsList'); if(list){ list.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const chip = document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `${escapeHtml(n)} <button class="btn ghost small" data-net="${escapeHtml(n)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover rede">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-net]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.net; APP_SETTINGS.networks = APP_SETTINGS.networks.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
+      const list = $('netsList'); if(list){ list.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const chip = document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${n.color}"></span>${escapeHtml(n.name)} <button class="btn ghost small" data-net="${escapeHtml(n.name)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover rede">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-net]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.net; APP_SETTINGS.networks = APP_SETTINGS.networks.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
     }
 
     function renderEditoriasUI(){
@@ -827,10 +820,6 @@
     function openSettings(){
       $('sTarget').value = TARGET;
       $('sWeekVideos').value = WEEK_VIDEO_TARGET;
-      // typography defaults
-      if($('sFontFamily')) $('sFontFamily').value = (APP_SETTINGS.typography && APP_SETTINGS.typography.fontFamily) || DEFAULT_SETTINGS.typography.fontFamily;
-      if($('sTitleWeight')) $('sTitleWeight').value = (APP_SETTINGS.typography && APP_SETTINGS.typography.titleWeight) || DEFAULT_SETTINGS.typography.titleWeight;
-      if($('sTitleSize')) $('sTitleSize').value = (APP_SETTINGS.typography && APP_SETTINGS.typography.titleSize) || DEFAULT_SETTINGS.typography.titleSize;
       $('settingsBackdrop').style.display = 'flex';
     }
 
@@ -840,14 +829,6 @@
       const t = parseInt($('sTarget').value,10) || TARGET;
       const w = parseInt($('sWeekVideos').value,10) || WEEK_VIDEO_TARGET;
       TARGET = t; WEEK_VIDEO_TARGET = w;
-      // typography
-      try{
-        const ff = $('sFontFamily') ? $('sFontFamily').value : (APP_SETTINGS.typography && APP_SETTINGS.typography.fontFamily);
-        const tw = $('sTitleWeight') ? parseInt($('sTitleWeight').value,10) : APP_SETTINGS.typography.titleWeight;
-        const ts = $('sTitleSize') ? parseInt($('sTitleSize').value,10) : APP_SETTINGS.typography.titleSize;
-        APP_SETTINGS.typography = { fontFamily: ff, titleWeight: tw, titleSize: ts };
-        applyTypographySettings();
-      }catch(e){}
       saveSettings(); buildCalendar(); render(); closeSettings();
     }
 
@@ -1180,7 +1161,7 @@
     loadSettings();
     renderAllDynamicUI();
     // wire add buttons
-    if($('addNetBtn')) $('addNetBtn').addEventListener('click', ()=>{ const v=$('newNetInput').value.trim(); if(!v) return; APP_SETTINGS.networks.push(v); $('newNetInput').value=''; saveSettings(); renderAllDynamicUI(); });
+    if($('addNetBtn')) $('addNetBtn').addEventListener('click', ()=>{ const v=$('newNetInput').value.trim(); if(!v) return; const c = $('newNetColor') ? $('newNetColor').value : '#7c3aed'; APP_SETTINGS.networks.push({name:v, color:c}); $('newNetInput').value=''; saveSettings(); renderAllDynamicUI(); });
     if($('addEditoriaBtn')) $('addEditoriaBtn').addEventListener('click', ()=>{ const v=$('newEditoriaInput').value.trim(); if(!v) return; APP_SETTINGS.editorias.push(v); $('newEditoriaInput').value=''; saveSettings(); renderAllDynamicUI(); });
     if($('addPlaceBtn')) $('addPlaceBtn').addEventListener('click', ()=>{ const v=$('newPlaceInput').value.trim(); if(!v) return; APP_SETTINGS.places.push(v); $('newPlaceInput').value=''; saveSettings(); renderAllDynamicUI(); });
     loadState();
