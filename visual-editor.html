@@ -410,7 +410,11 @@
     function productImageUrl(code){
       const digits = String(code||'').replace(/\D/g,'');
       if(!digits) return '';
-      return `https://www.vonder.com.br/estatico/vonder/temp/320_${digits}.jpg`;
+      // Vonder's static image host blocks cross-site <img> embeds (hotlink protection
+      // beyond a simple Referer check — no-referrer alone didn't get past it). Route
+      // through a public image proxy that fetches it server-side instead.
+      const origin = `www.vonder.com.br/estatico/vonder/temp/320_${digits}.jpg`;
+      return `https://images.weserv.nl/?url=${encodeURIComponent(origin)}`;
     }
 
     function hideProductSuggestions(){
