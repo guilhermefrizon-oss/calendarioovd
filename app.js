@@ -221,7 +221,7 @@
 
       const tags = [];
       if(status) tags.push(`<span class="tag" style="${tagStyle(stColor)}">${escapeHtml(status)}</span>`);
-      editorias.forEach(ed=> tags.push(`<span class="tag" style="${tagStyle(tagColor(ed, editoriaNames()))}">${escapeHtml(ed)}</span>`));
+      editorias.forEach(ed=> tags.push(`<span class="tag" style="${tagStyle(editoriaColor(ed))}">${escapeHtml(ed)}</span>`));
       nets.forEach(n=> tags.push(`<span class="tag tag--outline">${networkIcon(n)} ${escapeHtml(n)}</span>`));
       if(type==='Video') tags.push(`<span class="tag tag--outline">🎬 Vídeo</span>`);
       if(collab) tags.push(`<span class="tag tag--collab">Collab</span>`);
@@ -574,7 +574,7 @@
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
       const placeText = Array.isArray(p.place)?p.place.join('/'):(p.place||'');
       const tagsHtml = [
-        ...eds.map(e=>`<span class="tag" style="${tagStyle(tagColor(e, editoriaNames()))}">${escapeHtml(e)}</span>`),
+        ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
         (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : '',
         p.collab ? `<span class="tag tag--collab">Collab</span>` : ''
       ].filter(Boolean).join('');
@@ -615,7 +615,7 @@
       const icon = networkIcon(p.channel);
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
       const tagsHtml = [
-        ...eds.map(e=>`<span class="tag" style="${tagStyle(tagColor(e, editoriaNames()))}">${escapeHtml(e)}</span>`),
+        ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
         p.collab ? `<span class="tag tag--collab">Collab</span>` : '',
         (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : ''
       ].filter(Boolean).join('');
@@ -889,7 +889,10 @@
         { name:'Email', shortName:'EM', color:'#374151', formats: NETWORK_DEFAULT_FORMATS.Email.map(f=>Object.assign({},f)) }
       ],
       editorias: [
-        { name:'Informativo' }, { name:'Destaques' }, { name:'Lançamentos' }, { name:'Dica VONDER' }
+        { name:'Informativo', color:'#7c3aed' },
+        { name:'Destaques', color:'#0284c7' },
+        { name:'Lançamentos', color:'#16a34a' },
+        { name:'Dica VONDER', color:'#b45309' }
       ],
       statuses: [
         { name:'Rascunho', color:'#94a3b8' },
@@ -1695,11 +1698,21 @@
         });
       });
       delete APP_SETTINGS.places;
-      // migra o formato antigo de editorias (string simples) para {name, schedule?}
+      // migra o formato antigo de editorias (string simples) para {name, schedule?} e garante
+      // que cada uma tenha cor própria — as antigas recebem a mesma cor por índice da paleta
+      // que já exibiam antes, então nada muda visualmente para quem já usava
       APP_SETTINGS.editorias = (APP_SETTINGS.editorias||[]).map(e=> typeof e === 'string' ? { name:e } : e);
+      APP_SETTINGS.editorias.forEach((e,i)=>{ if(!e.color) e.color = TAG_PALETTE[i % TAG_PALETTE.length]; });
     }
     // nomes das editorias como lista de strings — usado onde é preciso comparar/colorir por nome
     function editoriaNames(){ return APP_SETTINGS.editorias.map(e=>e.name); }
+    // cor da editoria pelo nome; para nomes fora do cadastro (ex: posts antigos de uma
+    // editoria removida) mantém o fallback por índice da paleta
+    function editoriaColor(name){
+      const e = APP_SETTINGS.editorias.find(x=>x.name===name);
+      if(e && e.color) return e.color;
+      return tagColor(name, editoriaNames());
+    }
 
     // ============================================================
     // FORMATOS POR REDE — cada rede social tem seu próprio conjunto de formatos
@@ -1742,6 +1755,8 @@
     let openNetworkFormats = null;
     // nome da rede cujos campos (nome/nome curto/cor) estão em modo de edição — mesma lógica de persistência
     let editingNetworkName = null;
+    // nome da editoria atualmente em modo de edição inline na tela de Configurações (ou null)
+    let editingEditoriaName = null;
 
     function renderNetsUI(){
       // checkboxes de rede dentro do modal de criar/editar postagem — mudar a rede também
@@ -1874,9 +1889,8 @@
     }
 
     function renderEditoriasUI(){
-      const names = editoriaNames();
-      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e.name)}" /> <span class="dot" style="background:${tagColor(e.name, names)}"></span>${escapeHtml(e.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
-      const fc = $('filterEditoriasContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fEditoria" value="${escapeHtml(e.name)}"/> <span class="dot" style="background:${tagColor(e.name, names)}"></span>${escapeHtml(e.name)}`; fc.appendChild(lbl); }); }
+      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e.name)}" /> <span class="dot" style="background:${editoriaColor(e.name)}"></span>${escapeHtml(e.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
+      const fc = $('filterEditoriasContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fEditoria" value="${escapeHtml(e.name)}"/> <span class="dot" style="background:${editoriaColor(e.name)}"></span>${escapeHtml(e.name)}`; fc.appendChild(lbl); }); }
 
       // toggles de dias fixos + campos de template, usados ao criar uma nova editoria com agendamento
       const wd = $('newEditoriaWeekdays');
@@ -1896,17 +1910,56 @@
       if(netSel) netSel.innerHTML = APP_SETTINGS.networks.map(n=>`<option value="${escapeHtml(n.name)}">${escapeHtml(n.name)}</option>`).join('');
       refreshNewEditoriaPlaceOptions();
 
+      // lista de editorias cadastradas — mesmo padrão visual/de edição das redes: modo de
+      // visualização (bolinha colorida + nome) e, pelo lápis, modo de edição inline com
+      // seletor de cor e renomear (o renome cascateia para as postagens existentes)
       const list = $('editoriasList');
       if(list){
         list.innerHTML='';
         APP_SETTINGS.editorias.forEach(e=>{
           const row = document.createElement('div');
-          row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+          row.className = 'net-row';
           const scheduleLabel = e.schedule ? e.schedule.weekdays.slice().sort().map(d=>WEEKDAY_ABBR[d]).join(', ') : '';
-          row.innerHTML = `<span class="chip" style="display:inline-flex"><span class="dot" style="background:${tagColor(e.name, names)}"></span>${escapeHtml(e.name)}</span>` +
-            (e.schedule ? `<span class="chip" style="font-size:11px" title="Repete em dias fixos">📅 ${escapeHtml(scheduleLabel)} · ${escapeHtml(e.schedule.channel)}</span><button class="btn ghost small" data-apply="${escapeHtml(e.name)}">Aplicar ao mês visível</button>` : '') +
-            `<button class="btn ghost small" data-editoria="${escapeHtml(e.name)}" aria-label="Remover editoria">✕</button>`;
+          row.innerHTML = `
+            <div class="net-row-head">
+              <span class="net-view">
+                <span class="dot" style="background:${e.color}"></span>
+                <span class="net-view-name">${escapeHtml(e.name)}</span>
+              </span>
+              <div class="net-edit-fields">
+                <input type="color" class="ed-edit-color" value="${e.color||'#7c3aed'}" title="Cor da editoria" style="flex-shrink:0" />
+                <input type="text" class="ed-edit-name" value="${escapeHtml(e.name)}" title="Nome da editoria" style="flex:2;min-width:110px" />
+              </div>` +
+            (e.schedule ? `<span class="chip" style="font-size:11px" title="Repete em dias fixos">📅 ${escapeHtml(scheduleLabel)} · ${escapeHtml(e.schedule.channel)}</span><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}">Aplicar ao mês visível</button>` : '') +
+            `<button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome/cor">✏️</button>
+              <button type="button" class="btn ghost small" data-editoria="${escapeHtml(e.name)}" aria-label="Remover editoria">✕</button>
+            </div>`;
           list.appendChild(row);
+          if(editingEditoriaName === e.name) row.classList.add('editing');
+
+          row.querySelector('.ed-edit-toggle').addEventListener('click', ()=>{
+            editingEditoriaName = (editingEditoriaName === e.name) ? null : e.name;
+            row.classList.toggle('editing');
+          });
+
+          // edita a cor da editoria
+          row.querySelector('.ed-edit-color').addEventListener('change', (ev)=>{ e.color = ev.target.value; saveSettings(); renderAllDynamicUI(); render(); });
+
+          // edita o nome — como o nome é referenciado nas postagens (post.editoria) e nos
+          // filtros ativos, renomear atualiza essas referências também
+          const nameInput = row.querySelector('.ed-edit-name');
+          nameInput.addEventListener('change', ()=>{
+            const newName = nameInput.value.trim();
+            if(!newName || newName === e.name){ nameInput.value = e.name; return; }
+            if(APP_SETTINGS.editorias.some(x=>x!==e && x.name===newName)){ alert('Já existe uma editoria com esse nome.'); nameInput.value = e.name; return; }
+            const oldName = e.name;
+            e.name = newName;
+            state.posts.forEach(p=>{ if(Array.isArray(p.editoria)){ p.editoria = p.editoria.map(x=> x===oldName ? newName : x); } else if(p.editoria===oldName){ p.editoria = newName; } });
+            filters.editorias = filters.editorias.map(x=> x===oldName ? newName : x);
+            if(editingEditoriaName===oldName) editingEditoriaName = newName;
+            saveState(); saveSettings(); renderAllDynamicUI(); render();
+          });
+          nameInput.addEventListener('keydown', ev=>{ if(ev.key==='Enter') nameInput.blur(); });
         });
         list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.editoria; APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); }));
         list.querySelectorAll('button[data-apply]').forEach(bt=> bt.addEventListener('click', ()=> applyEditoriaSchedule(bt.dataset.apply)));
@@ -2488,7 +2541,7 @@
       const v=$('newEditoriaInput').value.trim(); if(!v){ alert('Digite o nome da editoria.'); return; }
       if(APP_SETTINGS.editorias.some(x=>x.name===v)){ alert('Já existe uma editoria com esse nome.'); return; }
       const weekdays = Array.from(document.querySelectorAll('.newEdWeekday:checked')).map(el=>parseInt(el.value,10));
-      const entry = { name: v };
+      const entry = { name: v, color: $('newEditoriaColor') ? $('newEditoriaColor').value : '#7c3aed' };
       if(weekdays.length>0){
         const netEl = $('newEditoriaNet'), placeEl = $('newEditoriaPlace'), typeEl = $('newEditoriaType');
         const channel = netEl && netEl.value ? netEl.value : (APP_SETTINGS.networks[0] && APP_SETTINGS.networks[0].name);

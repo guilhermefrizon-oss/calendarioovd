@@ -183,7 +183,10 @@
                 <div id="newEditoriaForm" style="display:none;flex-direction:column;gap:8px;margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-muted)">
                   <div>
                     <label>Nome da editoria</label>
-                    <input id="newEditoriaInput" type="text" placeholder="Ex: Destaques" />
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <input id="newEditoriaInput" type="text" placeholder="Ex: Destaques" />
+                      <input id="newEditoriaColor" type="color" value="#7c3aed" title="Cor da etiqueta" />
+                    </div>
                   </div>
                   <div>
                     <label>Datas de publicação</label>
