@@ -302,8 +302,10 @@
             </div>
             <div id="netsList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
             <label style="font-weight:600">Editorias</label>
+            <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Cor usada nas etiquetas de editoria dos cards.</div>
             <div style="display:flex;gap:8px;align-items:center">
               <input id="newEditoriaInput" placeholder="Nova editoria" />
+              <input id="newEditoriaColor" type="color" value="#7c3aed" />
               <button id="addEditoriaBtn" class="btn ghost">Adicionar</button>
             </div>
             <div id="editoriasList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
@@ -452,6 +454,11 @@
       const s = APP_SETTINGS.statuses.find(x=>x.name===name);
       return (s && s.color) || '#94a3b8';
     }
+    function editoriaColor(name){
+      const e = (APP_SETTINGS.editorias||[]).find(x=>x.name===name);
+      if(e && e.color) return e.color;
+      return tagColor(name, (APP_SETTINGS.editorias||[]).map(x=>x.name));
+    }
     function networkColor(name){
       const n = (APP_SETTINGS.networks||[]).find(x=>x.name===name);
       if(n && n.color) return n.color;
@@ -590,7 +597,7 @@
 
       const tags = [];
       if(status) tags.push(`<span class="tag" style="${tagStyle(stColor)}">${escapeHtml(status)}</span>`);
-      editorias.forEach(ed=> tags.push(`<span class="tag" style="${tagStyle(tagColor(ed, APP_SETTINGS.editorias))}">${escapeHtml(ed)}</span>`));
+      editorias.forEach(ed=> tags.push(`<span class="tag" style="${tagStyle(editoriaColor(ed))}">${escapeHtml(ed)}</span>`));
       nets.forEach(n=> tags.push(`<span class="tag tag--outline">${networkIcon(n)} ${escapeHtml(n)}</span>`));
       if(type==='Video') tags.push(`<span class="tag tag--outline">🎬 Vídeo</span>`);
       if(collab) tags.push(`<span class="tag tag--collab">Collab</span>`);
@@ -787,7 +794,7 @@
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
       const placeText = Array.isArray(p.place)?p.place.join('/'):(p.place||'');
       const tagsHtml = [
-        ...eds.map(e=>`<span class="tag" style="${tagStyle(tagColor(e, APP_SETTINGS.editorias))}">${escapeHtml(e)}</span>`),
+        ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
         (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : '',
         p.collab ? `<span class="tag tag--collab">Collab</span>` : ''
       ].filter(Boolean).join('');
@@ -808,7 +815,7 @@
       const icon = networkIcon(p.channel);
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
       const tagsHtml = [
-        ...eds.map(e=>`<span class="tag" style="${tagStyle(tagColor(e, APP_SETTINGS.editorias))}">${escapeHtml(e)}</span>`),
+        ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
         p.collab ? `<span class="tag tag--collab">Collab</span>` : '',
         (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : ''
       ].filter(Boolean).join('');
@@ -1017,7 +1024,12 @@
         { name:'Blog', color:'#ef4444' },
         { name:'Email', color:'#374151' }
       ],
-      editorias: ['Informativo','Destaques','Lançamentos','Dica VONDER'],
+      editorias: [
+        { name:'Informativo', color:'#7c3aed' },
+        { name:'Destaques', color:'#0284c7' },
+        { name:'Lançamentos', color:'#16a34a' },
+        { name:'Dica VONDER', color:'#b45309' }
+      ],
       places: ['Feed','Story'],
       statuses: [
         { name:'Rascunho', color:'#94a3b8' },
@@ -1067,8 +1079,9 @@
     function loadSettings(){
       const raw = localStorage.getItem('calendar_settings_v1');
       if(raw){ try{ const s = JSON.parse(raw); APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS, s||{}); if(!APP_SETTINGS.statuses || !APP_SETTINGS.statuses.length) APP_SETTINGS.statuses = DEFAULT_SETTINGS.statuses.slice(); TARGET = APP_SETTINGS.TARGET || TARGET; WEEK_VIDEO_TARGET = APP_SETTINGS.WEEK_VIDEO_TARGET || WEEK_VIDEO_TARGET; }catch(e){ APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS); } }
-      // migrate legacy string-based networks to {name,color}
+      // migrate legacy string-based networks/editorias to {name,color}
       APP_SETTINGS.networks = (APP_SETTINGS.networks||[]).map((n,i)=> typeof n === 'string' ? { name:n, color: BRAND_COLORS[n] || TAG_PALETTE[i % TAG_PALETTE.length] } : n);
+      APP_SETTINGS.editorias = (APP_SETTINGS.editorias||[]).map((e,i)=> typeof e === 'string' ? { name:e, color: TAG_PALETTE[i % TAG_PALETTE.length] } : e);
     }
 
     // dynamic UI rendering for lists
@@ -1090,9 +1103,9 @@
     }
 
     function renderEditoriasUI(){
-      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e)}" /> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
-      const fc = $('filterEditoriasContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fEditoria" value="${escapeHtml(e)}"/> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; fc.appendChild(lbl); }); }
-      const list = $('editoriasList'); if(list){ list.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)} <button class="btn ghost small" data-editoria="${escapeHtml(e)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover editoria">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.editoria; APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
+      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e.name)}" /> <span class="dot" style="background:${e.color}"></span>${escapeHtml(e.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
+      const fc = $('filterEditoriasContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fEditoria" value="${escapeHtml(e.name)}"/> <span class="dot" style="background:${e.color}"></span>${escapeHtml(e.name)}`; fc.appendChild(lbl); }); }
+      const list = $('editoriasList'); if(list){ list.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${e.color}"></span>${escapeHtml(e.name)} <button class="btn ghost small" data-editoria="${escapeHtml(e.name)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover editoria">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.editoria; APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
     }
 
     function renderPlacesUI(){
@@ -1505,7 +1518,7 @@
     renderAllDynamicUI();
     // wire add buttons
     if($('addNetBtn')) $('addNetBtn').addEventListener('click', ()=>{ const v=$('newNetInput').value.trim(); if(!v) return; const c = $('newNetColor') ? $('newNetColor').value : '#7c3aed'; APP_SETTINGS.networks.push({name:v, color:c}); $('newNetInput').value=''; saveSettings(); renderAllDynamicUI(); });
-    if($('addEditoriaBtn')) $('addEditoriaBtn').addEventListener('click', ()=>{ const v=$('newEditoriaInput').value.trim(); if(!v) return; APP_SETTINGS.editorias.push(v); $('newEditoriaInput').value=''; saveSettings(); renderAllDynamicUI(); });
+    if($('addEditoriaBtn')) $('addEditoriaBtn').addEventListener('click', ()=>{ const v=$('newEditoriaInput').value.trim(); if(!v) return; const c = $('newEditoriaColor') ? $('newEditoriaColor').value : '#7c3aed'; APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x.name!==v); APP_SETTINGS.editorias.push({name:v, color:c}); $('newEditoriaInput').value=''; saveSettings(); renderAllDynamicUI(); });
     if($('addPlaceBtn')) $('addPlaceBtn').addEventListener('click', ()=>{ const v=$('newPlaceInput').value.trim(); if(!v) return; APP_SETTINGS.places.push(v); $('newPlaceInput').value=''; saveSettings(); renderAllDynamicUI(); });
     loadState();
     // Build calendar and add sample posts if empty
