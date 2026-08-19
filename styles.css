@@ -203,6 +203,13 @@
     /* Linha de rede social (dentro de Configurações > Redes), com seus formatos em um sub-dropdown */
     .net-row{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
     .net-row-head{display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--card);flex-wrap:wrap}
+    /* exibição normal (somente leitura) vs. campos editáveis — só um dos dois aparece por vez */
+    .net-view{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+    .net-view-name{font-weight:600;color:var(--text)}
+    .net-view-short{color:var(--text-faint)}
+    .net-edit-fields{display:none;align-items:center;gap:6px;flex:1;min-width:0}
+    .net-row.editing .net-view{display:none}
+    .net-row.editing .net-edit-fields{display:flex}
     .net-row-formats-toggle{flex-shrink:0;background:transparent;border:1px solid var(--border);border-radius:999px;padding:4px 9px;font-size:11.5px;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap}
     .net-row-formats-toggle:hover{color:var(--text);border-color:var(--border-strong)}
     .net-row-formats{display:none;flex-direction:column;gap:8px;padding:10px;border-top:1px solid var(--border);background:var(--surface-muted)}

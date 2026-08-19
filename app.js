@@ -1740,6 +1740,8 @@
     // nome da rede cujo sub-dropdown de formatos está aberto em Configurações (persiste entre
     // re-renders, já que qualquer alteração nas configurações reconstrói a lista inteira)
     let openNetworkFormats = null;
+    // nome da rede cujos campos (nome/nome curto/cor) estão em modo de edição — mesma lógica de persistência
+    let editingNetworkName = null;
 
     function renderNetsUI(){
       // checkboxes de rede dentro do modal de criar/editar postagem — mudar a rede também
@@ -1758,10 +1760,18 @@
           const formatsSummary = (n.formats||[]).map(f=>f.name).join(', ') || 'nenhum';
           row.innerHTML = `
             <div class="net-row-head">
-              <input type="color" class="net-edit-color" value="${n.color||'#7c3aed'}" title="Cor da rede" style="flex-shrink:0" />
-              <input type="text" class="net-edit-name" value="${escapeHtml(n.name)}" title="Nome da rede" style="flex:2;min-width:110px" />
-              <input type="text" class="net-edit-short" value="${escapeHtml(n.shortName||'')}" maxlength="4" title="Nome curto" placeholder="Curto" style="flex:0 0 64px" />
+              <span class="net-view">
+                <span class="dot" style="background:${n.color}"></span>
+                <span class="net-view-name">${escapeHtml(n.name)}</span>
+                ${n.shortName?`<span class="net-view-short">(${escapeHtml(n.shortName)})</span>`:''}
+              </span>
+              <div class="net-edit-fields">
+                <input type="color" class="net-edit-color" value="${n.color||'#7c3aed'}" title="Cor da rede" style="flex-shrink:0" />
+                <input type="text" class="net-edit-name" value="${escapeHtml(n.name)}" title="Nome da rede" style="flex:2;min-width:110px" />
+                <input type="text" class="net-edit-short" value="${escapeHtml(n.shortName||'')}" maxlength="4" title="Nome curto" placeholder="Curto" style="flex:0 0 64px" />
+              </div>
               <button type="button" class="net-row-formats-toggle">Formatos: ${escapeHtml(formatsSummary)} <span class="settings-caret">▾</span></button>
+              <button type="button" class="btn ghost small net-edit-toggle" aria-label="Editar rede" title="Editar nome/nome curto/cor">✏️</button>
               <button type="button" class="btn ghost small net-remove-btn" aria-label="Remover rede">✕</button>
             </div>
             <div class="net-row-formats">
@@ -1776,6 +1786,7 @@
             </div>`;
           list.appendChild(row);
           if(openNetworkFormats === n.name) row.classList.add('open');
+          if(editingNetworkName === n.name) row.classList.add('editing');
 
           // linhas com os formatos já cadastrados dessa rede (com botão de remover cada um)
           const fmtList = row.querySelector('.net-row-formats-list');
@@ -1802,6 +1813,12 @@
           // remove a rede inteira
           row.querySelector('.net-remove-btn').addEventListener('click', ()=>{ APP_SETTINGS.networks = APP_SETTINGS.networks.filter(x=>x.name!==n.name); saveSettings(); renderAllDynamicUI(); });
 
+          // lápis: alterna entre a exibição normal e os campos editáveis (nome/nome curto/cor)
+          row.querySelector('.net-edit-toggle').addEventListener('click', ()=>{
+            editingNetworkName = (editingNetworkName === n.name) ? null : n.name;
+            row.classList.toggle('editing');
+          });
+
           // edita o nome da rede — como o nome é usado como referência em postagens (post.channel) e
           // agendamentos de editoria, renomear atualiza essas referências também
           const nameInput = row.querySelector('.net-edit-name');
@@ -1814,6 +1831,7 @@
             state.posts.forEach(p=>{ if(p.channel===oldName) p.channel = newName; });
             APP_SETTINGS.editorias.forEach(e=>{ if(e.schedule && e.schedule.channel===oldName) e.schedule.channel = newName; });
             if(openNetworkFormats===oldName) openNetworkFormats = newName;
+            if(editingNetworkName===oldName) editingNetworkName = newName;
             saveState(); saveSettings(); renderAllDynamicUI(); render();
           });
           nameInput.addEventListener('keydown', ev=>{ if(ev.key==='Enter') nameInput.blur(); });
