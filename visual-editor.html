@@ -144,9 +144,14 @@
     .autocomplete-item .ac-name{flex:1;line-height:1.25;font-size:12.5px;color:var(--text)}
     .autocomplete-item .ac-code{font-size:10.5px;color:var(--muted);flex-shrink:0}
     .autocomplete-empty{padding:10px 8px;font-size:12px;color:var(--muted)}
-    .product-preview{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)}
-    .product-preview img{width:36px;height:36px;object-fit:contain;border-radius:6px;background:#fff;border:1px solid var(--border)}
-    .product-preview span{font-size:11px;color:var(--muted)}
+    .autocomplete-item.ac-manual .ac-name{color:var(--accent);font-weight:600}
+    .selected-products{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+    .product-chip{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-muted)}
+    .product-chip img{width:26px;height:26px;object-fit:contain;border-radius:5px;background:#fff;border:1px solid var(--border);flex-shrink:0}
+    .product-chip .pc-name{flex:1;font-size:12.5px;color:var(--text)}
+    .product-chip .pc-code{font-size:10.5px;color:var(--muted);flex-shrink:0}
+    .product-chip .pc-remove{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;flex-shrink:0;font-family:inherit}
+    .product-chip .pc-remove:hover{background:var(--border);color:var(--text)}
   </style>
 </head>
 <body>
@@ -324,17 +329,12 @@
             <div id="mPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
             <label class="field-gap">Editoria</label>
             <div id="editoriasContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-            <label class="field-gap">Nome do produto</label>
+            <label class="field-gap">Produto(s)</label>
             <div class="autocomplete-wrap">
               <input id="mProductName" type="text" placeholder="Digite para buscar no catálogo Vonder..." autocomplete="off" />
               <div id="productSuggestions" class="autocomplete-list"></div>
             </div>
-            <div id="productPreview" class="product-preview" style="display:none">
-              <img id="productPreviewImg" alt="" referrerpolicy="no-referrer" />
-              <span id="productPreviewCode"></span>
-            </div>
-            <label class="field-gap">Código do produto</label>
-            <input id="mProductCode" type="text" />
+            <div id="selectedProductsList" class="selected-products"></div>
             <label class="field-gap">Tipo</label>
             <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="mType" value="Static" checked /> Estático</label><label class="chip"><input type="radio" name="mType" value="Video" /> Vídeo</label></div>
             <label class="field-gap">Status</label>
@@ -377,6 +377,8 @@
     // selection / bulk edit
     let selectMode = false;
     const selectedIds = new Set();
+    // products selected in the create/edit modal: [{code,name}, ...]
+    let selectedProducts = [];
 
     // color helpers for tags/status pills
     const TAG_PALETTE = ['#7c3aed','#0284c7','#16a34a','#b45309','#dc2626','#db2777','#0d9488','#4f46e5','#65a30d','#ea580c'];
@@ -421,21 +423,32 @@
       const box = $('productSuggestions'); if(box){ box.style.display = 'none'; box.innerHTML = ''; }
     }
 
-    function updateProductPreview(code){
-      const wrap = $('productPreview'); const img = $('productPreviewImg'); const codeEl = $('productPreviewCode');
-      if(!wrap || !img || !codeEl) return;
-      if(!code){ wrap.style.display = 'none'; img.src=''; return; }
-      img.src = productImageUrl(code);
-      img.onerror = ()=>{ wrap.style.display = 'none'; };
-      codeEl.textContent = code;
-      wrap.style.display = 'flex';
+    // reads a post's products, migrating legacy single productCode/productName posts
+    function getPostProducts(post){
+      if(Array.isArray(post.products) && post.products.length) return post.products;
+      if(post.productCode || post.productName) return [{ code: post.productCode||'', name: post.productName||'' }];
+      return [];
     }
 
-    function selectProduct(item){
-      $('mProductName').value = item.name;
-      $('mProductCode').value = item.code;
+    function renderSelectedProducts(){
+      const wrap = $('selectedProductsList'); if(!wrap) return;
+      wrap.innerHTML = '';
+      selectedProducts.forEach((p, idx)=>{
+        const chip = document.createElement('span'); chip.className = 'product-chip';
+        const img = p.code ? `<img src="${productImageUrl(p.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'" />` : '';
+        chip.innerHTML = `${img}<span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}<button type="button" class="pc-remove" data-idx="${idx}" aria-label="Remover produto">✕</button>`;
+        wrap.appendChild(chip);
+      });
+      wrap.querySelectorAll('.pc-remove').forEach(bt=> bt.addEventListener('click', ()=>{ const i = parseInt(bt.dataset.idx,10); selectedProducts.splice(i,1); renderSelectedProducts(); }));
+    }
+
+    function addSelectedProduct(item){
+      if(item.code && selectedProducts.some(p=>p.code===item.code)){ $('mProductName').value=''; hideProductSuggestions(); return; }
+      selectedProducts.push({ code: item.code||'', name: item.name });
+      $('mProductName').value = '';
       hideProductSuggestions();
-      updateProductPreview(item.code);
+      renderSelectedProducts();
+      $('mProductName').focus();
     }
 
     function showProductSuggestions(query){
@@ -443,14 +456,20 @@
       const q = normalizeStr(query.trim());
       if(q.length < 2){ hideProductSuggestions(); return; }
       const matches = (APP_SETTINGS.catalog||[]).filter(item=>
-        normalizeStr(item.name).includes(q) || normalizeStr(item.code).includes(q)
+        !selectedProducts.some(p=>p.code===item.code) &&
+        (normalizeStr(item.name).includes(q) || normalizeStr(item.code).includes(q))
       ).slice(0, 8);
-      if(matches.length===0){ box.innerHTML = `<div class="autocomplete-empty">Nenhum produto encontrado no catálogo</div>`; box.style.display = 'block'; return; }
+      if(matches.length===0){
+        box.innerHTML = `<div class="autocomplete-item ac-manual"><span class="ac-name">+ Adicionar "${escapeHtml(query.trim())}" (sem catálogo)</span></div>`;
+        box.querySelector('.ac-manual').addEventListener('mousedown', (ev)=>{ ev.preventDefault(); addSelectedProduct({ code:'', name: query.trim() }); });
+        box.style.display = 'block';
+        return;
+      }
       box.innerHTML = matches.map(item=>
         `<div class="autocomplete-item" data-code="${escapeHtml(item.code)}"><img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'" /><span class="ac-name">${escapeHtml(item.name)}</span><span class="ac-code">${escapeHtml(item.code)}</span></div>`
       ).join('');
       box.querySelectorAll('.autocomplete-item').forEach(el=>{
-        el.addEventListener('mousedown', (ev)=>{ ev.preventDefault(); const item = (APP_SETTINGS.catalog||[]).find(x=>x.code===el.dataset.code); if(item) selectProduct(item); });
+        el.addEventListener('mousedown', (ev)=>{ ev.preventDefault(); const item = (APP_SETTINGS.catalog||[]).find(x=>x.code===el.dataset.code); if(item) addSelectedProduct(item); });
       });
       box.style.display = 'block';
     }
@@ -607,9 +626,10 @@
         (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : '',
         p.collab ? `<span class="tag tag--collab">Collab</span>` : ''
       ].filter(Boolean).join('');
-      const productText = p.productCode ? `${escapeHtml(p.productCode)} ${escapeHtml(p.productName||'')}` : '';
+      const prods = getPostProducts(p);
+      const productText = prods.map(x=> [x.code,x.name].filter(Boolean).join(' ')).join(', ');
       div.title = [p.status, placeText].filter(Boolean).join(' · ');
-      div.innerHTML = `<div class="event-bar" style="background:${stColor}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${escapeHtml(p.channel||'')}</span></div>${tagsHtml?`<div class="event-tags">${tagsHtml}</div>`:''}<div class="meta">${productText?escapeHtml(productText):''}</div></div>`;
+      div.innerHTML = `<div class="event-bar" style="background:${stColor}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${escapeHtml(p.channel||'')}</span></div>${tagsHtml?`<div class="event-tags">${tagsHtml}</div>`:''}<div class="meta">${productText}</div></div>`;
       div.addEventListener('dragstart', (ev)=>{ ev.dataTransfer.setData('text/plain', p.id); div.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; });
       div.addEventListener('dragend', ()=>{ div.classList.remove('dragging'); });
       div.addEventListener('click', (ev)=>{ if(selectMode){ ev.stopPropagation(); const cb = div.querySelector('.select-checkbox'); if(cb){ cb.checked = !cb.checked; if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); } return; } openEditModal(p.id); });
@@ -743,12 +763,13 @@
       const defaultDate = viewDate.toISOString().slice(0,10);
       $('mDate').value = defaultDate;
       // reset fields
-      $('mTitle').value=''; $('mNotes').value=''; $('mProductCode').value=''; $('mProductName').value='';
+      $('mTitle').value=''; $('mNotes').value=''; $('mProductName').value='';
       document.querySelectorAll('.mNet').forEach(n=>n.checked=false); document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false);
       document.querySelectorAll('input[name="mPlace"]').forEach(el=>el.checked=false); const defaultPlace = document.querySelector('input[name="mPlace"][value="Feed"]'); if(defaultPlace) defaultPlace.checked=true;
       document.querySelectorAll('input[name="mStatus"]').forEach((el,i)=> el.checked = i===0);
+      selectedProducts = [];
+      renderSelectedProducts();
       hideProductSuggestions();
-      updateProductPreview('');
       $('mTitle').focus();
     }
 
@@ -768,8 +789,7 @@
       const notes = $('mNotes').value.trim();
       const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
       const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
-      const productCode = $('mProductCode').value.trim();
-      const productName = $('mProductName').value.trim();
+      const products = selectedProducts.slice();
       if(nets.length===0){ alert('Selecione pelo menos uma rede'); return; }
       if(isEditing && editingId){
         // editing single post - update the one post
@@ -780,7 +800,7 @@
         // update properties - respect that only one network was enabled
         const ch = nets[0];
         post.title = title; post.date = date; post.place = place.length===1?place[0]:place; post.type = type; post.status = status; post.notes = notes; post.channel = ch; post.collab = $('mCollab').checked;
-        post.editoria = editorias; post.productCode = productCode; post.productName = productName;
+        post.editoria = editorias; post.products = products; delete post.productCode; delete post.productName;
         saveState(); render(); closeModal();
         pushUndo({ type:'edit', id: pid, before });
         redoStack = [];
@@ -790,7 +810,7 @@
 
       const created = [];
       nets.forEach(net=>{
-        const p = { id: generateId(), title, date, channel: net, place: place.length===1?place[0]:place, type, status, notes, collab: $('mCollab').checked, color: null, editoria: editorias, productCode, productName };
+        const p = { id: generateId(), title, date, channel: net, place: place.length===1?place[0]:place, type, status, notes, collab: $('mCollab').checked, color: null, editoria: editorias, products: products.slice() };
         state.posts.push(p);
         created.push(p);
       });
@@ -803,7 +823,7 @@
       redoStack = [];
       // clear modal
       $('mTitle').value=''; $('mNotes').value=''; document.querySelectorAll('.mNet').forEach(n=>n.checked=false); $('mCollab').checked = false;
-      document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false); $('mProductCode').value=''; $('mProductName').value=''; document.querySelectorAll('input[name="mPlace"]').forEach(el=>el.checked=false); const defaultPlace = document.querySelector('input[name="mPlace"][value="Feed"]'); if(defaultPlace) defaultPlace.checked=true;
+      document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false); $('mProductName').value=''; selectedProducts=[]; renderSelectedProducts(); document.querySelectorAll('input[name="mPlace"]').forEach(el=>el.checked=false); const defaultPlace = document.querySelector('input[name="mPlace"][value="Feed"]'); if(defaultPlace) defaultPlace.checked=true;
     }
 
     function clearForm(){ }
@@ -972,10 +992,10 @@
       // editorias
       document.querySelectorAll('.mEditoria').forEach(e=>{ e.checked = false; });
       if(post.editoria){ const arr = Array.isArray(post.editoria)?post.editoria:[post.editoria]; arr.forEach(ed=>{ const el = Array.from(document.querySelectorAll('.mEditoria')).find(x=>x.value===ed); if(el) el.checked = true; }); }
-      $('mProductCode').value = post.productCode || '';
-      $('mProductName').value = post.productName || '';
+      $('mProductName').value = '';
+      selectedProducts = getPostProducts(post).slice();
+      renderSelectedProducts();
       hideProductSuggestions();
-      updateProductPreview(post.productCode || '');
       // change modal title
       document.querySelector('#modalBackdrop .modal h2').textContent = 'Editar postagem';
       $('modalBackdrop').style.display = 'flex';
@@ -1132,7 +1152,10 @@
       copy.forEach(p=>{
         const placeVal = Array.isArray(p.place)? p.place.join('|') : (p.place||'');
         const editoriasVal = Array.isArray(p.editoria)? p.editoria.join('|') : (p.editoria||'');
-        rows.push([csvEscape(p.date), csvEscape(p.title), csvEscape(p.channel), csvEscape(placeVal), csvEscape(p.type), csvEscape(p.status||''), csvEscape(p.collab? 'true':'false'), csvEscape(p.notes), csvEscape(editoriasVal), csvEscape(p.productCode||''), csvEscape(p.productName||''), csvEscape(p.id)].join(','));
+        const prods = getPostProducts(p);
+        const productCodesVal = prods.map(x=>x.code).join('|');
+        const productNamesVal = prods.map(x=>x.name).join('|');
+        rows.push([csvEscape(p.date), csvEscape(p.title), csvEscape(p.channel), csvEscape(placeVal), csvEscape(p.type), csvEscape(p.status||''), csvEscape(p.collab? 'true':'false'), csvEscape(p.notes), csvEscape(editoriasVal), csvEscape(productCodesVal), csvEscape(productNamesVal), csvEscape(p.id)].join(','));
       });
       download('calendar_posts.csv', rows.join('\n'));
     }
@@ -1164,8 +1187,18 @@
       $('mProductName').addEventListener('input', (ev)=> showProductSuggestions(ev.target.value));
       $('mProductName').addEventListener('focus', (ev)=>{ if(ev.target.value.trim().length>=2) showProductSuggestions(ev.target.value); });
       $('mProductName').addEventListener('blur', ()=> setTimeout(hideProductSuggestions, 150));
+      $('mProductName').addEventListener('keydown', (ev)=>{
+        if(ev.key!=='Enter') return;
+        ev.preventDefault();
+        const q = ev.target.value.trim();
+        if(!q) return;
+        const qn = normalizeStr(q);
+        const available = (APP_SETTINGS.catalog||[]).filter(item=> !selectedProducts.some(p=>p.code===item.code));
+        const match = available.find(item=> normalizeStr(item.name)===qn || normalizeStr(item.code)===qn)
+          || available.find(item=> normalizeStr(item.name).includes(qn) || normalizeStr(item.code).includes(qn));
+        addSelectedProduct(match || { code:'', name: q });
+      });
     }
-    if($('mProductCode')) $('mProductCode').addEventListener('input', (ev)=> updateProductPreview(ev.target.value.trim()));
 
 
     // Import briefing (CSV or JSON with columns)
@@ -1258,15 +1291,17 @@
         const channels = (r.Channel||r.channel||r.Channeles||r.Channels||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean) || ['Instagram'];
         const places = (r.Place||r.place||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean);
         const editorias = (r.Editoria||r.editoria||r.Category||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean);
-        const productCode = r.ProductCode||r.productCode||r.Codigo||r.Código||'';
-        const productName = r.ProductName||r.productName||r.Produto||r.Product||'';
+        const productCodes = (r.ProductCode||r.productCode||r.Codigo||r.Código||'').split('|').map(s=>s.trim()).filter(Boolean);
+        const productNames = (r.ProductName||r.productName||r.Produto||r.Product||'').split('|').map(s=>s.trim()).filter(Boolean);
+        const products = [];
+        for(let i=0;i<Math.max(productCodes.length, productNames.length);i++){ products.push({ code: productCodes[i]||'', name: productNames[i]||'' }); }
         const type = r.Type||r.type||'Static';
         const status = r.Status||r.status||((APP_SETTINGS.statuses[0]&&APP_SETTINGS.statuses[0].name)||'Rascunho');
         const collab = (String(r.Collab||r.collab||'').toLowerCase()==='true');
         const notes = r.Notes||r.notes||r.Observacoes||'';
         channels.forEach(ch=>{
-          if(places.length>0){ places.forEach(pl=>{ const p = { id: generateId(), title, date, channel: ch, place: pl, type, status, notes, collab, color:null, editoria: editorias, productCode, productName }; state.posts.push(p); created.push(p); }); }
-          else { const p = { id: generateId(), title, date, channel: ch, place: 'Feed', type, status, notes, collab, color:null, editoria: editorias, productCode, productName }; state.posts.push(p); created.push(p); }
+          if(places.length>0){ places.forEach(pl=>{ const p = { id: generateId(), title, date, channel: ch, place: pl, type, status, notes, collab, color:null, editoria: editorias, products: products.slice() }; state.posts.push(p); created.push(p); }); }
+          else { const p = { id: generateId(), title, date, channel: ch, place: 'Feed', type, status, notes, collab, color:null, editoria: editorias, products: products.slice() }; state.posts.push(p); created.push(p); }
         });
       });
       if(created.length>0){ saveState(); buildCalendar(); render(); pushUndo({ type:'create', posts: created.map(p=>p.id) }); redoStack = []; alert(`Importados ${created.length} posts do briefing.`); }
