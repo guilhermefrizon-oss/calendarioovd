@@ -152,6 +152,12 @@
     .product-chip .pc-code{font-size:10.5px;color:var(--muted);flex-shrink:0}
     .product-chip .pc-remove{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;flex-shrink:0;font-family:inherit}
     .product-chip .pc-remove:hover{background:var(--border);color:var(--text)}
+
+    .title-suggestion{display:none;align-items:center;gap:8px;margin-top:6px;padding:7px 10px;border:1px dashed var(--accent);border-radius:var(--radius-sm);background:var(--accent-weak)}
+    .title-suggestion .ts-icon{flex-shrink:0}
+    .title-suggestion .ts-text{flex:1;font-size:12.5px;font-style:italic;color:var(--text)}
+    .title-suggestion .ts-use{border:0;background:var(--accent);color:#fff;font-weight:600;font-size:11.5px;padding:4px 10px;border-radius:999px;cursor:pointer;flex-shrink:0;font-family:inherit}
+    .title-suggestion .ts-use:hover{background:#6d28d9}
   </style>
 </head>
 <body>
@@ -323,6 +329,7 @@
           <div>
             <label>Título</label>
             <input id="mTitle" type="text" placeholder="Título da postagem" />
+            <div id="titleSuggestion" class="title-suggestion"></div>
             <label class="field-gap">Data</label>
             <input id="mDate" type="date" />
             <label class="field-gap">Formato</label>
@@ -440,6 +447,55 @@
         wrap.appendChild(chip);
       });
       wrap.querySelectorAll('.pc-remove').forEach(bt=> bt.addEventListener('click', ()=>{ const i = parseInt(bt.dataset.idx,10); selectedProducts.splice(i,1); renderSelectedProducts(); }));
+      renderTitleSuggestion();
+    }
+
+    // trims a catalog name like "Adesivo instantâneo cianoacrilato, 7,5 g, blister, VONDER"
+    // down to "Adesivo instantâneo cianoacrilato" for use inside a title
+    function shortenProductName(name){
+      let n = String(name||'').replace(/,\s*VONDER\s*$/i, '').trim();
+      const commaIdx = n.indexOf(',');
+      if(commaIdx > 0) n = n.slice(0, commaIdx);
+      return n.trim();
+    }
+
+    const EDITORIA_TITLE_TEMPLATES = {
+      'Lançamentos': p => `Lançamento: ${p}`,
+      'Dica VONDER': p => `Dica VONDER: como usar o ${p}`,
+      'Destaques': p => `Destaque da semana: ${p}`,
+      'Informativo': p => `Saiba mais sobre o ${p}`
+    };
+    const NETWORK_TITLE_TEMPLATES = {
+      Instagram: p => `Confira o ${p} da VONDER`,
+      Twitter: p => `${p} já disponível!`,
+      LinkedIn: p => `VONDER apresenta: ${p}`,
+      Blog: p => `Blog: conheça o ${p}`,
+      Email: p => `Novidade VONDER: ${p}`
+    };
+
+    function suggestTitle(){
+      if(selectedProducts.length===0) return '';
+      const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
+      if(nets.length===0) return '';
+      const names = selectedProducts.map(p=>shortenProductName(p.name)).filter(Boolean);
+      if(names.length===0) return '';
+      const productPhrase = names.length===1 ? names[0]
+        : names.length===2 ? `${names[0]} e ${names[1]}`
+        : `${names.slice(0,-1).join(', ')} e ${names[names.length-1]}`;
+      const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
+      for(const ed of editorias){ if(EDITORIA_TITLE_TEMPLATES[ed]) return EDITORIA_TITLE_TEMPLATES[ed](productPhrase); }
+      const tpl = NETWORK_TITLE_TEMPLATES[nets[0]] || (p=>`Confira: ${p}`);
+      return tpl(productPhrase);
+    }
+
+    function renderTitleSuggestion(){
+      const box = $('titleSuggestion'); if(!box) return;
+      if($('mTitle').value.trim()){ box.style.display = 'none'; return; }
+      const suggestion = suggestTitle();
+      if(!suggestion){ box.style.display = 'none'; return; }
+      box.innerHTML = `<span class="ts-icon">✨</span><span class="ts-text">${escapeHtml(suggestion)}</span><button type="button" class="ts-use">Usar</button>`;
+      box.querySelector('.ts-use').addEventListener('click', ()=>{ $('mTitle').value = suggestion; box.style.display = 'none'; });
+      box.style.display = 'flex';
     }
 
     function addSelectedProduct(item){
@@ -919,13 +975,13 @@
 
     function renderNetsUI(){
       // modal nets
-      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n.name)}" /> <span class="net-icon">${networkIcon(n.name)}</span>${escapeHtml(n.name)}`; c.appendChild(lbl); }); }
+      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n.name)}" /> <span class="net-icon">${networkIcon(n.name)}</span>${escapeHtml(n.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', renderTitleSuggestion); }); }
       // settings list
       const list = $('netsList'); if(list){ list.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const chip = document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${n.color}"></span>${escapeHtml(n.name)} <button class="btn ghost small" data-net="${escapeHtml(n.name)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover rede">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-net]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.net; APP_SETTINGS.networks = APP_SETTINGS.networks.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
     }
 
     function renderEditoriasUI(){
-      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e)}" /> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; c.appendChild(lbl); }); }
+      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e)}" /> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', renderTitleSuggestion); }); }
       const fc = $('filterEditoriasContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fEditoria" value="${escapeHtml(e)}"/> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; fc.appendChild(lbl); }); }
       const list = $('editoriasList'); if(list){ list.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)} <button class="btn ghost small" data-editoria="${escapeHtml(e)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover editoria">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.editoria; APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
     }
@@ -1183,6 +1239,7 @@
       $('newCatalogCode').value=''; $('newCatalogName').value='';
       saveSettings(); renderCatalogUI();
     });
+    if($('mTitle')) $('mTitle').addEventListener('input', renderTitleSuggestion);
     if($('mProductName')){
       $('mProductName').addEventListener('input', (ev)=> showProductSuggestions(ev.target.value));
       $('mProductName').addEventListener('focus', (ev)=>{ if(ev.target.value.trim().length>=2) showProductSuggestions(ev.target.value); });
