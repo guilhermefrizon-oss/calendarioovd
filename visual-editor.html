@@ -145,13 +145,30 @@
     .autocomplete-item .ac-code{font-size:10.5px;color:var(--muted);flex-shrink:0}
     .autocomplete-empty{padding:10px 8px;font-size:12px;color:var(--muted)}
     .autocomplete-item.ac-manual .ac-name{color:var(--accent);font-weight:600}
-    .selected-products{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-    .product-chip{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-muted)}
-    .product-chip img{width:26px;height:26px;object-fit:contain;border-radius:5px;background:#fff;border:1px solid var(--border);flex-shrink:0}
-    .product-chip .pc-name{flex:1;font-size:12.5px;color:var(--text)}
-    .product-chip .pc-code{font-size:10.5px;color:var(--muted);flex-shrink:0}
-    .product-chip .pc-remove{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;flex-shrink:0;font-family:inherit}
-    .product-chip .pc-remove:hover{background:var(--border);color:var(--text)}
+    .selected-products{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+    .product-chip{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:#fff;box-shadow:var(--shadow-sm);transition:box-shadow .15s,border-color .15s}
+    .product-chip:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong)}
+    .product-chip img{width:44px;height:44px;object-fit:contain;border-radius:9px;background:var(--surface-muted);border:1px solid var(--border);flex-shrink:0;padding:3px}
+    .product-chip .pc-body{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+    .product-chip .pc-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
+    .product-chip .pc-code{font-size:10.5px;color:var(--muted);font-weight:500}
+    .product-chip .pc-remove{border:0;background:var(--surface-muted);color:var(--muted);cursor:pointer;font-size:13px;padding:4px 8px;border-radius:8px;flex-shrink:0;font-family:inherit}
+    .product-chip .pc-remove:hover{background:#fee2e2;color:#dc2626}
+
+    /* modal form sections */
+    .form-group{background:var(--surface-muted);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px}
+    .form-group:last-child{margin-bottom:0}
+    .form-group .fg-label{font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+    .form-group label:not(.chip){color:var(--muted)}
+
+    /* live post preview */
+    .modal-preview{display:flex;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:#fff;box-shadow:var(--shadow-sm)}
+    .modal-preview .mp-bar{width:5px;flex-shrink:0;background:var(--border-strong);transition:background .15s}
+    .modal-preview .mp-body{flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+    .modal-preview .mp-title{font-size:14.5px;font-weight:700;color:var(--text);line-height:1.3}
+    .modal-preview .mp-title.placeholder{color:var(--text-faint);font-weight:500;font-style:italic}
+    .modal-preview .mp-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+    .modal-preview .mp-prod-thumb{width:26px;height:26px;object-fit:contain;border-radius:6px;background:var(--surface-muted);border:1px solid var(--border)}
 
     .title-suggestion{display:none;flex-direction:column;gap:6px;margin-top:6px;padding:8px 10px;border:1px dashed var(--accent);border-radius:var(--radius-sm);background:var(--accent-weak)}
     .title-suggestion .ts-header{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.03em}
@@ -327,35 +344,64 @@
     <!-- Modal -->
     <div id="modalBackdrop" class="modal-backdrop">
       <div class="modal" role="dialog" aria-modal="true">
-        <h2>Criar postagem</h2>
+        <h2 id="modalTitleHeading">Criar postagem</h2>
+
+        <div id="modalPreview" class="modal-preview">
+          <div class="mp-bar"></div>
+          <div class="mp-body">
+            <div class="mp-title placeholder">Sua postagem aparecerá aqui</div>
+            <div class="mp-meta"></div>
+          </div>
+        </div>
+
         <div class="grid-2">
           <div>
-            <label>Título</label>
-            <input id="mTitle" type="text" placeholder="Título da postagem" />
-            <div id="titleSuggestion" class="title-suggestion"></div>
-            <label class="field-gap">Data</label>
-            <input id="mDate" type="date" />
-            <label class="field-gap">Formato</label>
-            <div id="mPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
-            <label class="field-gap">Editoria</label>
-            <div id="editoriasContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-            <label class="field-gap">Produto(s)</label>
-            <div class="autocomplete-wrap">
-              <input id="mProductName" type="text" placeholder="Digite para buscar no catálogo Vonder..." autocomplete="off" />
-              <div id="productSuggestions" class="autocomplete-list"></div>
+            <div class="form-group">
+              <div class="fg-label">Conteúdo</div>
+              <label>Título</label>
+              <input id="mTitle" type="text" placeholder="Título da postagem" />
+              <div id="titleSuggestion" class="title-suggestion"></div>
+              <label class="field-gap">Data</label>
+              <input id="mDate" type="date" />
+              <label class="field-gap">Formato</label>
+              <div id="mPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
             </div>
-            <div id="selectedProductsList" class="selected-products"></div>
-            <label class="field-gap">Tipo</label>
-            <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="mType" value="Static" checked /> Estático</label><label class="chip"><input type="radio" name="mType" value="Video" /> Vídeo</label></div>
-            <label class="field-gap">Status</label>
-            <div id="mStatusContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+
+            <div class="form-group">
+              <div class="fg-label">Categorização</div>
+              <label>Editoria</label>
+              <div id="editoriasContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+              <label class="field-gap">Produto(s)</label>
+              <div class="autocomplete-wrap">
+                <input id="mProductName" type="text" placeholder="Digite para buscar no catálogo Vonder..." autocomplete="off" />
+                <div id="productSuggestions" class="autocomplete-list"></div>
+              </div>
+              <div id="selectedProductsList" class="selected-products"></div>
+            </div>
+
+            <div class="form-group">
+              <div class="fg-label">Produção</div>
+              <label>Tipo</label>
+              <div style="display:flex;gap:8px;margin-top:6px">
+                <label class="chip"><input type="radio" name="mType" value="Static" checked /> <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor"/><path d="M21 16l-5.5-5.5L11 15l-2.5-2.5L3 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Estático</label>
+                <label class="chip"><input type="radio" name="mType" value="Video" /> <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 9.5l5 2.5-5 2.5v-5z" fill="currentColor"/></svg> Vídeo</label>
+              </div>
+              <label class="field-gap">Status</label>
+              <div id="mStatusContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+            </div>
           </div>
           <div>
-            <label>Redes</label>
-            <div id="netsContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
-            <div class="field-gap"><label><input type="checkbox" id="mCollab" /> <span style="margin-left:8px">Collab (não entra na contagem)</span></label></div>
-            <label class="field-gap">Observações</label>
-            <textarea id="mNotes" rows="4"></textarea>
+            <div class="form-group">
+              <div class="fg-label">Distribuição</div>
+              <label>Redes</label>
+              <div id="netsContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
+              <div class="field-gap"><label><input type="checkbox" id="mCollab" /> <span style="margin-left:8px">Collab (não entra na contagem)</span></label></div>
+            </div>
+            <div class="form-group">
+              <div class="fg-label">Notas</div>
+              <label>Observações</label>
+              <textarea id="mNotes" rows="5"></textarea>
+            </div>
           </div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
@@ -446,11 +492,11 @@
       selectedProducts.forEach((p, idx)=>{
         const chip = document.createElement('span'); chip.className = 'product-chip';
         const img = p.code ? `<img src="${productImageUrl(p.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'" />` : '';
-        chip.innerHTML = `${img}<span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}<button type="button" class="pc-remove" data-idx="${idx}" aria-label="Remover produto">✕</button>`;
+        chip.innerHTML = `${img}<div class="pc-body"><span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}</div><button type="button" class="pc-remove" data-idx="${idx}" aria-label="Remover produto">✕</button>`;
         wrap.appendChild(chip);
       });
       wrap.querySelectorAll('.pc-remove').forEach(bt=> bt.addEventListener('click', ()=>{ const i = parseInt(bt.dataset.idx,10); selectedProducts.splice(i,1); renderSelectedProducts(); }));
-      renderTitleSuggestion();
+      refreshModalDynamic();
     }
 
     // trims a catalog name like "Adesivo instantâneo cianoacrilato, 7,5 g, blister, VONDER"
@@ -522,9 +568,41 @@
       if(suggestions.length===0){ box.style.display = 'none'; return; }
       box.innerHTML = `<div class="ts-header"><span class="ts-icon">✨</span><span>Sugestões de título</span><button type="button" class="ts-shuffle" title="Gerar outras opções">🔄</button></div>` +
         suggestions.map(s=>`<div class="ts-option"><span class="ts-text">${escapeHtml(s)}</span><button type="button" class="ts-use" data-text="${escapeHtml(s)}">Usar</button></div>`).join('');
-      box.querySelectorAll('.ts-use').forEach(bt=> bt.addEventListener('click', ()=>{ $('mTitle').value = bt.dataset.text; box.style.display = 'none'; }));
+      box.querySelectorAll('.ts-use').forEach(bt=> bt.addEventListener('click', ()=>{ $('mTitle').value = bt.dataset.text; box.style.display = 'none'; renderModalPreview(); }));
       box.querySelector('.ts-shuffle').addEventListener('click', renderTitleSuggestion);
       box.style.display = 'flex';
+    }
+
+    function renderModalPreview(){
+      const wrap = $('modalPreview'); if(!wrap) return;
+      const title = $('mTitle').value.trim();
+      const statusEl = document.querySelector('input[name="mStatus"]:checked');
+      const status = statusEl ? statusEl.value : '';
+      const stColor = statusColor(status);
+      const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
+      const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
+      const typeEl = document.querySelector('input[name="mType"]:checked');
+      const type = typeEl ? typeEl.value : 'Static';
+      const collab = $('mCollab') ? $('mCollab').checked : false;
+
+      wrap.querySelector('.mp-bar').style.background = stColor;
+      const titleEl = wrap.querySelector('.mp-title');
+      titleEl.textContent = title || 'Sua postagem aparecerá aqui';
+      titleEl.classList.toggle('placeholder', !title);
+
+      const tags = [];
+      if(status) tags.push(`<span class="tag" style="${tagStyle(stColor)}">${escapeHtml(status)}</span>`);
+      editorias.forEach(ed=> tags.push(`<span class="tag" style="${tagStyle(tagColor(ed, APP_SETTINGS.editorias))}">${escapeHtml(ed)}</span>`));
+      nets.forEach(n=> tags.push(`<span class="tag tag--outline">${networkIcon(n)} ${escapeHtml(n)}</span>`));
+      if(type==='Video') tags.push(`<span class="tag tag--outline">🎬 Vídeo</span>`);
+      if(collab) tags.push(`<span class="tag tag--collab">Collab</span>`);
+      selectedProducts.forEach(p=>{ if(p.code) tags.push(`<img class="mp-prod-thumb" src="${productImageUrl(p.code)}" referrerpolicy="no-referrer" onerror="this.style.display='none'" alt="" title="${escapeHtml(p.name)}" />`); });
+      wrap.querySelector('.mp-meta').innerHTML = tags.join('');
+    }
+
+    function refreshModalDynamic(){
+      renderTitleSuggestion();
+      renderModalPreview();
     }
 
     function addSelectedProduct(item){
@@ -598,6 +676,10 @@
       LinkedIn: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="3" width="20" height="18" rx="2" stroke="#0A66C2" stroke-width="1.2" fill="none"/><path d="M6 10.5v6M8 7.5v9M11 7.5v9M14 7.5v9" stroke="#0A66C2" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
       Blog: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 7.5h18M3 12h12M3 16.5h9" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round"/></svg>`,
       Email: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="4" width="19" height="16" rx="2" stroke="#374151" stroke-width="1.2" fill="none"/><path d="M3 7l9 6 9-6" stroke="#374151" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    };
+    const FORMAT_ICONS = {
+      Feed: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5-4 4-3-3-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      Story: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="6" stroke="currentColor" stroke-width="1.6"/></svg>`
     };
 
     function generateId(){ return 'p-' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
@@ -1004,19 +1086,19 @@
 
     function renderNetsUI(){
       // modal nets
-      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n.name)}" /> <span class="net-icon">${networkIcon(n.name)}</span>${escapeHtml(n.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', renderTitleSuggestion); }); }
+      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n.name)}" /> <span class="net-icon">${networkIcon(n.name)}</span>${escapeHtml(n.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
       // settings list
       const list = $('netsList'); if(list){ list.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const chip = document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${n.color}"></span>${escapeHtml(n.name)} <button class="btn ghost small" data-net="${escapeHtml(n.name)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover rede">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-net]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.net; APP_SETTINGS.networks = APP_SETTINGS.networks.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
     }
 
     function renderEditoriasUI(){
-      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e)}" /> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', renderTitleSuggestion); }); }
+      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e)}" /> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
       const fc = $('filterEditoriasContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fEditoria" value="${escapeHtml(e)}"/> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; fc.appendChild(lbl); }); }
       const list = $('editoriasList'); if(list){ list.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)} <button class="btn ghost small" data-editoria="${escapeHtml(e)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover editoria">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.editoria; APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
     }
 
     function renderPlacesUI(){
-      const m = $('mPlacesContainer'); if(m){ m.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" name="mPlace" value="${escapeHtml(p)}" /> ${escapeHtml(p)}`; m.appendChild(lbl); }); }
+      const m = $('mPlacesContainer'); if(m){ m.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" name="mPlace" value="${escapeHtml(p)}" /> ${FORMAT_ICONS[p]||''} ${escapeHtml(p)}`; m.appendChild(lbl); }); }
       const fc = $('filterPlacesContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" class="fPlace" value="${escapeHtml(p)}"/> ${escapeHtml(p)}`; fc.appendChild(lbl); }); }
       const placesList = $('placesList'); if(placesList){ placesList.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `${escapeHtml(p)} <button class="btn ghost small" data-place="${escapeHtml(p)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover formato">✕</button>`; placesList.appendChild(chip); }); placesList.querySelectorAll('button[data-place]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.place; APP_SETTINGS.places = APP_SETTINGS.places.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
       // types (Static/Video) - keep as is but ensure filter types container is filled
@@ -1024,7 +1106,7 @@
     }
 
     function renderStatusUI(){
-      const m = $('mStatusContainer'); if(m){ m.innerHTML=''; APP_SETTINGS.statuses.forEach((s,i)=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="radio" name="mStatus" value="${escapeHtml(s.name)}" ${i===0?'checked':''} /> <span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)}`; m.appendChild(lbl); }); }
+      const m = $('mStatusContainer'); if(m){ m.innerHTML=''; APP_SETTINGS.statuses.forEach((s,i)=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="radio" name="mStatus" value="${escapeHtml(s.name)}" ${i===0?'checked':''} /> <span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)}`; m.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
       const fc = $('filterStatusContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fStatus" value="${escapeHtml(s.name)}" /> <span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)}`; fc.appendChild(lbl); }); }
       const bs = $('bStatusSelect'); if(bs){ bs.innerHTML = '<option value="">Manter</option>' + APP_SETTINGS.statuses.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join(''); }
       const list = $('statusesList'); if(list){ list.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)} <button class="btn ghost small" data-status="${escapeHtml(s.name)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover status">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-status]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.status; APP_SETTINGS.statuses = APP_SETTINGS.statuses.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
@@ -1268,7 +1350,9 @@
       $('newCatalogCode').value=''; $('newCatalogName').value='';
       saveSettings(); renderCatalogUI();
     });
-    if($('mTitle')) $('mTitle').addEventListener('input', renderTitleSuggestion);
+    if($('mTitle')) $('mTitle').addEventListener('input', refreshModalDynamic);
+    document.querySelectorAll('input[name="mType"]').forEach(el=> el.addEventListener('change', refreshModalDynamic));
+    if($('mCollab')) $('mCollab').addEventListener('change', refreshModalDynamic);
     if($('mProductName')){
       $('mProductName').addEventListener('input', (ev)=> showProductSuggestions(ev.target.value));
       $('mProductName').addEventListener('focus', (ev)=>{ if(ev.target.value.trim().length>=2) showProductSuggestions(ev.target.value); });
