@@ -1,0 +1,269 @@
+    /* Tokens de design: cores, raios e sombras reutilizados por todos os componentes abaixo */
+    :root{
+      --bg:#f6f7fb;--card:#ffffff;--muted:#6b7280;--accent:#7c3aed;--accent-2:#06b6d4;--text:#0f172a;
+      --border:#e5e7eb;--border-strong:#d7dae1;--surface-muted:#f8f9fc;--accent-weak:#f1ecff;--text-faint:#9aa1ac;
+      --white:#ffffff;--accent-hover:#6d28d9;--on-accent:#ffffff;
+      --danger:#dc2626;--danger-bg:#fef2f2;--danger-bg-strong:#fee2e2;--danger-border:#fecaca;
+      --success:#16a34a;--success-bg:#f0fdf4;--success-border:#bbf7d0;
+      --collab:#db2777;--collab-bg:#fce7f3;--collab-border:#fbcfe8;
+      --backdrop:rgba(15,20,35,.45);--suggestion-gradient-start:#fbfaff;
+      --radius-sm:8px;--radius-md:12px;--radius-lg:16px;
+      --shadow-sm:0 1px 2px rgba(15,23,42,.05);--shadow-md:0 6px 16px rgba(15,23,42,.07);--shadow-lg:0 20px 40px rgba(15,23,42,.14);
+      --base-font-family: 'Poppins',Inter,Segoe UI,Arial,sans-serif;
+      /* altura padrão compartilhada por inputs de texto/data/número, selects, o seletor de cor e
+         botões (tamanho normal) — garante que fiquem alinhados quando aparecem lado a lado, como
+         em "Nova rede" (campo + cor + Adicionar) */
+      --control-h:38px;
+    }
+    /* Modo escuro: os mesmos tokens, com os fundos claros trocados por tons de preto/cinza
+       e o roxo de acento trocado por amarelo (base #F6BE00). Ativado via [data-theme="dark"]
+       na tag <html>, alternado pelo botão de tema e persistido pelo JS. */
+    :root[data-theme="dark"]{
+      --bg:#121214;--card:#1c1d22;--muted:#9aa1ac;--accent:#F6BE00;--accent-2:#22d3ee;--text:#f1f2f4;
+      --border:#2c2d33;--border-strong:#3d3e46;--surface-muted:#202126;--accent-weak:rgba(246,190,0,.16);--text-faint:#6b7280;
+      --accent-hover:#d9a600;--on-accent:#1a1a1a;
+      --danger:#f87171;--danger-bg:#3a1518;--danger-bg-strong:#4a1a1e;--danger-border:#5c2328;
+      --success:#4ade80;--success-bg:#142a1c;--success-border:#1f4b2c;
+      --collab:#f472b6;--collab-bg:#35182a;--collab-border:#4a2138;
+      --backdrop:rgba(0,0,0,.65);--suggestion-gradient-start:#201c10;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.25);--shadow-md:0 6px 16px rgba(0,0,0,.35);--shadow-lg:0 20px 40px rgba(0,0,0,.5);
+    }
+    /* Reset global e layout base da página */
+    *{box-sizing:border-box}
+    body{font-family:var(--base-font-family);background:var(--bg);margin:0;padding:28px;color:var(--text);-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+    .container{max-width:1600px;margin:0 auto}
+
+    /* Cabeçalho da página: título + ações "Configurações"/"Nova postagem" */
+    .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
+    .page-header h1{font-family:'Poppins',sans-serif;font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+    .page-subtitle{margin:0;font-size:13px;color:var(--muted)}
+    .page-header-actions{display:flex;gap:10px;align-items:center;flex-shrink:0}
+
+    /* Superfície de cartão genérica, reaproveitada pela toolbar, pelo card de sugestão e pelos grupos da lista */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;box-shadow:var(--shadow-sm)}
+
+    /* Campos de formulário compartilhados por todos os modais (criar/editar postagem, filtros, edição em lote, configurações) */
+    label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+    /* input:not([type]) cobre campos de texto sem o atributo type explícito no HTML (o navegador já
+       trata como texto, mas o seletor [type=text] só bate se o atributo estiver presente) */
+    input[type=text],input:not([type]),input[type=date],input[type=number],select,textarea{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:var(--card);color:var(--text);transition:border-color .12s,box-shadow .12s}
+    /* controles de uma linha só (não o textarea, que precisa crescer em altura) ficam todos com a mesma altura */
+    input[type=text],input:not([type]),input[type=date],input[type=number],select{height:var(--control-h);padding:0 10px}
+    input[type=color]{border:1px solid var(--border);border-radius:var(--radius-sm);height:var(--control-h);padding:2px;width:44px;cursor:pointer;flex-shrink:0}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+
+    /* Botões — altura igual à dos campos de texto/select/cor, para ficarem alinhados quando lado a lado */
+    .btn{height:var(--control-h);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--accent);color:var(--on-accent);padding:0 14px;border-radius:999px;border:0;cursor:pointer;font-weight:600;font-size:13px;transition:background .12s,transform .06s,box-shadow .12s;font-family:inherit}
+    .btn:hover{background:var(--accent-hover);box-shadow:var(--shadow-sm)}
+    .btn:active{transform:translateY(1px)}
+    .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border);font-weight:600}
+    .btn.ghost:hover{background:var(--surface-muted);border-color:var(--border-strong)}
+    /* variante "small", usada tanto para botões compactos com texto (Cancelar, Aplicar) quanto para
+       ícones soltos (✕ de remover) — ambas as classes .btn.small e .btn.ghost.small compartilham a
+       mesma altura reduzida, para não desalinhar quando aparecem juntas numa mesma linha */
+    .btn.ghost.small,.btn.small{height:28px;padding:0 10px;font-size:12px}
+    .btn.ghost.btn--active{background:var(--accent-weak);color:var(--accent);border-color:var(--accent)}
+    .btn-icon{width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s,border-color .12s}
+    .btn-icon:hover{background:var(--surface-muted);color:var(--text);border-color:var(--border-strong)}
+
+    /* Barra de ferramentas: navegação de mês, alternância de visão, abas de canal e botões de ação acima da grade */
+    .toolbar-card{margin-top:0;padding:14px}
+    .toolbar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .toolbar-row + .toolbar-row{margin-top:10px}
+    .toolbar-spacer{flex:1}
+    .month-nav{display:flex;align-items:center;gap:8px}
+    .month-label-wrap{position:relative}
+    .month-label{min-width:160px;text-align:center;font-weight:700;font-size:14px;background:transparent;border:1px solid transparent;color:var(--text);font-family:inherit;cursor:pointer;padding:5px 8px;border-radius:var(--radius-sm);display:inline-flex;align-items:center;justify-content:center;gap:4px;transition:background .12s,border-color .12s}
+    .month-label:hover{background:var(--surface-muted)}
+    /* enquanto o popover de mês está aberto, o rótulo (agora mostrando só o ano) fica com uma caixa ativa,
+       como um campo em foco — sinaliza que as setas ‹ › do cabeçalho agora navegam por ano */
+    .month-label[aria-expanded="true"]{border-color:var(--accent);background:var(--card)}
+    .month-label-caret{font-size:10px;color:var(--muted);transition:transform .15s}
+    .month-label[aria-expanded="true"] .month-label-caret{transform:rotate(180deg)}
+    .ai-info{font-size:12.5px;color:var(--muted);background:var(--surface-muted);border:1px solid var(--border);padding:6px 12px;border-radius:999px}
+
+    /* Popover de seleção rápida de mês dentro do ano, ancorado abaixo do rótulo (que mostra o ano
+       enquanto o popover está aberto). Não tem navegação de ano própria — reaproveita as setas ‹ › do cabeçalho. */
+    .month-year-picker{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:12px;width:240px;z-index:40;display:none}
+    .month-year-picker.open{display:block}
+    .myp-months{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+    .myp-month{border:0;background:transparent;color:var(--text);font-size:12.5px;font-weight:600;padding:9px 4px;border-radius:999px;cursor:pointer;text-align:center;transition:background .12s,color .12s}
+    .myp-month:hover{background:var(--surface-muted)}
+    .myp-month.past{color:var(--text-faint);font-weight:500}
+    .myp-month.current{outline:1px solid var(--accent);outline-offset:-1px}
+    .myp-month.selected{background:var(--accent);color:var(--on-accent)}
+
+    /* Alternador de visão (Mês / Lista) */
+    .view-toggle{display:flex;background:var(--surface-muted);border:1px solid var(--border);border-radius:10px;padding:3px;gap:2px}
+    .view-toggle button{border:0;background:transparent;padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;transition:background .12s,color .12s}
+    .view-toggle button.active{background:var(--card);color:var(--accent);box-shadow:var(--shadow-sm)}
+
+    /* Abas de canal (Todas, Instagram, Twitter...), geradas dinamicamente pelo JS */
+    .tabs{display:flex;gap:6px;flex-wrap:wrap}
+    #tabs button{border-radius:999px;padding:6px 13px;font-size:12.5px}
+
+    /* Chips (pílulas de rádio/checkbox usadas em vários modais) */
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:var(--card);font-size:12.5px;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s;color:var(--text)}
+    .chip:hover{border-color:var(--border-strong)}
+    .chip input{margin:0}
+    .chip:has(input:checked){background:var(--accent-weak);border-color:var(--accent);color:var(--accent);font-weight:600}
+    .chip button{margin-left:2px;padding:3px 6px;font-size:11px;border-radius:8px}
+    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+    /* Cabeçalho de dias da semana + grade do calendário mensal */
+    .weekday-header{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:16px}
+    .weekday-header div{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);padding-left:6px}
+    .grid-month{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:8px;grid-auto-rows:250px}
+    .day{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px;position:relative;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s}
+    .day:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+    .day.empty{background:transparent;border:1px dashed var(--border);box-shadow:none}
+    .day.today{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+    .day-head{display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .day .date{font-size:13px;font-weight:700;color:var(--text);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .day.today .date{background:var(--accent);color:var(--on-accent)}
+    .day-count{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-muted);color:var(--muted);border:1px solid var(--border);white-space:nowrap}
+    .day-count.low{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)}
+    .day-count.ok{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
+    .posts{margin-top:8px;flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}
+    .more-badge{position:absolute;right:8px;bottom:8px;background:var(--card);border-radius:999px;padding:3px 9px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--accent);box-shadow:var(--shadow-sm)}
+
+    /* Cartão de postagem (evento) dentro de uma célula do calendário */
+    .event{position:relative;display:flex;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:6px 8px 6px 10px;margin-bottom:5px;box-shadow:var(--shadow-sm);cursor:grab;overflow:hidden;transition:box-shadow .15s,border-color .15s,transform .15s}
+    .event:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong);transform:translateY(-1px)}
+    .event[draggable="true"]{transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .18s,box-shadow .15s,border-color .15s}
+    .event.dragging{opacity:0.5;transform:scale(.98)}
+    .event.moving{transition:transform .36s cubic-bezier(.2,.9,.2,1)}
+    .event-bar{position:absolute;left:0;top:0;bottom:0;width:3px}
+    .event-body{flex:1;min-width:0;padding-left:3px}
+    .event-title{font-weight:600;font-size:12.5px;color:var(--text);line-height:1.25;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;text-overflow:ellipsis}
+    .event-sub{font-size:10.5px;color:var(--muted);display:flex;gap:5px;margin-top:3px;align-items:center}
+    .event-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+    .tag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;line-height:1.5;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+    .tag--outline{background:var(--surface-muted);color:var(--muted);border:1px solid var(--border)}
+    .tag--collab{background:var(--collab-bg);color:var(--collab);border:1px solid var(--collab-border)}
+    .select-checkbox{position:absolute;top:6px;right:6px;width:16px;height:16px;margin:0;z-index:5}
+
+    /* Destaque visual da célula quando um card está sendo arrastado sobre ela */
+    .day.drag-over{outline:2px dashed var(--accent);outline-offset:-2px;border-radius:var(--radius-md)}
+
+    /* Indicador de posição ao arrastar um card/linha para reordenar dentro do mesmo dia */
+    .event.drop-before,.list-row.drop-before{box-shadow:inset 0 2px 0 0 var(--accent)}
+    .event.drop-after,.list-row.drop-after{box-shadow:inset 0 -2px 0 0 var(--accent)}
+
+    /* Layout responsivo: grade de 7 colunas vira 2 colunas em telas estreitas */
+    @media (max-width:1000px){.grid-month,.weekday-header{grid-template-columns:repeat(2,1fr)}}
+
+    /* Card de sugestão da IA (metas de posts/vídeos), exibido abaixo do calendário */
+    .suggestion-card{margin-top:14px;border-color:var(--accent-weak);background:linear-gradient(180deg,var(--suggestion-gradient-start),var(--card))}
+
+    /* Visão em lista (alternativa ao calendário mensal), agrupada por dia */
+    .list-view{margin-top:10px;display:flex;flex-direction:column;gap:16px}
+    .list-group{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
+    .list-date{display:flex;align-items:baseline;gap:8px;padding:10px 14px;background:var(--surface-muted);border-bottom:1px solid var(--border)}
+    .list-date-num{font-weight:700;font-size:14px;color:var(--text)}
+    .list-date-dow{font-size:12px;color:var(--muted);text-transform:capitalize}
+    .list-date.today .list-date-num{color:var(--accent)}
+    .today-badge{margin-left:auto;background:var(--accent);color:var(--on-accent);font-size:10px;font-weight:700;padding:2px 9px;border-radius:999px}
+    .list-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+    .list-row:last-child{border-bottom:none}
+    .list-row:hover{background:var(--surface-muted)}
+    .list-row.dragging{opacity:0.5}
+    .list-row-bar{width:4px;align-self:stretch;border-radius:4px;flex-shrink:0}
+    .drag-handle{cursor:grab;color:var(--text-faint);font-size:14px;flex-shrink:0;line-height:1}
+    .list-row-title{font-weight:600;font-size:13px;color:var(--text);flex:1 1 220px;min-width:160px}
+    .list-row-channel{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:110px;flex-shrink:0}
+    .list-row-tags{display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0}
+    .list-empty{padding:44px 20px;text-align:center;color:var(--muted);background:var(--card);border-radius:var(--radius-md);border:1px dashed var(--border);font-size:13px}
+
+    .net-icon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:6px}
+
+    /* Modal genérico: fundo escurecido (backdrop) + caixa central, usado por todos os 4 modais */
+    .modal-backdrop{position:fixed;inset:0;background:var(--backdrop);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+    .modal{position:relative;background:var(--card);border-radius:var(--radius-lg);padding:18px;max-width:820px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+    /* modal de Configurações: mais largo, para caber o menu lateral + o conteúdo da seção */
+    .modal.modal--wide{max-width:900px}
+    .modal h2{margin:0 0 14px;padding-right:30px;font-size:16px;font-family:'Poppins',sans-serif}
+    /* Botão "X" de fechar, fixado no canto superior direito do modal */
+    .modal-close{position:absolute;top:14px;right:14px;width:28px;height:28px;border:0;background:transparent;color:var(--muted);font-size:15px;line-height:1;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
+    .modal-close:hover{background:var(--surface-muted);color:var(--text)}
+
+    /* Menu lateral de Configurações: categorias à esquerda, conteúdo da seção selecionada à direita */
+    .settings-layout{display:flex;gap:18px;min-height:380px}
+    .settings-sidebar{display:flex;flex-direction:column;gap:2px;flex:0 0 170px;border-right:1px solid var(--border);padding-right:14px}
+    .settings-nav-btn{width:100%;text-align:left;padding:9px 11px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;transition:background .12s,color .12s}
+    .settings-nav-btn:hover{background:var(--surface-muted);color:var(--text)}
+    .settings-nav-btn.active{background:var(--accent-weak);color:var(--accent)}
+    .settings-content{flex:1;min-width:0;overflow-y:auto;max-height:64vh}
+    .settings-panel{display:none;flex-direction:column;gap:8px}
+    .settings-panel.active{display:flex}
+
+    /* seta giratória, reaproveitada em qualquer botão que abre/fecha algo (ex: sub-dropdown de formatos) */
+    .settings-caret{font-size:10px;color:var(--muted);transition:transform .15s;flex-shrink:0}
+
+    /* Linha de rede social (dentro de Configurações > Redes), com seus formatos em um sub-dropdown */
+    .net-row{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+    .net-row-head{display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--card);flex-wrap:wrap}
+    .net-row-formats-toggle{flex-shrink:0;background:transparent;border:1px solid var(--border);border-radius:999px;padding:4px 9px;font-size:11.5px;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap}
+    .net-row-formats-toggle:hover{color:var(--text);border-color:var(--border-strong)}
+    .net-row-formats{display:none;flex-direction:column;gap:8px;padding:10px;border-top:1px solid var(--border);background:var(--surface-muted)}
+    .net-row.open .net-row-formats{display:flex}
+    .net-row.open .net-row-formats-toggle .settings-caret{transform:rotate(180deg)}
+    /* Linha de um formato cadastrado (nome + largura×altura + extensões), dentro do sub-dropdown de uma rede */
+    .format-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-size:12px}
+    .format-row-name{font-weight:600;color:var(--text)}
+    .format-row-meta{color:var(--muted);flex:1}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media (max-width:640px){.grid-2{grid-template-columns:1fr}}
+    /* telas estreitas: o menu de Configurações vira uma barra horizontal de abas acima do conteúdo */
+    @media (max-width:640px){
+      .settings-layout{flex-direction:column;gap:10px}
+      .settings-sidebar{flex-direction:row;flex-wrap:wrap;flex:none;border-right:0;border-bottom:1px solid var(--border);padding-right:0;padding-bottom:10px}
+      .settings-nav-btn{width:auto}
+    }
+    .field-gap{margin-top:10px}
+    hr{border:0;border-top:1px solid var(--border);margin:6px 0;width:100%}
+
+    /* Autocomplete do catálogo de produtos (campo "Nome do produto" no modal de postagem) */
+    .autocomplete-wrap{position:relative}
+    .autocomplete-list{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);max-height:230px;overflow-y:auto;z-index:80;margin-top:4px;display:none}
+    .autocomplete-item{display:flex;align-items:center;gap:8px;padding:6px 8px;cursor:pointer}
+    .autocomplete-item:hover,.autocomplete-item.active{background:var(--surface-muted)}
+    .autocomplete-item img{width:28px;height:28px;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:var(--white);flex-shrink:0}
+    .autocomplete-item .ac-name{flex:1;line-height:1.25;font-size:12.5px;color:var(--text)}
+    .autocomplete-item .ac-code{font-size:10.5px;color:var(--muted);flex-shrink:0}
+    .autocomplete-empty{padding:10px 8px;font-size:12px;color:var(--muted)}
+    .autocomplete-item.ac-manual .ac-name{color:var(--accent);font-weight:600}
+    .selected-products{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+    .product-chip{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);box-shadow:var(--shadow-sm);transition:box-shadow .15s,border-color .15s}
+    .product-chip:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong)}
+    .product-chip img{width:44px;height:44px;object-fit:contain;border-radius:9px;background:var(--surface-muted);border:1px solid var(--border);flex-shrink:0;padding:3px}
+    .product-chip .pc-body{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+    .product-chip .pc-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
+    .product-chip .pc-code{font-size:10.5px;color:var(--muted);font-weight:500}
+    .product-chip .pc-remove{border:0;background:var(--surface-muted);color:var(--muted);cursor:pointer;font-size:13px;padding:4px 8px;border-radius:8px;flex-shrink:0;font-family:inherit}
+    .product-chip .pc-remove:hover{background:var(--danger-bg-strong);color:var(--danger)}
+
+    /* Seções agrupadas dentro dos formulários dos modais (ex: "Conteúdo", "Categorização") */
+    .form-group{background:var(--surface-muted);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px}
+    .form-group:last-child{margin-bottom:0}
+    .form-group .fg-label{font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+    .form-group label:not(.chip){color:var(--muted)}
+
+    /* Pré-visualização ao vivo da postagem, no topo do modal de criar/editar */
+    .modal-preview{display:flex;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:var(--card);box-shadow:var(--shadow-sm)}
+    .modal-preview .mp-bar{width:5px;flex-shrink:0;background:var(--border-strong);transition:background .15s}
+    .modal-preview .mp-body{flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+    .modal-preview .mp-title{font-size:14.5px;font-weight:700;color:var(--text);line-height:1.3}
+    .modal-preview .mp-title.placeholder{color:var(--text-faint);font-weight:500;font-style:italic}
+    .modal-preview .mp-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+    .modal-preview .mp-prod-thumb{width:26px;height:26px;object-fit:contain;border-radius:6px;background:var(--surface-muted);border:1px solid var(--border)}
+
+    /* Caixa de sugestões de título (gerada a partir do(s) produto(s) selecionado(s)) */
+    .title-suggestion{display:none;flex-direction:column;gap:6px;margin-top:6px;padding:8px 10px;border:1px dashed var(--accent);border-radius:var(--radius-sm);background:var(--accent-weak)}
+    .title-suggestion .ts-header{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.03em}
+    .title-suggestion .ts-shuffle{margin-left:auto;border:0;background:transparent;cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;line-height:1}
+    .title-suggestion .ts-shuffle:hover{background:var(--card)}
+    .title-suggestion .ts-option{display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--card);border-radius:8px;border:1px solid var(--border)}
+    .title-suggestion .ts-text{flex:1;font-size:12.5px;font-style:italic;color:var(--text)}
+    .title-suggestion .ts-use{border:0;background:var(--accent);color:var(--on-accent);font-weight:600;font-size:11px;padding:3px 9px;border-radius:999px;cursor:pointer;flex-shrink:0;font-family:inherit}
+    .title-suggestion .ts-use:hover{background:var(--accent-hover)}

@@ -5,182 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Editor Visual — Calendário de Postagens</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --bg:#f6f7fb;--card:#ffffff;--muted:#6b7280;--accent:#7c3aed;--accent-2:#06b6d4;--text:#0f172a;
-      --border:#e5e7eb;--border-strong:#d7dae1;--surface-muted:#f8f9fc;--accent-weak:#f1ecff;--text-faint:#9aa1ac;
-      --radius-sm:8px;--radius-md:12px;--radius-lg:16px;
-      --shadow-sm:0 1px 2px rgba(15,23,42,.05);--shadow-md:0 6px 16px rgba(15,23,42,.07);--shadow-lg:0 20px 40px rgba(15,23,42,.14);
-      --base-font-family: 'Poppins',Inter,Segoe UI,Arial,sans-serif
-    }
-    *{box-sizing:border-box}
-    body{font-family:var(--base-font-family);background:var(--bg);margin:0;padding:28px;color:var(--text);-webkit-font-smoothing:antialiased}
-    .container{max-width:1600px;margin:0 auto}
-
-    /* Page header */
-    .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
-    .page-header h1{font-family:'Poppins',sans-serif;font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
-    .page-subtitle{margin:0;font-size:13px;color:var(--muted)}
-    .page-header-actions{display:flex;gap:10px;align-items:center;flex-shrink:0}
-
-    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;box-shadow:var(--shadow-sm)}
-
-    label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
-    input[type=text],input[type=date],input[type=number],select,textarea{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:#fff;color:var(--text);transition:border-color .12s,box-shadow .12s}
-    input[type=color]{border:1px solid var(--border);border-radius:var(--radius-sm);height:38px;padding:2px;width:44px;cursor:pointer}
-    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
-
-    /* Buttons */
-    .btn{background:var(--accent);color:#fff;padding:8px 14px;border-radius:999px;border:0;cursor:pointer;font-weight:600;font-size:13px;transition:background .12s,transform .06s,box-shadow .12s;font-family:inherit}
-    .btn:hover{background:#6d28d9;box-shadow:var(--shadow-sm)}
-    .btn:active{transform:translateY(1px)}
-    .btn.ghost{background:#fff;color:var(--text);border:1px solid var(--border);font-weight:600}
-    .btn.ghost:hover{background:var(--surface-muted);border-color:var(--border-strong)}
-    .btn.ghost.small{padding:4px 6px;font-size:12px}
-    .btn.ghost.btn--active{background:var(--accent-weak);color:var(--accent);border-color:var(--accent)}
-    .btn-icon{width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--border);background:#fff;color:var(--muted);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s,border-color .12s}
-    .btn-icon:hover{background:var(--surface-muted);color:var(--text);border-color:var(--border-strong)}
-
-    /* Toolbar */
-    .toolbar-card{margin-top:0;padding:14px}
-    .toolbar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .toolbar-row + .toolbar-row{margin-top:10px}
-    .toolbar-spacer{flex:1}
-    .month-nav{display:flex;align-items:center;gap:8px}
-    .month-label{min-width:160px;text-align:center;font-weight:700;font-size:14px}
-    .ai-info{font-size:12.5px;color:var(--muted);background:var(--surface-muted);border:1px solid var(--border);padding:6px 12px;border-radius:999px}
-
-    .view-toggle{display:flex;background:var(--surface-muted);border:1px solid var(--border);border-radius:10px;padding:3px;gap:2px}
-    .view-toggle button{border:0;background:transparent;padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;transition:background .12s,color .12s}
-    .view-toggle button.active{background:#fff;color:var(--accent);box-shadow:var(--shadow-sm)}
-
-    .tabs{display:flex;gap:6px;flex-wrap:wrap}
-    #tabs button{border-radius:999px;padding:6px 13px;font-size:12.5px}
-
-    /* Chips (radio/checkbox pills used across modals) */
-    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:12.5px;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s;color:var(--text)}
-    .chip:hover{border-color:var(--border-strong)}
-    .chip input{margin:0}
-    .chip:has(input:checked){background:var(--accent-weak);border-color:var(--accent);color:var(--accent);font-weight:600}
-    .chip button{margin-left:2px;padding:3px 6px;font-size:11px;border-radius:8px}
-    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
-
-    /* Weekday header + grid */
-    .weekday-header{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:16px}
-    .weekday-header div{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);padding-left:6px}
-    .grid-month{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:8px;grid-auto-rows:250px}
-    .day{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px;position:relative;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s}
-    .day:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
-    .day.empty{background:transparent;border:1px dashed var(--border);box-shadow:none}
-    .day.today{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
-    .day-head{display:flex;align-items:center;justify-content:space-between;gap:6px}
-    .day .date{font-size:13px;font-weight:700;color:var(--text);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .day.today .date{background:var(--accent);color:#fff}
-    .day-count{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-muted);color:var(--muted);border:1px solid var(--border);white-space:nowrap}
-    .day-count.low{background:#fef2f2;color:#dc2626;border-color:#fecaca}
-    .day-count.ok{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0}
-    .posts{margin-top:8px;flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}
-    .more-badge{position:absolute;right:8px;bottom:8px;background:#fff;border-radius:999px;padding:3px 9px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--accent);box-shadow:var(--shadow-sm)}
-
-    /* Event card */
-    .event{position:relative;display:flex;background:#fff;border:1px solid var(--border);border-radius:9px;padding:6px 8px 6px 10px;margin-bottom:5px;box-shadow:var(--shadow-sm);cursor:grab;overflow:hidden;transition:box-shadow .15s,border-color .15s,transform .15s}
-    .event:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong);transform:translateY(-1px)}
-    .event[draggable="true"]{transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .18s,box-shadow .15s,border-color .15s}
-    .event.dragging{opacity:0.5;transform:scale(.98)}
-    .event.moving{transition:transform .36s cubic-bezier(.2,.9,.2,1)}
-    .event-bar{position:absolute;left:0;top:0;bottom:0;width:3px}
-    .event-body{flex:1;min-width:0;padding-left:3px}
-    .event-title{font-weight:600;font-size:12.5px;color:var(--text);line-height:1.25;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;text-overflow:ellipsis}
-    .event-sub{font-size:10.5px;color:var(--muted);display:flex;gap:5px;margin-top:3px;align-items:center}
-    .event-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
-    .tag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;line-height:1.5;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
-    .tag--outline{background:var(--surface-muted);color:var(--muted);border:1px solid var(--border)}
-    .tag--collab{background:#fce7f3;color:#db2777;border:1px solid #fbcfe8}
-    .select-checkbox{position:absolute;top:6px;right:6px;width:16px;height:16px;margin:0;z-index:5}
-
-    .day.drag-over{outline:2px dashed var(--accent);outline-offset:-2px;border-radius:var(--radius-md)}
-
-    @media (max-width:1000px){.grid-month,.weekday-header{grid-template-columns:repeat(2,1fr)}}
-
-    /* Suggestion card */
-    .suggestion-card{margin-top:14px;border-color:var(--accent-weak);background:linear-gradient(180deg,#fbfaff,#ffffff)}
-
-    /* List view */
-    .list-view{margin-top:10px;display:flex;flex-direction:column;gap:16px}
-    .list-group{background:#fff;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
-    .list-date{display:flex;align-items:baseline;gap:8px;padding:10px 14px;background:var(--surface-muted);border-bottom:1px solid var(--border)}
-    .list-date-num{font-weight:700;font-size:14px;color:var(--text)}
-    .list-date-dow{font-size:12px;color:var(--muted);text-transform:capitalize}
-    .list-date.today .list-date-num{color:var(--accent)}
-    .today-badge{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:2px 9px;border-radius:999px}
-    .list-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
-    .list-row:last-child{border-bottom:none}
-    .list-row:hover{background:var(--surface-muted)}
-    .list-row-bar{width:4px;align-self:stretch;border-radius:4px;flex-shrink:0}
-    .list-row-title{font-weight:600;font-size:13px;color:var(--text);flex:1 1 220px;min-width:160px}
-    .list-row-channel{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:110px;flex-shrink:0}
-    .list-row-tags{display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0}
-    .list-empty{padding:44px 20px;text-align:center;color:var(--muted);background:#fff;border-radius:var(--radius-md);border:1px dashed var(--border);font-size:13px}
-
-    .net-icon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:6px}
-
-    /* Modal */
-    .modal-backdrop{position:fixed;inset:0;background:rgba(15,20,35,0.45);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
-    .modal{background:#fff;border-radius:var(--radius-lg);padding:18px;max-width:820px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
-    .modal h2{margin:0 0 14px;font-size:16px;font-family:'Poppins',sans-serif}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    @media (max-width:640px){.grid-2{grid-template-columns:1fr}}
-    .field-gap{margin-top:10px}
-    hr{border:0;border-top:1px solid var(--border);margin:6px 0;width:100%}
-
-    /* Product catalog autocomplete */
-    .autocomplete-wrap{position:relative}
-    .autocomplete-list{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);max-height:230px;overflow-y:auto;z-index:80;margin-top:4px;display:none}
-    .autocomplete-item{display:flex;align-items:center;gap:8px;padding:6px 8px;cursor:pointer}
-    .autocomplete-item:hover,.autocomplete-item.active{background:var(--surface-muted)}
-    .autocomplete-item img{width:28px;height:28px;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:#fff;flex-shrink:0}
-    .autocomplete-item .ac-name{flex:1;line-height:1.25;font-size:12.5px;color:var(--text)}
-    .autocomplete-item .ac-code{font-size:10.5px;color:var(--muted);flex-shrink:0}
-    .autocomplete-empty{padding:10px 8px;font-size:12px;color:var(--muted)}
-    .autocomplete-item.ac-manual .ac-name{color:var(--accent);font-weight:600}
-    .selected-products{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-    .product-chip{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:#fff;box-shadow:var(--shadow-sm);transition:box-shadow .15s,border-color .15s}
-    .product-chip:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong)}
-    .product-chip img{width:44px;height:44px;object-fit:contain;border-radius:9px;background:var(--surface-muted);border:1px solid var(--border);flex-shrink:0;padding:3px}
-    .product-chip .pc-body{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
-    .product-chip .pc-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
-    .product-chip .pc-code{font-size:10.5px;color:var(--muted);font-weight:500}
-    .product-chip .pc-remove{border:0;background:var(--surface-muted);color:var(--muted);cursor:pointer;font-size:13px;padding:4px 8px;border-radius:8px;flex-shrink:0;font-family:inherit}
-    .product-chip .pc-remove:hover{background:#fee2e2;color:#dc2626}
-
-    /* modal form sections */
-    .form-group{background:var(--surface-muted);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px}
-    .form-group:last-child{margin-bottom:0}
-    .form-group .fg-label{font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
-    .form-group label:not(.chip){color:var(--muted)}
-
-    /* live post preview */
-    .modal-preview{display:flex;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:#fff;box-shadow:var(--shadow-sm)}
-    .modal-preview .mp-bar{width:5px;flex-shrink:0;background:var(--border-strong);transition:background .15s}
-    .modal-preview .mp-body{flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
-    .modal-preview .mp-title{font-size:14.5px;font-weight:700;color:var(--text);line-height:1.3}
-    .modal-preview .mp-title.placeholder{color:var(--text-faint);font-weight:500;font-style:italic}
-    .modal-preview .mp-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-    .modal-preview .mp-prod-thumb{width:26px;height:26px;object-fit:contain;border-radius:6px;background:var(--surface-muted);border:1px solid var(--border)}
-
-    .title-suggestion{display:none;flex-direction:column;gap:6px;margin-top:6px;padding:8px 10px;border:1px dashed var(--accent);border-radius:var(--radius-sm);background:var(--accent-weak)}
-    .title-suggestion .ts-header{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.03em}
-    .title-suggestion .ts-shuffle{margin-left:auto;border:0;background:transparent;cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;line-height:1}
-    .title-suggestion .ts-shuffle:hover{background:#fff}
-    .title-suggestion .ts-option{display:flex;align-items:center;gap:8px;padding:5px 8px;background:#fff;border-radius:8px;border:1px solid var(--border)}
-    .title-suggestion .ts-text{flex:1;font-size:12.5px;font-style:italic;color:var(--text)}
-    .title-suggestion .ts-use{border:0;background:var(--accent);color:#fff;font-weight:600;font-size:11px;padding:3px 9px;border-radius:999px;cursor:pointer;flex-shrink:0;font-family:inherit}
-    .title-suggestion .ts-use:hover{background:#6d28d9}
-  </style>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="container">
 
+    <!-- Cabeçalho: título da página e botões de "Configurações" / "Nova postagem" -->
     <div class="page-header">
       <div>
         <h1>Calendário de Postagens</h1>
@@ -192,11 +22,20 @@
       </div>
     </div>
 
+    <!-- Barra de ferramentas + calendário/lista + card de sugestão da IA + modais auxiliares (filtros, edição em lote, configurações) -->
     <div class="card toolbar-card">
+      <!-- Linha 1: navegação de mês, alternância Mês/Lista, resumo da IA e desfazer/refazer -->
       <div class="toolbar-row">
         <div class="month-nav">
           <button id="prevMonth" class="btn-icon" aria-label="Mês anterior">‹</button>
-          <div class="month-label" id="monthLabel">Agosto 2026</div>
+          <div class="month-label-wrap">
+            <button type="button" id="monthLabel" class="month-label" aria-haspopup="true" aria-expanded="false"><span id="monthLabelText">Agosto 2026</span> <span class="month-label-caret">▾</span></button>
+            <!-- Popover de seleção rápida de mês dentro do ano (abre ao clicar no rótulo do mês).
+                 Enquanto aberto, as setas ‹ › do cabeçalho (fora deste popover) trocam de ano em vez de mês. -->
+            <div id="monthYearPicker" class="month-year-picker">
+              <div class="myp-months" id="mypMonths"></div>
+            </div>
+          </div>
           <button id="nextMonth" class="btn-icon" aria-label="Próximo mês">›</button>
         </div>
         <div class="view-toggle" id="viewToggle">
@@ -208,6 +47,7 @@
         <button id="undoBtn" class="btn-icon" title="Desfazer (Ctrl+Z)">↩</button>
         <button id="redoBtn" class="btn-icon" title="Refazer (Ctrl+Y)">↪</button>
       </div>
+      <!-- Linha 2: abas de canal (preenchidas via JS) e ações em massa (filtros, seleção, lote, importar/exportar) -->
       <div class="toolbar-row">
         <div id="tabs" class="tabs"></div>
         <div class="toolbar-spacer"></div>
@@ -218,16 +58,20 @@
         <button id="exportCsvBtn" class="btn ghost">Exportar CSV</button>
       </div>
 
+      <!-- Visão em calendário mensal: cabeçalho de dias da semana + grade de células (montada pelo JS em buildCalendar) -->
       <div id="weekdayHeader" class="weekday-header">
         <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
       </div>
       <div id="grid" class="grid-month"></div>
+      <!-- Visão em lista: alternativa ao calendário, agrupada por dia (oculta por padrão) -->
       <div id="listView" class="list-view" style="display:none"></div>
+      <!-- Card de sugestão da IA com metas de posts/vídeos, preenchido pelo JS em render() -->
       <div id="suggestionCard" class="card suggestion-card" style="display:none"></div>
 
-      <!-- Filters modal -->
+      <!-- Modal de Filtros: refina os posts exibidos por editoria, formato, tipo, status e collab -->
       <div id="filtersBackdrop" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true">
+          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
           <h2>Filtros</h2>
           <div style="display:flex;flex-direction:column;gap:12px">
             <div>
@@ -261,16 +105,17 @@
           </div>
         </div>
       </div>
-      <!-- Bulk edit modal -->
+      <!-- Modal de Edição em Lote: aplica data/formato/tipo/status/collab a todas as postagens selecionadas -->
       <div id="bulkEditBackdrop" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true">
+          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
           <h2>Edição em Lote</h2>
           <div style="display:flex;flex-direction:column;gap:10px">
             <label>Aplicar somente se preenchido (deixe em branco para pular)</label>
             <label>Data (YYYY-MM-DD)</label>
             <input id="bDate" type="date" />
             <label class="field-gap">Formato</label>
-            <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="bPlace" value="" checked /> Manter</label><label class="chip"><input type="radio" name="bPlace" value="Feed" /> Feed</label><label class="chip"><input type="radio" name="bPlace" value="Story" /> Story</label></div>
+            <div id="bPlaceContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
             <label class="field-gap">Tipo</label>
             <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="bType" value="" checked /> Manter</label><label class="chip"><input type="radio" name="bType" value="Static" /> Estático</label><label class="chip"><input type="radio" name="bType" value="Video" /> Vídeo</label></div>
             <label class="field-gap">Status</label>
@@ -283,53 +128,102 @@
           </div>
         </div>
       </div>
-      <!-- Settings modal -->
+      <!-- Modal de Configurações: metas, redes, editorias, formatos, status e catálogo de produtos (tudo persistido no localStorage) -->
       <div id="settingsBackdrop" class="modal-backdrop">
-        <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal modal--wide" role="dialog" aria-modal="true">
+          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
           <h2>Configurações</h2>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <label>Meta diária de posts</label>
-            <input id="sTarget" type="number" min="1" max="20" />
-            <label class="field-gap">Meta semanal de vídeos</label>
-            <input id="sWeekVideos" type="number" min="0" max="20" />
-            <hr />
-            <label style="font-weight:600">Redes</label>
-            <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Ícone e cor usados nos cards do calendário.</div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input id="newNetInput" placeholder="Nova rede" />
-              <input id="newNetColor" type="color" value="#7c3aed" />
-              <button id="addNetBtn" class="btn ghost">Adicionar</button>
+          <div class="settings-layout">
+
+            <!-- Menu lateral: escolhe qual seção aparece à direita -->
+            <div class="settings-sidebar" role="tablist">
+              <button type="button" class="settings-nav-btn active" data-panel="secAparencia">Aparência</button>
+              <button type="button" class="settings-nav-btn" data-panel="secMetas">Metas</button>
+              <button type="button" class="settings-nav-btn" data-panel="secRedes">Redes</button>
+              <button type="button" class="settings-nav-btn" data-panel="secEditorias">Editorias</button>
+              <button type="button" class="settings-nav-btn" data-panel="secStatus">Status</button>
+              <button type="button" class="settings-nav-btn" data-panel="secCatalogo">Catálogo de produtos</button>
             </div>
-            <div id="netsList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-            <label style="font-weight:600">Editorias</label>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input id="newEditoriaInput" placeholder="Nova editoria" />
-              <button id="addEditoriaBtn" class="btn ghost">Adicionar</button>
+
+            <!-- Conteúdo: só a seção selecionada no menu fica visível -->
+            <div class="settings-content">
+
+              <div class="settings-panel active" id="secAparencia">
+                <div style="display:flex;gap:8px">
+                  <label class="chip"><input type="radio" name="sTheme" value="light" checked /> Claro</label>
+                  <label class="chip"><input type="radio" name="sTheme" value="dark" /> Escuro</label>
+                </div>
+              </div>
+
+              <div class="settings-panel" id="secMetas">
+                <label>Meta diária de posts</label>
+                <input id="sTarget" type="number" min="1" max="20" />
+                <label class="field-gap">Meta semanal de vídeos</label>
+                <input id="sWeekVideos" type="number" min="0" max="20" />
+              </div>
+
+              <div class="settings-panel" id="secRedes">
+                <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Nome curto = exibição compacta em calendário, filtros e etiquetas. Cor = identificação visual da rede.</div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <input id="newNetInput" type="text" placeholder="Nome da rede (ex: Instagram)" style="flex:2;min-width:140px" />
+                  <input id="newNetShort" type="text" placeholder="Nome curto (ex: IG)" maxlength="4" style="flex:1;min-width:110px" />
+                  <input id="newNetColor" type="color" value="#7c3aed" />
+                  <button id="addNetBtn" class="btn ghost">Adicionar</button>
+                </div>
+                <div style="font-size:11.5px;color:var(--muted);margin:2px 0 -2px">Cada rede tem seus próprios formatos (ex: Instagram = Feed, Stories, Reels) — clique numa rede para configurá-los.</div>
+                <div id="netsList" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
+              </div>
+
+              <div class="settings-panel" id="secEditorias">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <div style="font-size:11.5px;color:var(--muted)">Categorias de conteúdo — opcionalmente com dias fixos de publicação.</div>
+                  <button type="button" id="toggleNewEditoriaBtn" class="btn ghost small">+ Adicionar</button>
+                </div>
+                <!-- Formulário de nova editoria — fica oculto até "+ Adicionar" ser clicado -->
+                <div id="newEditoriaForm" style="display:none;flex-direction:column;gap:8px;margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-muted)">
+                  <div>
+                    <label>Nome da editoria</label>
+                    <input id="newEditoriaInput" type="text" placeholder="Ex: Destaques" />
+                  </div>
+                  <div>
+                    <label>Datas de publicação</label>
+                    <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 4px">Opcional — dias fixos da semana em que essa editoria publica (ex: sempre segunda e quarta). Depois, use "Aplicar" na lista abaixo para gerar os cards do mês visível no calendário.</div>
+                    <div id="newEditoriaWeekdays" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                  </div>
+                  <div id="newEditoriaScheduleFields" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <select id="newEditoriaNet" style="flex:1;min-width:100px;width:auto"></select>
+                    <select id="newEditoriaPlace" style="flex:1;min-width:100px;width:auto"></select>
+                    <select id="newEditoriaType" style="flex:1;min-width:100px;width:auto"><option value="Static">Estático</option><option value="Video">Vídeo</option></select>
+                  </div>
+                  <div style="display:flex;gap:8px;justify-content:flex-end">
+                    <button type="button" id="cancelNewEditoriaBtn" class="btn ghost small">Cancelar</button>
+                    <button type="button" id="addEditoriaBtn" class="btn small">Adicionar editoria</button>
+                  </div>
+                </div>
+                <div id="editoriasList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+              </div>
+
+              <div class="settings-panel" id="secStatus">
+                <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Cor de cada etapa — aparece na barra lateral dos cards.</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input id="newStatusInput" type="text" placeholder="Novo status" />
+                  <input id="newStatusColor" type="color" value="#7c3aed" />
+                  <button id="addStatusBtn" class="btn ghost">Adicionar</button>
+                </div>
+                <div id="statusesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+              </div>
+
+              <div class="settings-panel" id="secCatalogo">
+                <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Usado no autocomplete de "Nome do produto". A foto é buscada automaticamente pelo código.</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input id="newCatalogCode" type="text" placeholder="Código (ex: 16.62.075.001)" style="max-width:180px" />
+                  <input id="newCatalogName" type="text" placeholder="Nome do produto" />
+                  <button id="addCatalogBtn" class="btn ghost">Adicionar</button>
+                </div>
+                <div id="catalogList" style="display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:180px;overflow-y:auto"></div>
+              </div>
+
             </div>
-            <div id="editoriasList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-            <label style="font-weight:600">Formatos</label>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input id="newPlaceInput" placeholder="Novo formato (ex:Feed)" />
-              <button id="addPlaceBtn" class="btn ghost">Adicionar</button>
-            </div>
-            <div id="placesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-            <label style="font-weight:600">Status (fluxo de produção)</label>
-            <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Cor de cada etapa — aparece na barra lateral dos cards.</div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input id="newStatusInput" placeholder="Novo status" />
-              <input id="newStatusColor" type="color" value="#7c3aed" />
-              <button id="addStatusBtn" class="btn ghost">Adicionar</button>
-            </div>
-            <div id="statusesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-            <hr />
-            <label style="font-weight:600">Catálogo de produtos (Vonder)</label>
-            <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Usado no autocomplete de "Nome do produto". A foto é buscada automaticamente pelo código.</div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input id="newCatalogCode" placeholder="Código (ex: 16.62.075.001)" style="max-width:180px" />
-              <input id="newCatalogName" placeholder="Nome do produto" />
-              <button id="addCatalogBtn" class="btn ghost">Adicionar</button>
-            </div>
-            <div id="catalogList" style="display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:180px;overflow-y:auto"></div>
           </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
             <button id="cancelSettings" class="btn ghost">Cancelar</button>
@@ -339,9 +233,10 @@
       </div>
     </div>
 
-    <!-- Modal -->
+    <!-- Modal de Criar/Editar postagem: pré-visualização ao vivo + campos de conteúdo, categorização, produção, distribuição e notas -->
     <div id="modalBackdrop" class="modal-backdrop">
       <div class="modal" role="dialog" aria-modal="true">
+        <button type="button" class="modal-close" aria-label="Fechar">✕</button>
         <h2 id="modalTitleHeading">Criar postagem</h2>
 
         <div id="modalPreview" class="modal-preview">
@@ -411,1116 +306,6 @@
 
   </div>
 
-  <script>
-    // Simple visual editor — stores in memory (session). User will feed content here.
-    const state = { posts: [] };
-
-    const $ = id => document.getElementById(id);
-    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    // Default view to August 2026 (current context). Allow navigation beyond.
-    let viewDate = new Date(2026,7,18);
-    let activeTab = 'All';
-    let currentView = 'month'; // 'month' | 'list'
-    // configurable targets (persisted)
-    let TARGET = 3;
-    let WEEK_VIDEO_TARGET = 3;
-    let isEditing = false;
-    let editingId = null;
-    // filters state
-    const filters = { editorias: [], places: [], types: [], statuses: [], collab: 'any' };
-    // selection / bulk edit
-    let selectMode = false;
-    const selectedIds = new Set();
-    // products selected in the create/edit modal: [{code,name}, ...]
-    let selectedProducts = [];
-
-    // color helpers for tags/status pills
-    const TAG_PALETTE = ['#7c3aed','#0284c7','#16a34a','#b45309','#dc2626','#db2777','#0d9488','#4f46e5','#65a30d','#ea580c'];
-    function hexToRgba(hex, alpha){
-      const h = (hex||'#7c3aed').replace('#','');
-      const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
-      const n = parseInt(full,16) || 0x7c3aed;
-      const r=(n>>16)&255,g=(n>>8)&255,b=n&255;
-      return `rgba(${r},${g},${b},${alpha})`;
-    }
-    function tagStyle(hex){ return `background:${hexToRgba(hex,0.12)};color:${hex};border:1px solid ${hexToRgba(hex,0.28)}`; }
-    function tagColor(name, list){
-      const idx = (list||[]).indexOf(name);
-      return TAG_PALETTE[(idx<0?0:idx) % TAG_PALETTE.length];
-    }
-    function statusColor(name){
-      const s = APP_SETTINGS.statuses.find(x=>x.name===name);
-      return (s && s.color) || '#94a3b8';
-    }
-    function networkColor(name){
-      const n = (APP_SETTINGS.networks||[]).find(x=>x.name===name);
-      if(n && n.color) return n.color;
-      return tagColor(name, (APP_SETTINGS.networks||[]).map(x=>x.name));
-    }
-    function networkIcon(name){
-      return ICONS[name] || `<span class="dot" style="background:${networkColor(name)}"></span>`;
-    }
-    function normalizeStr(s){
-      return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
-    }
-    function productImageUrl(code){
-      const digits = String(code||'').replace(/\D/g,'');
-      if(!digits) return '';
-      // Vonder's static image host blocks cross-site <img> embeds (hotlink protection
-      // beyond a simple Referer check — no-referrer alone didn't get past it). Route
-      // through a public image proxy that fetches it server-side instead.
-      const origin = `www.vonder.com.br/estatico/vonder/temp/320_${digits}.jpg`;
-      return `https://images.weserv.nl/?url=${encodeURIComponent(origin)}`;
-    }
-
-    function hideProductSuggestions(){
-      const box = $('productSuggestions'); if(box){ box.style.display = 'none'; box.innerHTML = ''; }
-    }
-
-    // reads a post's products, migrating legacy single productCode/productName posts
-    function getPostProducts(post){
-      if(Array.isArray(post.products) && post.products.length) return post.products;
-      if(post.productCode || post.productName) return [{ code: post.productCode||'', name: post.productName||'' }];
-      return [];
-    }
-
-    function renderSelectedProducts(){
-      const wrap = $('selectedProductsList'); if(!wrap) return;
-      wrap.innerHTML = '';
-      selectedProducts.forEach((p, idx)=>{
-        const chip = document.createElement('span'); chip.className = 'product-chip';
-        const img = p.code ? `<img src="${productImageUrl(p.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'" />` : '';
-        chip.innerHTML = `${img}<div class="pc-body"><span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}</div><button type="button" class="pc-remove" data-idx="${idx}" aria-label="Remover produto">✕</button>`;
-        wrap.appendChild(chip);
-      });
-      wrap.querySelectorAll('.pc-remove').forEach(bt=> bt.addEventListener('click', ()=>{ const i = parseInt(bt.dataset.idx,10); selectedProducts.splice(i,1); renderSelectedProducts(); }));
-      refreshModalDynamic();
-    }
-
-    // trims a catalog name like "Adesivo instantâneo cianoacrilato, 7,5 g, blister, VONDER"
-    // down to "Adesivo instantâneo cianoacrilato" for use inside a title
-    function shortenProductName(name){
-      let n = String(name||'').replace(/,\s*VONDER\s*$/i, '').trim();
-      const commaIdx = n.indexOf(',');
-      if(commaIdx > 0) n = n.slice(0, commaIdx);
-      return n.trim();
-    }
-
-    const EDITORIA_TITLE_TEMPLATES = {
-      'Lançamentos': p => `Lançamento: ${p}`,
-      'Dica VONDER': p => `Dica VONDER: como usar o ${p}`,
-      'Destaques': p => `Destaque da semana: ${p}`,
-      'Informativo': p => `Saiba mais sobre o ${p}`
-    };
-    const NETWORK_TITLE_TEMPLATES = {
-      Instagram: p => `Confira o ${p} da VONDER`,
-      Twitter: p => `${p} já disponível!`,
-      LinkedIn: p => `VONDER apresenta: ${p}`,
-      Blog: p => `Blog: conheça o ${p}`,
-      Email: p => `Novidade VONDER: ${p}`
-    };
-    // extra angles, inspired by common content-marketing formats (listicles, tips,
-    // questions, how-tos, social proof...) to add variety beyond the editoria/network ones
-    const GENERIC_ANGLE_TEMPLATES = [
-      p => `${pickListNumber()} lugares para usar o ${p}`,
-      p => `${pickListNumber()} dicas para tirar o máximo do ${p}`,
-      p => `Você já conhece o ${p}?`,
-      p => `Como o ${p} facilita seu trabalho`,
-      p => `Como usar o ${p} corretamente`,
-      p => `Chegou: ${p}`,
-      p => `Por que profissionais recomendam o ${p}`,
-      p => `Guia rápido: ${p}`,
-      p => `Onde usar o ${p} no dia a dia`,
-      p => `Resolva seu problema com o ${p}`
-    ];
-    function pickListNumber(){ const nums = [3,5,7]; return nums[Math.floor(Math.random()*nums.length)]; }
-
-    function joinProductNames(names){
-      return names.length===1 ? names[0]
-        : names.length===2 ? `${names[0]} e ${names[1]}`
-        : `${names.slice(0,-1).join(', ')} e ${names[names.length-1]}`;
-    }
-
-    function suggestTitles(count){
-      if(selectedProducts.length===0) return [];
-      const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
-      if(nets.length===0) return [];
-      const names = selectedProducts.map(p=>shortenProductName(p.name)).filter(Boolean);
-      if(names.length===0) return [];
-      const productPhrase = joinProductNames(names);
-      const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
-
-      const candidates = [];
-      editorias.forEach(ed=>{ if(EDITORIA_TITLE_TEMPLATES[ed]) candidates.push(EDITORIA_TITLE_TEMPLATES[ed](productPhrase)); });
-      const netTpl = NETWORK_TITLE_TEMPLATES[nets[0]];
-      if(netTpl) candidates.push(netTpl(productPhrase));
-      const shuffled = GENERIC_ANGLE_TEMPLATES.slice().sort(()=>Math.random()-0.5);
-      for(const fn of shuffled){ if(candidates.length>=count) break; candidates.push(fn(productPhrase)); }
-      return Array.from(new Set(candidates)).slice(0, count);
-    }
-
-    function renderTitleSuggestion(){
-      const box = $('titleSuggestion'); if(!box) return;
-      if($('mTitle').value.trim()){ box.style.display = 'none'; return; }
-      const suggestions = suggestTitles(3);
-      if(suggestions.length===0){ box.style.display = 'none'; return; }
-      box.innerHTML = `<div class="ts-header"><span class="ts-icon">✨</span><span>Sugestões de título</span><button type="button" class="ts-shuffle" title="Gerar outras opções">🔄</button></div>` +
-        suggestions.map(s=>`<div class="ts-option"><span class="ts-text">${escapeHtml(s)}</span><button type="button" class="ts-use" data-text="${escapeHtml(s)}">Usar</button></div>`).join('');
-      box.querySelectorAll('.ts-use').forEach(bt=> bt.addEventListener('click', ()=>{ $('mTitle').value = bt.dataset.text; box.style.display = 'none'; renderModalPreview(); }));
-      box.querySelector('.ts-shuffle').addEventListener('click', renderTitleSuggestion);
-      box.style.display = 'flex';
-    }
-
-    function renderModalPreview(){
-      const wrap = $('modalPreview'); if(!wrap) return;
-      const title = $('mTitle').value.trim();
-      const statusEl = document.querySelector('input[name="mStatus"]:checked');
-      const status = statusEl ? statusEl.value : '';
-      const stColor = statusColor(status);
-      const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
-      const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
-      const typeEl = document.querySelector('input[name="mType"]:checked');
-      const type = typeEl ? typeEl.value : 'Static';
-      const collab = $('mCollab') ? $('mCollab').checked : false;
-
-      wrap.querySelector('.mp-bar').style.background = stColor;
-      const titleEl = wrap.querySelector('.mp-title');
-      titleEl.textContent = title || 'Sua postagem aparecerá aqui';
-      titleEl.classList.toggle('placeholder', !title);
-
-      const tags = [];
-      if(status) tags.push(`<span class="tag" style="${tagStyle(stColor)}">${escapeHtml(status)}</span>`);
-      editorias.forEach(ed=> tags.push(`<span class="tag" style="${tagStyle(tagColor(ed, APP_SETTINGS.editorias))}">${escapeHtml(ed)}</span>`));
-      nets.forEach(n=> tags.push(`<span class="tag tag--outline">${networkIcon(n)} ${escapeHtml(n)}</span>`));
-      if(type==='Video') tags.push(`<span class="tag tag--outline">🎬 Vídeo</span>`);
-      if(collab) tags.push(`<span class="tag tag--collab">Collab</span>`);
-      selectedProducts.forEach(p=>{ if(p.code) tags.push(`<img class="mp-prod-thumb" src="${productImageUrl(p.code)}" referrerpolicy="no-referrer" onerror="this.style.display='none'" alt="" title="${escapeHtml(p.name)}" />`); });
-      wrap.querySelector('.mp-meta').innerHTML = tags.join('');
-    }
-
-    function refreshModalDynamic(){
-      renderTitleSuggestion();
-      renderModalPreview();
-    }
-
-    function addSelectedProduct(item){
-      if(item.code && selectedProducts.some(p=>p.code===item.code)){ $('mProductName').value=''; hideProductSuggestions(); return; }
-      selectedProducts.push({ code: item.code||'', name: item.name });
-      $('mProductName').value = '';
-      hideProductSuggestions();
-      renderSelectedProducts();
-      $('mProductName').focus();
-    }
-
-    function showProductSuggestions(query){
-      const box = $('productSuggestions'); if(!box) return;
-      const q = normalizeStr(query.trim());
-      if(q.length < 2){ hideProductSuggestions(); return; }
-      const matches = (APP_SETTINGS.catalog||[]).filter(item=>
-        !selectedProducts.some(p=>p.code===item.code) &&
-        (normalizeStr(item.name).includes(q) || normalizeStr(item.code).includes(q))
-      ).slice(0, 8);
-      if(matches.length===0){
-        box.innerHTML = `<div class="autocomplete-item ac-manual"><span class="ac-name">+ Adicionar "${escapeHtml(query.trim())}" (sem catálogo)</span></div>`;
-        box.querySelector('.ac-manual').addEventListener('mousedown', (ev)=>{ ev.preventDefault(); addSelectedProduct({ code:'', name: query.trim() }); });
-        box.style.display = 'block';
-        return;
-      }
-      box.innerHTML = matches.map(item=>
-        `<div class="autocomplete-item" data-code="${escapeHtml(item.code)}"><img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'" /><span class="ac-name">${escapeHtml(item.name)}</span><span class="ac-code">${escapeHtml(item.code)}</span></div>`
-      ).join('');
-      box.querySelectorAll('.autocomplete-item').forEach(el=>{
-        el.addEventListener('mousedown', (ev)=>{ ev.preventDefault(); const item = (APP_SETTINGS.catalog||[]).find(x=>x.code===el.dataset.code); if(item) addSelectedProduct(item); });
-      });
-      box.style.display = 'block';
-    }
-
-    function toggleSelectMode(){
-      selectMode = !selectMode;
-      if(!selectMode) selectedIds.clear();
-      // visual cue
-      document.getElementById('toggleSelect').classList.toggle('btn--active', selectMode);
-      render();
-    }
-
-    function openBulkEdit(){
-      if(selectedIds.size===0){ alert('Nenhuma postagem selecionada'); return; }
-      $('bDate').value = '';
-      document.querySelector('input[name="bPlace"][value=""]').checked = true;
-      document.querySelector('input[name="bType"][value=""]').checked = true;
-      if($('bStatusSelect')) $('bStatusSelect').value = '';
-      $('bCollabToggle').checked = false;
-      $('bulkEditBackdrop').style.display = 'flex';
-    }
-
-    function closeBulkEdit(){ $('bulkEditBackdrop').style.display = 'none'; }
-
-    function applyBulkEdit(){
-      const date = $('bDate').value || null;
-      const place = document.querySelector('input[name="bPlace"]:checked').value || null;
-      const type = document.querySelector('input[name="bType"]:checked').value || null;
-      const status = $('bStatusSelect') ? ($('bStatusSelect').value || null) : null;
-      const beforeStates = [];
-      selectedIds.forEach(id=>{ const p = state.posts.find(x=>x.id===id); if(p){ beforeStates.push(Object.assign({},p)); if(date) p.date = date; if(place) p.place = place; if(type) p.type = type; if(status) p.status = status; if($('bCollabToggle').checked) p.collab = true; } });
-      saveState(); buildCalendar(); render(); closeBulkEdit();
-      pushUndo({ type:'edit-multi', before: beforeStates }); redoStack = [];
-      // exit selection mode
-      selectMode = false; selectedIds.clear(); document.getElementById('toggleSelect').classList.remove('btn--active');
-    }
-
-    const ICONS = {
-      Instagram: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="5" stroke="#7c3aed" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="3.2" stroke="#7c3aed" stroke-width="1.6" fill="none"/><circle cx="17.5" cy="6.5" r="0.9" fill="#7c3aed"/></svg>`,
-      Twitter: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 5.92c-.63.28-1.3.47-2 .56.72-.43 1.27-1.12 1.53-1.94-.68.4-1.44.69-2.25.85C18.9 4.5 17.7 4 16.4 4c-2.02 0-3.66 1.64-3.66 3.66 0 .29.03.57.09.84C9.2 8.4 6.2 6.7 4.1 4.1c-.32.56-.5 1.2-.5 1.88 0 1.3.66 2.45 1.66 3.12-.6-.02-1.17-.18-1.66-.46v.05c0 1.77 1.26 3.25 2.93 3.59-.31.08-.64.12-.98.12-.24 0-.48-.02-.71-.07.48 1.5 1.87 2.6 3.52 2.63-1.29 1.01-2.92 1.61-4.69 1.61-.3 0-.6-.02-.9-.05C6.95 20.2 9.37 21 12 21c7.07 0 10.94-5.86 10.94-10.94l-.01-.5C22 7.45 22.5 6.7 22 5.92z" fill="#1DA1F2"/></svg>`,
-      LinkedIn: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="3" width="20" height="18" rx="2" stroke="#0A66C2" stroke-width="1.2" fill="none"/><path d="M6 10.5v6M8 7.5v9M11 7.5v9M14 7.5v9" stroke="#0A66C2" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-      Blog: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 7.5h18M3 12h12M3 16.5h9" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round"/></svg>`,
-      Email: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="4" width="19" height="16" rx="2" stroke="#374151" stroke-width="1.2" fill="none"/><path d="M3 7l9 6 9-6" stroke="#374151" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-    };
-    const FORMAT_ICONS = {
-      Feed: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5-4 4-3-3-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-      Story: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="6" stroke="currentColor" stroke-width="1.6"/></svg>`
-    };
-
-    function generateId(){ return 'p-' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
-
-    function todayStr(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-
-    function buildCalendar(){
-      const grid = $('grid');
-      grid.innerHTML = '';
-      const YEAR = viewDate.getFullYear();
-      const MONTH = viewDate.getMonth();
-      const first = new Date(YEAR, MONTH, 1);
-      const last = new Date(YEAR, MONTH + 1, 0);
-      const total = last.getDate();
-      const startDay = first.getDay(); // 0 (Sun) - 6 (Sat)
-      const cells = 42; // show 6 weeks
-      const tStr = todayStr();
-      for(let i=0;i<cells;i++){
-        const cell = document.createElement('div');
-        cell.className = 'day';
-        const dayIndex = i - startDay + 1;
-        if(dayIndex>0 && dayIndex<=total){
-          const dateStr = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-${String(dayIndex).padStart(2,'0')}`;
-          cell.dataset.date = dateStr;
-          if(dateStr===tStr) cell.classList.add('today');
-          cell.innerHTML = `<div class="day-head"><span class="date">${dayIndex}</span><span class="day-count"></span></div><div class="posts"></div>`;
-          // allow drop
-          cell.addEventListener('dragover', ev=>{ ev.preventDefault(); cell.classList.add('drag-over'); });
-          cell.addEventListener('dragleave', ev=>{ cell.classList.remove('drag-over'); });
-          cell.addEventListener('drop', ev=>{
-            ev.preventDefault(); cell.classList.remove('drag-over');
-            const id = ev.dataTransfer.getData('text/plain');
-            if(!id) return;
-            const post = state.posts.find(x=>x.id===id);
-            if(!post) return;
-            const from = post.date;
-            const to = cell.dataset.date;
-            if(from===to) return;
-            // FLIP animation
-            const srcEl = document.querySelector(`.event[data-id="${post.id}"]`) || document.querySelector(`.event[data-id='${post.id}']`);
-            const oldRect = srcEl ? srcEl.getBoundingClientRect() : null;
-            // perform move
-            post.date = to;
-            saveState();
-            buildCalendar();
-            render();
-            // animate from old position to new
-            if(oldRect){
-              const newEl = document.querySelector(`.event[data-id="${post.id}"]`) || document.querySelector(`.event[data-id='${post.id}']`);
-              if(newEl){
-                const newRect = newEl.getBoundingClientRect();
-                const dx = oldRect.left - newRect.left;
-                const dy = oldRect.top - newRect.top;
-                newEl.style.transform = `translate(${dx}px, ${dy}px)`;
-                requestAnimationFrame(()=>{
-                  newEl.classList.add('moving');
-                  newEl.style.transform = '';
-                  setTimeout(()=>{ newEl.classList.remove('moving'); }, 380);
-                });
-              }
-            }
-            // push undo action
-            pushUndo({ type:'move', id: post.id, from, to });
-            // clear redo stack
-            redoStack = [];
-          });
-        } else {
-          cell.classList.add('empty');
-          cell.innerHTML = `<div style="height:18px"></div>`;
-        }
-        grid.appendChild(cell);
-      }
-      // update month label
-      const monthLabel = viewDate.toLocaleString('pt-BR',{month:'long',year:'numeric'});
-      $('monthLabel').textContent = monthLabel.charAt(0).toUpperCase()+monthLabel.slice(1);
-    }
-
-    function getFilteredPosts(){
-      const items = state.posts.filter(p => activeTab==='All' || p.channel===activeTab);
-      return items.filter(p=>{
-        // editorias
-        if(filters.editorias && filters.editorias.length>0){
-          const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
-          if(!eds.some(e=> filters.editorias.includes(e))) return false;
-        }
-        // places (Feed/Story)
-        if(filters.places && filters.places.length>0){
-          const pls = Array.isArray(p.place)?p.place:[p.place].filter(Boolean);
-          if(!pls.some(z=> filters.places.includes(z))) return false;
-        }
-        // types
-        if(filters.types && filters.types.length>0){ if(!filters.types.includes(p.type||'Static')) return false; }
-        // status
-        if(filters.statuses && filters.statuses.length>0){ if(!filters.statuses.includes(p.status)) return false; }
-        // collab
-        if(filters.collab==='only' && !p.collab) return false;
-        if(filters.collab==='no' && p.collab) return false;
-        return true;
-      });
-    }
-
-    // helper to create event element (calendar card)
-    function createEventElement(p){
-      const div = document.createElement('div'); div.className='event'; div.setAttribute('draggable','true'); div.dataset.id = p.id;
-      const stColor = statusColor(p.status);
-      const icon = networkIcon(p.channel);
-      const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
-      const placeText = Array.isArray(p.place)?p.place.join('/'):(p.place||'');
-      const tagsHtml = [
-        ...eds.map(e=>`<span class="tag" style="${tagStyle(tagColor(e, APP_SETTINGS.editorias))}">${escapeHtml(e)}</span>`),
-        (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : '',
-        p.collab ? `<span class="tag tag--collab">Collab</span>` : ''
-      ].filter(Boolean).join('');
-      const prods = getPostProducts(p);
-      const productNames = prods.map(x=>x.name).filter(Boolean).join(', ');
-      div.title = [p.status, placeText, productNames].filter(Boolean).join(' · ');
-      div.innerHTML = `<div class="event-bar" style="background:${stColor}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${escapeHtml(p.channel||'')}</span></div>${tagsHtml?`<div class="event-tags">${tagsHtml}</div>`:''}</div>`;
-      div.addEventListener('dragstart', (ev)=>{ ev.dataTransfer.setData('text/plain', p.id); div.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; });
-      div.addEventListener('dragend', ()=>{ div.classList.remove('dragging'); });
-      div.addEventListener('click', (ev)=>{ if(selectMode){ ev.stopPropagation(); const cb = div.querySelector('.select-checkbox'); if(cb){ cb.checked = !cb.checked; if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); } return; } openEditModal(p.id); });
-      if(selectMode){ const cb = document.createElement('input'); cb.type='checkbox'; cb.className='select-checkbox'; cb.checked = selectedIds.has(p.id); cb.addEventListener('click', (ev)=>{ ev.stopPropagation(); if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); }); div.appendChild(cb); }
-      return div;
-    }
-
-    function createListRow(p){
-      const row = document.createElement('div'); row.className='list-row'; row.dataset.id = p.id;
-      const stColor = statusColor(p.status);
-      const icon = networkIcon(p.channel);
-      const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
-      const tagsHtml = [
-        ...eds.map(e=>`<span class="tag" style="${tagStyle(tagColor(e, APP_SETTINGS.editorias))}">${escapeHtml(e)}</span>`),
-        p.collab ? `<span class="tag tag--collab">Collab</span>` : '',
-        (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : ''
-      ].filter(Boolean).join('');
-      row.innerHTML = `<span class="list-row-bar" style="background:${stColor}"></span><span class="list-row-title">${escapeHtml(p.title)}</span><span class="list-row-channel">${icon}${escapeHtml(p.channel||'')}</span><span class="list-row-tags">${tagsHtml}</span><span class="tag" style="${tagStyle(stColor)}">${escapeHtml(p.status||'')}</span>`;
-      row.addEventListener('click', ()=> openEditModal(p.id));
-      return row;
-    }
-
-    function renderListView(){
-      const container = $('listView');
-      if(!container) return;
-      container.innerHTML = '';
-      const YEAR = viewDate.getFullYear(), MONTH = viewDate.getMonth();
-      const last = new Date(YEAR, MONTH+1, 0).getDate();
-      const filtered = getFilteredPosts();
-      const map = {};
-      filtered.forEach(p=>{ (map[p.date] = map[p.date] || []).push(p); });
-      const tStr = todayStr();
-      let any = false;
-      for(let d=1; d<=last; d++){
-        const dateStr = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const list = map[dateStr];
-        if(!list || list.length===0) continue;
-        any = true;
-        const dow = new Date(YEAR,MONTH,d).toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','');
-        const isToday = dateStr===tStr;
-        const group = document.createElement('div'); group.className = 'list-group';
-        const dateEl = document.createElement('div'); dateEl.className = `list-date ${isToday?'today':''}`;
-        dateEl.innerHTML = `<span class="list-date-num">${d}</span><span class="list-date-dow">${dow}</span>${isToday?'<span class="today-badge">Hoje</span>':''}`;
-        group.appendChild(dateEl);
-        list.forEach(p=> group.appendChild(createListRow(p)));
-        container.appendChild(group);
-      }
-      if(!any){ container.innerHTML = `<div class="list-empty">Nenhuma postagem encontrada para este mês com os filtros atuais.</div>`; }
-    }
-
-    function setView(v){
-      currentView = v;
-      $('grid').style.display = v==='month' ? 'grid' : 'none';
-      $('weekdayHeader').style.display = v==='month' ? 'grid' : 'none';
-      $('listView').style.display = v==='list' ? 'flex' : 'none';
-      document.querySelectorAll('#viewToggle button').forEach(b=> b.classList.toggle('active', b.dataset.view===v));
-      render();
-    }
-
-    function render(){
-      // Clear posts in cells
-      document.querySelectorAll('.day').forEach(c=>{ const posts = c.querySelector('.posts'); if(posts) posts.innerHTML = ''; });
-      const filtered = getFilteredPosts();
-      // build map of posts per date
-      const postsMap = {};
-      filtered.forEach(p=>{ postsMap[p.date] = postsMap[p.date] || []; postsMap[p.date].push(p); });
-
-      // render per cell with limit and more-badge
-      const maxVisible = 3;
-      document.querySelectorAll('.day[data-date]').forEach(cell=>{
-        const date = cell.dataset.date;
-        const postsEl = cell.querySelector('.posts');
-        const list = postsMap[date] || [];
-        // append visible items
-        list.slice(0, maxVisible).forEach(p=>{ postsEl.appendChild(createEventElement(p)); });
-        // more badge
-        const more = list.length>maxVisible ? list.length-maxVisible : 0;
-        let mb = cell.querySelector('.more-badge');
-        if(more>0){ if(!mb){ mb = document.createElement('div'); mb.className='more-badge'; cell.appendChild(mb); } mb.textContent = `+${more}`; }
-        else { if(mb) mb.remove(); }
-      });
-
-      // AI badges per day and weekly video summary
-      // compute weekly video count for the week that contains viewDate (Sun-Sat)
-      const weekStart = new Date(viewDate); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-      let weekVideos = 0;
-      let monthTotal = 0;
-      const YEAR = viewDate.getFullYear(), MONTH = viewDate.getMonth();
-      document.querySelectorAll('.day[data-date]').forEach(cell=>{
-        const date = cell.dataset.date;
-        if(!date) return;
-        const postsAll = state.posts.filter(p=>p.date===date && !p.collab);
-        const total = postsAll.length;
-        monthTotal += total;
-        const videoCount = postsAll.filter(p=> (p.type||'').toLowerCase()==='video').length;
-        // count into week
-        const d = new Date(date);
-        if(d >= weekStart && d <= weekEnd) weekVideos += videoCount;
-
-        const badge = cell.querySelector('.day-count');
-        if(badge){
-          badge.className = `day-count ${total < TARGET ? 'low':'ok'}`;
-          badge.textContent = `${total}/${TARGET}`;
-          badge.title = total < TARGET ? `Sugestão: meta ${TARGET} posts/dia. Atualmente ${total}. Collab não conta.` : 'Meta diária atingida';
-        }
-      });
-
-      // topbar quick summary
-      const summaryEl = $('aiSummary');
-      if(summaryEl){ summaryEl.textContent = `${monthTotal} postagens neste mês · ${weekVideos}/${WEEK_VIDEO_TARGET} vídeos nesta semana`; }
-
-      // show weekly suggestion card outside calendar
-      const suggestion = $('suggestionCard');
-      if(suggestion){
-        suggestion.style.display = 'block';
-        const weekStatus = weekVideos >= WEEK_VIDEO_TARGET ? `<strong style="color:#065f46">${weekVideos}/${WEEK_VIDEO_TARGET} vídeos</strong>` : `<strong style="color:#92400e">${weekVideos}/${WEEK_VIDEO_TARGET} vídeos</strong>`;
-        suggestion.innerHTML = `<strong>Sugestão IA</strong><div style="margin-top:6px;color:#374151">Meta diária: <strong>${TARGET}</strong> posts por dia. Collabs não entram na contagem. Vídeos: ideal ${WEEK_VIDEO_TARGET} por semana — recomendação atual: ${weekStatus}. Dica: se estiver abaixo, considere transformar 1 dos posts do dia em vídeo ou aumentar a frequência esta semana.</div>`;
-      }
-
-      if(currentView==='list') renderListView();
-    }
-
-    function addPostFromForm(){
-      // legacy no-op kept for safety
-    }
-
-    function openModal(){
-      $('modalBackdrop').style.display = 'flex';
-      // default date to viewDate's first visible day or today
-      const defaultDate = viewDate.toISOString().slice(0,10);
-      $('mDate').value = defaultDate;
-      // reset fields
-      $('mTitle').value=''; $('mNotes').value=''; $('mProductName').value='';
-      document.querySelectorAll('.mNet').forEach(n=>n.checked=false); document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false);
-      document.querySelectorAll('input[name="mPlace"]').forEach(el=>el.checked=false); const defaultPlace = document.querySelector('input[name="mPlace"][value="Feed"]'); if(defaultPlace) defaultPlace.checked=true;
-      document.querySelectorAll('input[name="mStatus"]').forEach((el,i)=> el.checked = i===0);
-      selectedProducts = [];
-      renderSelectedProducts();
-      hideProductSuggestions();
-      $('mTitle').focus();
-    }
-
-    function closeModal(){
-      $('modalBackdrop').style.display = 'none';
-    }
-
-    function saveModal(){
-      const title = $('mTitle').value.trim() || 'Untitled';
-      const date = $('mDate').value;
-      if(!date){ alert('Escolha uma data'); return; }
-      const place = Array.from(document.querySelectorAll('input[name="mPlace"]:checked')).map(n=>n.value);
-      if(place.length===0) place.push('Feed');
-      const type = document.querySelector('input[name="mType"]:checked').value;
-      const statusEl = document.querySelector('input[name="mStatus"]:checked');
-      const status = statusEl ? statusEl.value : ((APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho');
-      const notes = $('mNotes').value.trim();
-      const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
-      const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
-      const products = selectedProducts.slice();
-      if(nets.length===0){ alert('Selecione pelo menos uma rede'); return; }
-      if(isEditing && editingId){
-        // editing single post - update the one post
-        const pid = editingId;
-        const post = state.posts.find(p=>p.id===pid);
-        if(!post) return;
-        const before = Object.assign({}, post);
-        // update properties - respect that only one network was enabled
-        const ch = nets[0];
-        post.title = title; post.date = date; post.place = place.length===1?place[0]:place; post.type = type; post.status = status; post.notes = notes; post.channel = ch; post.collab = $('mCollab').checked;
-        post.editoria = editorias; post.products = products; delete post.productCode; delete post.productName;
-        saveState(); render(); closeModal();
-        pushUndo({ type:'edit', id: pid, before });
-        redoStack = [];
-        closeEditState();
-        return;
-      }
-
-      const created = [];
-      nets.forEach(net=>{
-        const p = { id: generateId(), title, date, channel: net, place: place.length===1?place[0]:place, type, status, notes, collab: $('mCollab').checked, color: null, editoria: editorias, products: products.slice() };
-        state.posts.push(p);
-        created.push(p);
-      });
-      saveState();
-      render();
-      closeModal();
-      // push undo action (delete created posts)
-      pushUndo({ type:'create', posts: created.map(p=>p.id) });
-      // clear redo stack
-      redoStack = [];
-      // clear modal
-      $('mTitle').value=''; $('mNotes').value=''; document.querySelectorAll('.mNet').forEach(n=>n.checked=false); $('mCollab').checked = false;
-      document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false); $('mProductName').value=''; selectedProducts=[]; renderSelectedProducts(); document.querySelectorAll('input[name="mPlace"]').forEach(el=>el.checked=false); const defaultPlace = document.querySelector('input[name="mPlace"][value="Feed"]'); if(defaultPlace) defaultPlace.checked=true;
-    }
-
-    function clearForm(){ }
-
-    function saveState(){
-      localStorage.setItem('calendar_posts_v1', JSON.stringify(state.posts));
-    }
-
-    function loadState(){
-      const raw = localStorage.getItem('calendar_posts_v1');
-      if(raw){ try{ state.posts = JSON.parse(raw) || []; }catch(e){ state.posts=[]; } }
-      // ensure ids and status
-      const defaultStatus = (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho';
-      state.posts.forEach(p=>{ if(!p.id) p.id = generateId(); if(!p.status) p.status = defaultStatus; });
-    }
-
-    // app settings persistence (networks, editorias, places, statuses, targets)
-    const BRAND_COLORS = { Instagram:'#7c3aed', Twitter:'#1DA1F2', LinkedIn:'#0A66C2', Blog:'#ef4444', Email:'#374151' };
-    const DEFAULT_SETTINGS = {
-      TARGET: 3,
-      WEEK_VIDEO_TARGET: 3,
-      networks: [
-        { name:'Instagram', color:'#7c3aed' },
-        { name:'Twitter', color:'#1DA1F2' },
-        { name:'LinkedIn', color:'#0A66C2' },
-        { name:'Blog', color:'#ef4444' },
-        { name:'Email', color:'#374151' }
-      ],
-      editorias: ['Informativo','Destaques','Lançamentos','Dica VONDER'],
-      places: ['Feed','Story'],
-      statuses: [
-        { name:'Rascunho', color:'#94a3b8' },
-        { name:'Em produção', color:'#f59e0b' },
-        { name:'Aprovado', color:'#10b981' },
-        { name:'Agendado', color:'#6366f1' }
-      ],
-      catalog: [
-        { code:'16.62.075.001', name:'Adesivo instantâneo cianoacrilato, 7,5 g, blister, VONDER' },
-        { code:'35.99.110.105', name:'Jogo de ferramentas com 110 peças, VONDER' },
-        { code:'35.99.110.104', name:'Jogo de ferramentas com 110 peças, para mecânico, VONDER' },
-        { code:'35.99.000.110', name:'Jogo de ferramentas com 110 peças, embalagem fechada, VONDER' },
-        { code:'35.99.059.000', name:'Jogo de ferramentas com 59 peças, VONDER' },
-        { code:'35.99.040.040', name:'Jogo de ferramentas com 40 peças, VONDER' },
-        { code:'30.72.038.000', name:'Jogo de ferramentas com 38 peças, VONDER' },
-        { code:'35.99.100.700', name:'Fixador de porta FP 700, cromado, VONDER' },
-        { code:'35.99.100.808', name:'Fixador de porta FP 808, cromado, VONDER' },
-        { code:'70.55.510.000', name:'Óculos de segurança Boxer incolor, VONDER' },
-        { code:'70.55.540.000', name:'Óculos de segurança Boxer fumê, VONDER' },
-        { code:'70.55.520.000', name:'Óculos de segurança Boxer âmbar, VONDER' },
-        { code:'70.55.140.000', name:'Óculos de segurança Foxter fumê, VONDER' },
-        { code:'60.01.100.120', name:'Parafusadeira/furadeira a bateria, 12 V, PFV 120, VONDER' },
-        { code:'68.78.156.000', name:'Inversor para solda com eletrodo e TIG, 150 A, RIV 156, VONDER' },
-        { code:'11.37.192.013', name:'Fita isolante, 19 mm x 20 m, preta, VONDER' },
-        { code:'11.37.191.013', name:'Fita isolante, 19 mm x 10 m, preta, VONDER' },
-        { code:'11.37.190.513', name:'Fita isolante, 19 mm x 5 m, preta, VONDER' },
-        { code:'11.37.191.023', name:'Fita isolante, 19 mm x 10 m, branca, VONDER' },
-        { code:'11.37.191.033', name:'Fita isolante, 19 mm x 10 m, azul, VONDER' },
-        { code:'38.68.500.005', name:'Trena de aço 5 m x 19 mm, VONDER' },
-        { code:'38.68.300.003', name:'Trena de aço 3 m x 12,5 mm, VONDER' },
-        { code:'38.68.750.075', name:'Trena de aço 7,5 m x 25 mm, VONDER' },
-        { code:'35.25.300.300', name:'Paquímetro digital, 300 mm, PD 300, VONDER' },
-        { code:'35.25.200.200', name:'Paquímetro digital, 200 mm, PD 200, VONDER' },
-        { code:'35.25.150.150', name:'Paquímetro digital, 150 mm, PD 150, VONDER' },
-        { code:'35.25.150.153', name:'Paquímetro digital, plástico, 150 mm, PD 153, VONDER' }
-      ]
-    };
-    let APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
-
-    function saveSettings(){
-      // persist app settings and main targets
-      APP_SETTINGS.TARGET = TARGET;
-      APP_SETTINGS.WEEK_VIDEO_TARGET = WEEK_VIDEO_TARGET;
-      localStorage.setItem('calendar_settings_v1', JSON.stringify(APP_SETTINGS));
-    }
-
-    function loadSettings(){
-      const raw = localStorage.getItem('calendar_settings_v1');
-      if(raw){ try{ const s = JSON.parse(raw); APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS, s||{}); if(!APP_SETTINGS.statuses || !APP_SETTINGS.statuses.length) APP_SETTINGS.statuses = DEFAULT_SETTINGS.statuses.slice(); TARGET = APP_SETTINGS.TARGET || TARGET; WEEK_VIDEO_TARGET = APP_SETTINGS.WEEK_VIDEO_TARGET || WEEK_VIDEO_TARGET; }catch(e){ APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS); } }
-      // migrate legacy string-based networks to {name,color}
-      APP_SETTINGS.networks = (APP_SETTINGS.networks||[]).map((n,i)=> typeof n === 'string' ? { name:n, color: BRAND_COLORS[n] || TAG_PALETTE[i % TAG_PALETTE.length] } : n);
-    }
-
-    // dynamic UI rendering for lists
-    function renderTabs(){
-      const tabs = $('tabs'); tabs.innerHTML = '';
-      const allBtn = document.createElement('button'); allBtn.className='btn ghost'; allBtn.dataset.tab='All'; allBtn.id='tabAll'; allBtn.textContent='Todas'; tabs.appendChild(allBtn);
-      APP_SETTINGS.networks.forEach(n=>{ const b = document.createElement('button'); b.className='btn ghost'; b.dataset.tab = n.name; b.textContent = n.name; tabs.appendChild(b); });
-      // wire buttons
-      tabs.querySelectorAll('button').forEach(b=>{ b.addEventListener('click', ()=>{ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); b.classList.remove('ghost'); activeTab = b.dataset.tab; render(); }); });
-      // ensure active class
-      const active = Array.from(tabs.children).find(x=>x.dataset.tab===activeTab) || tabs.children[0]; if(active){ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); active.classList.remove('ghost'); }
-    }
-
-    function renderNetsUI(){
-      // modal nets
-      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n.name)}" /> <span class="net-icon">${networkIcon(n.name)}</span>${escapeHtml(n.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
-      // settings list
-      const list = $('netsList'); if(list){ list.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const chip = document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${n.color}"></span>${escapeHtml(n.name)} <button class="btn ghost small" data-net="${escapeHtml(n.name)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover rede">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-net]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.net; APP_SETTINGS.networks = APP_SETTINGS.networks.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
-    }
-
-    function renderEditoriasUI(){
-      const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e)}" /> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
-      const fc = $('filterEditoriasContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fEditoria" value="${escapeHtml(e)}"/> <span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)}`; fc.appendChild(lbl); }); }
-      const list = $('editoriasList'); if(list){ list.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${tagColor(e, APP_SETTINGS.editorias)}"></span>${escapeHtml(e)} <button class="btn ghost small" data-editoria="${escapeHtml(e)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover editoria">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.editoria; APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
-    }
-
-    function renderPlacesUI(){
-      const m = $('mPlacesContainer'); if(m){ m.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" name="mPlace" value="${escapeHtml(p)}" /> ${FORMAT_ICONS[p]||''} ${escapeHtml(p)}`; m.appendChild(lbl); }); }
-      const fc = $('filterPlacesContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" class="fPlace" value="${escapeHtml(p)}"/> ${escapeHtml(p)}`; fc.appendChild(lbl); }); }
-      const placesList = $('placesList'); if(placesList){ placesList.innerHTML=''; APP_SETTINGS.places.forEach(p=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `${escapeHtml(p)} <button class="btn ghost small" data-place="${escapeHtml(p)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover formato">✕</button>`; placesList.appendChild(chip); }); placesList.querySelectorAll('button[data-place]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.place; APP_SETTINGS.places = APP_SETTINGS.places.filter(x=>x!==v); saveSettings(); renderAllDynamicUI(); })); }
-      // types (Static/Video) - keep as is but ensure filter types container is filled
-      const ft = $('filterTypesContainer'); if(ft){ ft.innerHTML=''; ['Static','Video'].forEach(ti=>{ const lbl = document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fType" value="${ti}"/> ${ti==='Static'?'Estático':'Vídeo'}`; ft.appendChild(lbl); }); }
-    }
-
-    function renderStatusUI(){
-      const m = $('mStatusContainer'); if(m){ m.innerHTML=''; APP_SETTINGS.statuses.forEach((s,i)=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="radio" name="mStatus" value="${escapeHtml(s.name)}" ${i===0?'checked':''} /> <span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)}`; m.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
-      const fc = $('filterStatusContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fStatus" value="${escapeHtml(s.name)}" /> <span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)}`; fc.appendChild(lbl); }); }
-      const bs = $('bStatusSelect'); if(bs){ bs.innerHTML = '<option value="">Manter</option>' + APP_SETTINGS.statuses.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join(''); }
-      const list = $('statusesList'); if(list){ list.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)} <button class="btn ghost small" data-status="${escapeHtml(s.name)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover status">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-status]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.status; APP_SETTINGS.statuses = APP_SETTINGS.statuses.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
-    }
-
-    function renderCatalogUI(){
-      const list = $('catalogList'); if(!list) return;
-      list.innerHTML = '';
-      (APP_SETTINGS.catalog||[]).forEach(item=>{
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px;border:1px solid var(--border);border-radius:8px;font-size:12px';
-        row.innerHTML = `<img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" style="width:24px;height:24px;object-fit:contain;border-radius:4px;background:#fff;border:1px solid var(--border);flex-shrink:0" onerror="this.style.visibility='hidden'" /><span style="color:var(--muted);flex-shrink:0;min-width:110px">${escapeHtml(item.code)}</span><span style="flex:1">${escapeHtml(item.name)}</span><button class="btn ghost small" data-catalog="${escapeHtml(item.code)}" aria-label="Remover produto">✕</button>`;
-        list.appendChild(row);
-      });
-      list.querySelectorAll('button[data-catalog]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.catalog; APP_SETTINGS.catalog = (APP_SETTINGS.catalog||[]).filter(x=>x.code!==v); saveSettings(); renderCatalogUI(); }));
-    }
-
-    function renderAllDynamicUI(){ renderTabs(); renderNetsUI(); renderEditoriasUI(); renderPlacesUI(); renderStatusUI(); renderCatalogUI(); }
-
-    function openSettings(){
-      $('sTarget').value = TARGET;
-      $('sWeekVideos').value = WEEK_VIDEO_TARGET;
-      $('settingsBackdrop').style.display = 'flex';
-    }
-
-    function closeSettings(){ $('settingsBackdrop').style.display = 'none'; }
-
-    function saveSettingsHandler(){
-      const t = parseInt($('sTarget').value,10) || TARGET;
-      const w = parseInt($('sWeekVideos').value,10) || WEEK_VIDEO_TARGET;
-      TARGET = t; WEEK_VIDEO_TARGET = w;
-      saveSettings(); buildCalendar(); render(); closeSettings();
-    }
-
-    // Edit post on click
-    function openEditModal(id){
-      const post = state.posts.find(p=>p.id===id); if(!post) return;
-      isEditing = true; editingId = id;
-      // populate modal
-      $('mTitle').value = post.title || '';
-      $('mDate').value = post.date || '';
-      // populate places (checkboxes)
-      document.querySelectorAll('input[name="mPlace"]').forEach(el=>{ el.checked = false; });
-      if(post.place){ if(Array.isArray(post.place)){ post.place.forEach(pp=>{ const el = document.querySelector(`input[name="mPlace"][value="${pp}"]`); if(el) el.checked = true; }); } else { const el = document.querySelector(`input[name="mPlace"][value="${post.place}"]`); if(el) el.checked = true; } }
-      if(post.type) document.querySelector(`input[name="mType"][value="${post.type}"]`).checked = true;
-      document.querySelectorAll('input[name="mStatus"]').forEach(el=>{ el.checked = (el.value === (post.status || (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name))); });
-      $('mNotes').value = post.notes || '';
-      document.querySelectorAll('.mNet').forEach(n=>{ n.checked = (n.value===post.channel); n.disabled = true; });
-      $('mCollab').checked = !!post.collab;
-      // editorias
-      document.querySelectorAll('.mEditoria').forEach(e=>{ e.checked = false; });
-      if(post.editoria){ const arr = Array.isArray(post.editoria)?post.editoria:[post.editoria]; arr.forEach(ed=>{ const el = Array.from(document.querySelectorAll('.mEditoria')).find(x=>x.value===ed); if(el) el.checked = true; }); }
-      $('mProductName').value = '';
-      selectedProducts = getPostProducts(post).slice();
-      renderSelectedProducts();
-      hideProductSuggestions();
-      // change modal title
-      document.querySelector('#modalBackdrop .modal h2').textContent = 'Editar postagem';
-      $('modalBackdrop').style.display = 'flex';
-    }
-
-    function closeEditState(){
-      isEditing = false; editingId = null; document.querySelector('#modalBackdrop .modal h2').textContent = 'Criar postagem';
-      document.querySelectorAll('.mNet').forEach(n=>{ n.disabled = false; n.checked = false; });
-      $('mCollab').checked = false;
-    }
-
-    // Undo/Redo stacks
-    let undoStack = [];
-    let redoStack = [];
-
-    function pushUndo(action){ undoStack.push(action); if(undoStack.length>200) undoStack.shift(); }
-
-    function doAction(action, pushingInverse=true){
-      // returns inverse action
-      if(action.type==='move'){
-        const post = state.posts.find(p=>p.id===action.id);
-        if(!post) return null;
-        const from = post.date;
-        post.date = action.to;
-        saveState();
-        buildCalendar(); render();
-        return { type:'move', id:action.id, from:action.to, to:from };
-      }
-      if(action.type==='create'){
-        // action.posts contains array of post objects or ids? we store ids in pushUndo
-        // on redo create we cannot reconstruct full data, so create stores ids; inverse is delete with ids
-        // here action.posts may be ids (nothing to do) or full objects
-        if(action.posts && action.posts.length && typeof action.posts[0] === 'object'){
-          action.posts.forEach(p=> state.posts.push(p));
-          saveState(); buildCalendar(); render();
-          return { type:'delete', ids: action.posts.map(p=>p.id), posts: action.posts };
-        }
-        return null;
-      }
-      if(action.type==='delete'){
-        // delete posts by ids
-        const removed = [];
-        action.ids.forEach(id=>{
-          const idx = state.posts.findIndex(p=>p.id===id);
-          if(idx>-1) removed.push(state.posts.splice(idx,1)[0]);
-        });
-        saveState(); buildCalendar(); render();
-        return { type:'create', posts: removed };
-      }
-      return null;
-    }
-
-    function undo(){
-      if(undoStack.length===0) { alert('Nada para desfazer'); return; }
-      const action = undoStack.pop();
-      let inverse = null;
-      if(action.type==='move'){
-        // move back
-        const post = state.posts.find(p=>p.id===action.id);
-        if(post){ const prev = post.date; post.date = action.from; inverse = { type:'move', id:action.id, from: action.from, to: prev }; saveState(); buildCalendar(); render(); }
-      } else if(action.type==='create'){
-        // created posts -> delete them
-        const ids = action.posts; // ids array
-        const removed = [];
-        ids.forEach(id=>{ const idx = state.posts.findIndex(p=>p.id===id); if(idx>-1) removed.push(state.posts.splice(idx,1)[0]); });
-        inverse = { type:'create', posts: removed };
-        saveState(); buildCalendar(); render();
-      } else if(action.type==='delete'){
-        // recreate
-        const restored = [];
-        (action.posts||[]).forEach(p=>{ state.posts.push(p); restored.push(p); });
-        inverse = { type:'delete', ids: (action.posts||[]).map(p=>p.id) };
-        saveState(); buildCalendar(); render();
-      } else if(action.type==='edit'){
-        // restore previous
-        const post = state.posts.find(p=>p.id===action.id);
-        if(post){ const after = Object.assign({}, post); // current
-          // replace fields with before
-          Object.assign(post, action.before);
-          inverse = { type:'edit', id: action.id, before: after };
-          saveState(); buildCalendar(); render(); }
-      }
-      else if(action.type==='edit-multi'){
-        // restore multiple previous states
-        const afterStates = [];
-        (action.before||[]).forEach(prev=>{
-          const post = state.posts.find(p=>p.id===prev.id);
-          if(post){ afterStates.push(Object.assign({}, post)); Object.assign(post, prev); }
-        });
-        inverse = { type:'edit-multi', before: afterStates };
-        saveState(); buildCalendar(); render();
-      }
-      if(inverse) redoStack.push(inverse);
-    }
-
-    function redo(){
-      if(redoStack.length===0) { alert('Nada para refazer'); return; }
-      const action = redoStack.pop();
-      // action is inverse of undo; perform it and push inverse back to undo
-      if(action.type==='move'){
-        const post = state.posts.find(p=>p.id===action.id);
-        if(post){ const prev = post.date; post.date = action.to; pushUndo({ type:'move', id:action.id, from:action.to, to:prev }); saveState(); buildCalendar(); render(); }
-      } else if(action.type==='create'){
-        // create posts (action.posts are full objects)
-        action.posts.forEach(p=> state.posts.push(p));
-        pushUndo({ type:'delete', ids: action.posts.map(p=>p.id), posts: action.posts });
-        saveState(); buildCalendar(); render();
-      } else if(action.type==='delete'){
-        const removed=[];
-        action.ids.forEach(id=>{ const idx = state.posts.findIndex(p=>p.id===id); if(idx>-1) removed.push(state.posts.splice(idx,1)[0]); });
-        pushUndo({ type:'create', posts: removed });
-        saveState(); buildCalendar(); render();
-      } else if(action.type==='edit'){
-        // redo edit: action.before contains 'before' state, but redo expects to reapply the change stored as inverse
-        const post = state.posts.find(p=>p.id===action.id);
-        if(post){ const prev = Object.assign({}, post); Object.assign(post, action.before); pushUndo({ type:'edit', id:action.id, before: prev }); saveState(); buildCalendar(); render(); }
-      }
-      else if(action.type==='edit-multi'){
-        // reapply a multi-edit: action.before contains states to apply
-        const prevStates = [];
-        (action.before||[]).forEach(st=>{
-          const post = state.posts.find(p=>p.id===st.id);
-          if(post){ prevStates.push(Object.assign({}, post)); Object.assign(post, st); }
-        });
-        pushUndo({ type:'edit-multi', before: prevStates });
-        saveState(); buildCalendar(); render();
-      }
-    }
-
-    // keyboard shortcuts
-    window.addEventListener('keydown', (e)=>{
-      if((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); }
-      if((e.ctrlKey || e.metaKey) && (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){ e.preventDefault(); redo(); }
-    });
-
-    function download(name, text){
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([text],{type:'text/plain'}));
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
-
-    function csvEscape(v){ if(v==null) return ''; const s = String(v); if(s.includes(',')||s.includes('"')||s.includes('\n')) return '"'+s.replace(/"/g,'""')+'"'; return s; }
-
-    function exportCSV(){
-      if(!state.posts || state.posts.length===0){ alert('Nenhuma postagem para exportar'); return; }
-      const rows = [];
-      const header = ['Date','Title','Channel','Place','Type','Status','Collab','Notes','Editorias','ProductCode','ProductName','id'];
-      rows.push(header.join(','));
-      // sort by date then channel
-      const copy = state.posts.slice().sort((a,b)=> a.date.localeCompare(b.date) || (a.channel||'').localeCompare(b.channel||''));
-      copy.forEach(p=>{
-        const placeVal = Array.isArray(p.place)? p.place.join('|') : (p.place||'');
-        const editoriasVal = Array.isArray(p.editoria)? p.editoria.join('|') : (p.editoria||'');
-        const prods = getPostProducts(p);
-        const productCodesVal = prods.map(x=>x.code).join('|');
-        const productNamesVal = prods.map(x=>x.name).join('|');
-        rows.push([csvEscape(p.date), csvEscape(p.title), csvEscape(p.channel), csvEscape(placeVal), csvEscape(p.type), csvEscape(p.status||''), csvEscape(p.collab? 'true':'false'), csvEscape(p.notes), csvEscape(editoriasVal), csvEscape(productCodesVal), csvEscape(productNamesVal), csvEscape(p.id)].join(','));
-      });
-      download('calendar_posts.csv', rows.join('\n'));
-    }
-
-    function escapeHtml(s){ return String(s||'').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-
-    // wire
-    $('openAdd').addEventListener('click', ()=>{ closeEditState(); openModal(); });
-    $('openSettings').addEventListener('click', openSettings);
-    $('cancelSettings').addEventListener('click', closeSettings);
-    $('saveSettings').addEventListener('click', saveSettingsHandler);
-    $('cancelModal').addEventListener('click', closeModal);
-    $('saveModal').addEventListener('click', saveModal);
-    document.getElementById('prevMonth').addEventListener('click', ()=>{ viewDate.setMonth(viewDate.getMonth()-1); buildCalendar(); render(); });
-    document.getElementById('nextMonth').addEventListener('click', ()=>{ viewDate.setMonth(viewDate.getMonth()+1); buildCalendar(); render(); });
-    document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('click', ()=> setView(b.dataset.view)));
-    if($('addStatusBtn')) $('addStatusBtn').addEventListener('click', ()=>{ const v=$('newStatusInput').value.trim(); if(!v) return; const c = $('newStatusColor') ? $('newStatusColor').value : '#7c3aed'; APP_SETTINGS.statuses.push({name:v, color:c}); $('newStatusInput').value=''; saveSettings(); renderAllDynamicUI(); });
-    if($('addCatalogBtn')) $('addCatalogBtn').addEventListener('click', ()=>{
-      const code = $('newCatalogCode').value.trim();
-      const name = $('newCatalogName').value.trim();
-      if(!code || !name) return;
-      APP_SETTINGS.catalog = APP_SETTINGS.catalog || [];
-      APP_SETTINGS.catalog = APP_SETTINGS.catalog.filter(x=>x.code!==code);
-      APP_SETTINGS.catalog.push({code, name});
-      $('newCatalogCode').value=''; $('newCatalogName').value='';
-      saveSettings(); renderCatalogUI();
-    });
-    if($('mTitle')) $('mTitle').addEventListener('input', refreshModalDynamic);
-    document.querySelectorAll('input[name="mType"]').forEach(el=> el.addEventListener('change', refreshModalDynamic));
-    if($('mCollab')) $('mCollab').addEventListener('change', refreshModalDynamic);
-    if($('mProductName')){
-      $('mProductName').addEventListener('input', (ev)=> showProductSuggestions(ev.target.value));
-      $('mProductName').addEventListener('focus', (ev)=>{ if(ev.target.value.trim().length>=2) showProductSuggestions(ev.target.value); });
-      $('mProductName').addEventListener('blur', ()=> setTimeout(hideProductSuggestions, 150));
-      $('mProductName').addEventListener('keydown', (ev)=>{
-        if(ev.key!=='Enter') return;
-        ev.preventDefault();
-        const q = ev.target.value.trim();
-        if(!q) return;
-        const qn = normalizeStr(q);
-        const available = (APP_SETTINGS.catalog||[]).filter(item=> !selectedProducts.some(p=>p.code===item.code));
-        const match = available.find(item=> normalizeStr(item.name)===qn || normalizeStr(item.code)===qn)
-          || available.find(item=> normalizeStr(item.name).includes(qn) || normalizeStr(item.code).includes(qn));
-        addSelectedProduct(match || { code:'', name: q });
-      });
-    }
-
-
-    // Import briefing (CSV or JSON with columns)
-    $('importBriefingBtn').addEventListener('click', ()=>{
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx';
-      input.onchange = e => {
-        const f = e.target.files[0]; if(!f) return;
-        // handle docx directly
-        if(f.name.toLowerCase().endsWith('.docx')){ handleDocxFile(f); return; }
-        const r = new FileReader();
-        r.onload = ev => {
-          try{
-            const txt = ev.target.result;
-            if(f.name.toLowerCase().endsWith('.csv')) parseBriefingCSV(txt);
-            else if(f.name.toLowerCase().endsWith('.json')){ const rows = JSON.parse(txt); importBriefingRows(rows); }
-            else { alert('Formato não reconhecido. Para .docx selecione o arquivo .docx diretamente — o import irá processá-lo.'); }
-          }catch(err){ alert('Arquivo de briefing inválido'); console.error(err); }
-        };
-        r.readAsText(f);
-      };
-      input.click();
-    });
-
-    // dynamic script loader
-    function loadScriptOnce(url){
-      return new Promise((resolve,reject)=>{
-        if(document.querySelector(`script[src="${url}"]`)) return resolve();
-        const s = document.createElement('script'); s.src = url; s.onload = ()=>resolve(); s.onerror = ()=>reject(new Error('Failed to load '+url)); document.head.appendChild(s);
-      });
-    }
-
-    async function handleDocxFile(file){
-      try{
-        // load mammoth from CDN (includes unzip/processing)
-        await loadScriptOnce('https://cdn.jsdelivr.net/npm/mammoth/mammoth.browser.min.js');
-        const arr = await file.arrayBuffer();
-        const result = await mammoth.convertToHtml({arrayBuffer: arr});
-        const html = result.value;
-        // parse html and extract first table if present
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html,'text/html');
-        const table = doc.querySelector('table');
-        if(!table){ alert('Arquivo .docx processado, mas não foi encontrada tabela no documento. Coloque os briefings em tabela no Word.'); return; }
-        const rows = [];
-        const trs = Array.from(table.querySelectorAll('tr'));
-        if(trs.length<2){ alert('Tabela do briefing não contém linhas suficientes (cabeçalho + dados).'); return; }
-        const headers = Array.from(trs[0].querySelectorAll('td,th')).map(h=>h.textContent.trim());
-        trs.slice(1).forEach(tr=>{
-          const cols = Array.from(tr.querySelectorAll('td,th')).map(td=>td.textContent.trim());
-          const obj = {};
-          headers.forEach((h,i)=> obj[h] = cols[i] || '');
-          rows.push(obj);
-        });
-        importBriefingRows(rows);
-      }catch(err){ console.error(err); alert('Erro ao processar .docx: '+err.message); }
-    }
-
-    // override file input handling for .docx specifically (separate listener)
-    // attach a delegated drop handler in case user drags a .docx file
-    document.addEventListener('paste', ()=>{});
-
-    function splitCsvLine(line){
-      // split by commas not inside quotes
-      const parts = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/);
-      return parts.map(p=>{ p = p.trim(); if(p.startsWith('"') && p.endsWith('"')) p = p.slice(1,-1).replace(/""/g,'"'); return p; });
-    }
-
-    function parseBriefingCSV(text){
-      const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
-      if(lines.length<2){ alert('CSV vazio ou inválido'); return; }
-      const headers = splitCsvLine(lines[0]).map(h=>h.trim());
-      const rows = lines.slice(1).map(l=>{
-        const cols = splitCsvLine(l);
-        const obj = {};
-        headers.forEach((h,i)=> obj[h] = cols[i] || '');
-        return obj;
-      });
-      importBriefingRows(rows);
-    }
-
-    function importBriefingRows(rows){
-      // rows: array of objects with keys like Date,Title,Channel,Place,Editoria,ProductCode,ProductName,Type,Status,Collab,Notes
-      const created = [];
-      rows.forEach(r=>{
-        const date = r.Date || r.date || r.DATA || '';
-        if(!date) return;
-        const title = r.Title || r.title || r.Titulo || r.Título || '';
-        const channels = (r.Channel||r.channel||r.Channeles||r.Channels||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean) || ['Instagram'];
-        const places = (r.Place||r.place||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean);
-        const editorias = (r.Editoria||r.editoria||r.Category||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean);
-        const productCodes = (r.ProductCode||r.productCode||r.Codigo||r.Código||'').split('|').map(s=>s.trim()).filter(Boolean);
-        const productNames = (r.ProductName||r.productName||r.Produto||r.Product||'').split('|').map(s=>s.trim()).filter(Boolean);
-        const products = [];
-        for(let i=0;i<Math.max(productCodes.length, productNames.length);i++){ products.push({ code: productCodes[i]||'', name: productNames[i]||'' }); }
-        const type = r.Type||r.type||'Static';
-        const status = r.Status||r.status||((APP_SETTINGS.statuses[0]&&APP_SETTINGS.statuses[0].name)||'Rascunho');
-        const collab = (String(r.Collab||r.collab||'').toLowerCase()==='true');
-        const notes = r.Notes||r.notes||r.Observacoes||'';
-        channels.forEach(ch=>{
-          if(places.length>0){ places.forEach(pl=>{ const p = { id: generateId(), title, date, channel: ch, place: pl, type, status, notes, collab, color:null, editoria: editorias, products: products.slice() }; state.posts.push(p); created.push(p); }); }
-          else { const p = { id: generateId(), title, date, channel: ch, place: 'Feed', type, status, notes, collab, color:null, editoria: editorias, products: products.slice() }; state.posts.push(p); created.push(p); }
-        });
-      });
-      if(created.length>0){ saveState(); buildCalendar(); render(); pushUndo({ type:'create', posts: created.map(p=>p.id) }); redoStack = []; alert(`Importados ${created.length} posts do briefing.`); }
-      else alert('Nenhum post importado do briefing.');
-    }
-    const _exportCsvBtn = $('exportCsvBtn'); if(_exportCsvBtn) _exportCsvBtn.addEventListener('click', exportCSV);
-    const _toggleSelectBtn = $('toggleSelect'); if(_toggleSelectBtn) _toggleSelectBtn.addEventListener('click', toggleSelectMode);
-    const _bulkEditBtn = $('bulkEditBtn'); if(_bulkEditBtn) _bulkEditBtn.addEventListener('click', openBulkEdit);
-    const _cancelBulk = $('cancelBulk'); if(_cancelBulk) _cancelBulk.addEventListener('click', closeBulkEdit);
-    const _applyBulk = $('applyBulk'); if(_applyBulk) _applyBulk.addEventListener('click', applyBulkEdit);
-    // filters button
-    const _filtersBtn = $('filtersBtn'); if(_filtersBtn) _filtersBtn.addEventListener('click', ()=>{ $('filtersBackdrop').style.display='flex'; });
-    if($('applyFilters')) $('applyFilters').addEventListener('click', ()=>{
-      // read selections
-      filters.editorias = Array.from(document.querySelectorAll('.fEditoria:checked')).map(x=>x.value);
-      filters.places = Array.from(document.querySelectorAll('.fPlace:checked')).map(x=>x.value);
-      filters.types = Array.from(document.querySelectorAll('.fType:checked')).map(x=>x.value);
-      filters.statuses = Array.from(document.querySelectorAll('.fStatus:checked')).map(x=>x.value);
-      const coll = document.querySelector('input[name="fCollab"]:checked'); filters.collab = coll?coll.value:'any';
-      $('filtersBackdrop').style.display='none'; buildCalendar(); render();
-    });
-    if($('clearFilters')) $('clearFilters').addEventListener('click', ()=>{
-      document.querySelectorAll('.fEditoria').forEach(x=>x.checked=false);
-      document.querySelectorAll('.fPlace').forEach(x=>x.checked=false);
-      document.querySelectorAll('.fType').forEach(x=>x.checked=false);
-      document.querySelectorAll('.fStatus').forEach(x=>x.checked=false);
-      const any = document.querySelector('input[name="fCollab"][value="any"]'); if(any) any.checked = true;
-      filters.editorias = []; filters.places = []; filters.types = []; filters.statuses = []; filters.collab='any'; $('filtersBackdrop').style.display='none'; buildCalendar(); render();
-    });
-
-    // load persisted settings and state
-    loadSettings();
-    renderAllDynamicUI();
-    // wire add buttons
-    if($('addNetBtn')) $('addNetBtn').addEventListener('click', ()=>{ const v=$('newNetInput').value.trim(); if(!v) return; const c = $('newNetColor') ? $('newNetColor').value : '#7c3aed'; APP_SETTINGS.networks.push({name:v, color:c}); $('newNetInput').value=''; saveSettings(); renderAllDynamicUI(); });
-    if($('addEditoriaBtn')) $('addEditoriaBtn').addEventListener('click', ()=>{ const v=$('newEditoriaInput').value.trim(); if(!v) return; APP_SETTINGS.editorias.push(v); $('newEditoriaInput').value=''; saveSettings(); renderAllDynamicUI(); });
-    if($('addPlaceBtn')) $('addPlaceBtn').addEventListener('click', ()=>{ const v=$('newPlaceInput').value.trim(); if(!v) return; APP_SETTINGS.places.push(v); $('newPlaceInput').value=''; saveSettings(); renderAllDynamicUI(); });
-    loadState();
-    // Build calendar and add sample posts if empty
-    buildCalendar();
-    if(state.posts.length===0){
-      state.posts.push({ id: generateId(), title: 'Campanha: Lançamento Comunidade', date: '2026-08-18', channel: 'Instagram', color:'#7c3aed', status:'Aprovado', editoria:['Lançamentos'], place:'Feed', type:'Static' });
-      state.posts.push({ id: generateId(), title: 'Blog: Anúncio oficial', date: '2026-08-20', channel: 'Blog', color:'#06b6d4', status:'Em produção', editoria:['Informativo'], place:'Feed', type:'Static' });
-      state.posts.push({ id: generateId(), title: 'Postagem de teste — Social', date: '2026-08-19', channel: 'Twitter', color:'#f97316', status:'Rascunho', editoria:['Destaques'], place:'Feed', type:'Video' });
-      saveState();
-    }
-    const tbAll = document.querySelector('#tabs button[data-tab="All"]'); if(tbAll) tbAll.classList.remove('ghost');
-    // wire undo/redo buttons
-    $('undoBtn').addEventListener('click', undo);
-    $('redoBtn').addEventListener('click', redo);
-    render();
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
