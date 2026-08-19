@@ -330,7 +330,7 @@
               <div id="productSuggestions" class="autocomplete-list"></div>
             </div>
             <div id="productPreview" class="product-preview" style="display:none">
-              <img id="productPreviewImg" alt="" />
+              <img id="productPreviewImg" alt="" referrerpolicy="no-referrer" />
               <span id="productPreviewCode"></span>
             </div>
             <label class="field-gap">Código do produto</label>
@@ -443,7 +443,7 @@
       ).slice(0, 8);
       if(matches.length===0){ box.innerHTML = `<div class="autocomplete-empty">Nenhum produto encontrado no catálogo</div>`; box.style.display = 'block'; return; }
       box.innerHTML = matches.map(item=>
-        `<div class="autocomplete-item" data-code="${escapeHtml(item.code)}"><img src="${productImageUrl(item.code)}" alt="" onerror="this.style.visibility='hidden'" /><span class="ac-name">${escapeHtml(item.name)}</span><span class="ac-code">${escapeHtml(item.code)}</span></div>`
+        `<div class="autocomplete-item" data-code="${escapeHtml(item.code)}"><img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'" /><span class="ac-name">${escapeHtml(item.name)}</span><span class="ac-code">${escapeHtml(item.code)}</span></div>`
       ).join('');
       box.querySelectorAll('.autocomplete-item').forEach(el=>{
         el.addEventListener('mousedown', (ev)=>{ ev.preventDefault(); const item = (APP_SETTINGS.catalog||[]).find(x=>x.code===el.dataset.code); if(item) selectProduct(item); });
@@ -927,7 +927,7 @@
       (APP_SETTINGS.catalog||[]).forEach(item=>{
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px;border:1px solid var(--border);border-radius:8px;font-size:12px';
-        row.innerHTML = `<img src="${productImageUrl(item.code)}" alt="" style="width:24px;height:24px;object-fit:contain;border-radius:4px;background:#fff;border:1px solid var(--border);flex-shrink:0" onerror="this.style.visibility='hidden'" /><span style="color:var(--muted);flex-shrink:0;min-width:110px">${escapeHtml(item.code)}</span><span style="flex:1">${escapeHtml(item.name)}</span><button class="btn ghost small" data-catalog="${escapeHtml(item.code)}" aria-label="Remover produto">✕</button>`;
+        row.innerHTML = `<img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" style="width:24px;height:24px;object-fit:contain;border-radius:4px;background:#fff;border:1px solid var(--border);flex-shrink:0" onerror="this.style.visibility='hidden'" /><span style="color:var(--muted);flex-shrink:0;min-width:110px">${escapeHtml(item.code)}</span><span style="flex:1">${escapeHtml(item.name)}</span><button class="btn ghost small" data-catalog="${escapeHtml(item.code)}" aria-label="Remover produto">✕</button>`;
         list.appendChild(row);
       });
       list.querySelectorAll('button[data-catalog]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.catalog; APP_SETTINGS.catalog = (APP_SETTINGS.catalog||[]).filter(x=>x.code!==v); saveSettings(); renderCatalogUI(); }));
