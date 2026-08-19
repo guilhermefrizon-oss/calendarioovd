@@ -96,8 +96,6 @@
     .tag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;line-height:1.5;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
     .tag--outline{background:var(--surface-muted);color:var(--muted);border:1px solid var(--border)}
     .tag--collab{background:#fce7f3;color:#db2777;border:1px solid #fbcfe8}
-    .event .meta{font-size:11px;color:var(--muted);margin-top:4px;display:none}
-    .event:hover .meta{display:block}
     .select-checkbox{position:absolute;top:6px;right:6px;width:16px;height:16px;margin:0;z-index:5}
 
     .day.drag-over{outline:2px dashed var(--accent);outline-offset:-2px;border-radius:var(--radius-md)}
@@ -794,9 +792,9 @@
         p.collab ? `<span class="tag tag--collab">Collab</span>` : ''
       ].filter(Boolean).join('');
       const prods = getPostProducts(p);
-      const productText = prods.map(x=> [x.code,x.name].filter(Boolean).join(' ')).join(', ');
-      div.title = [p.status, placeText].filter(Boolean).join(' · ');
-      div.innerHTML = `<div class="event-bar" style="background:${stColor}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${escapeHtml(p.channel||'')}</span></div>${tagsHtml?`<div class="event-tags">${tagsHtml}</div>`:''}<div class="meta">${productText}</div></div>`;
+      const productNames = prods.map(x=>x.name).filter(Boolean).join(', ');
+      div.title = [p.status, placeText, productNames].filter(Boolean).join(' · ');
+      div.innerHTML = `<div class="event-bar" style="background:${stColor}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${escapeHtml(p.channel||'')}</span></div>${tagsHtml?`<div class="event-tags">${tagsHtml}</div>`:''}</div>`;
       div.addEventListener('dragstart', (ev)=>{ ev.dataTransfer.setData('text/plain', p.id); div.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; });
       div.addEventListener('dragend', ()=>{ div.classList.remove('dragging'); });
       div.addEventListener('click', (ev)=>{ if(selectMode){ ev.stopPropagation(); const cb = div.querySelector('.select-checkbox'); if(cb){ cb.checked = !cb.checked; if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); } return; } openEditModal(p.id); });
