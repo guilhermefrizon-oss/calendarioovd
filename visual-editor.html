@@ -134,6 +134,19 @@
     @media (max-width:640px){.grid-2{grid-template-columns:1fr}}
     .field-gap{margin-top:10px}
     hr{border:0;border-top:1px solid var(--border);margin:6px 0;width:100%}
+
+    /* Product catalog autocomplete */
+    .autocomplete-wrap{position:relative}
+    .autocomplete-list{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);max-height:230px;overflow-y:auto;z-index:80;margin-top:4px;display:none}
+    .autocomplete-item{display:flex;align-items:center;gap:8px;padding:6px 8px;cursor:pointer}
+    .autocomplete-item:hover,.autocomplete-item.active{background:var(--surface-muted)}
+    .autocomplete-item img{width:28px;height:28px;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:#fff;flex-shrink:0}
+    .autocomplete-item .ac-name{flex:1;line-height:1.25;font-size:12.5px;color:var(--text)}
+    .autocomplete-item .ac-code{font-size:10.5px;color:var(--muted);flex-shrink:0}
+    .autocomplete-empty{padding:10px 8px;font-size:12px;color:var(--muted)}
+    .product-preview{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)}
+    .product-preview img{width:36px;height:36px;object-fit:contain;border-radius:6px;background:#fff;border:1px solid var(--border)}
+    .product-preview span{font-size:11px;color:var(--muted)}
   </style>
 </head>
 <body>
@@ -279,6 +292,15 @@
               <button id="addStatusBtn" class="btn ghost">Adicionar</button>
             </div>
             <div id="statusesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+            <hr />
+            <label style="font-weight:600">Catálogo de produtos (Vonder)</label>
+            <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Usado no autocomplete de "Nome do produto". A foto é buscada automaticamente pelo código.</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input id="newCatalogCode" placeholder="Código (ex: 16.62.075.001)" style="max-width:180px" />
+              <input id="newCatalogName" placeholder="Nome do produto" />
+              <button id="addCatalogBtn" class="btn ghost">Adicionar</button>
+            </div>
+            <div id="catalogList" style="display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:180px;overflow-y:auto"></div>
           </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
             <button id="cancelSettings" class="btn ghost">Cancelar</button>
@@ -302,10 +324,17 @@
             <div id="mPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
             <label class="field-gap">Editoria</label>
             <div id="editoriasContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+            <label class="field-gap">Nome do produto</label>
+            <div class="autocomplete-wrap">
+              <input id="mProductName" type="text" placeholder="Digite para buscar no catálogo Vonder..." autocomplete="off" />
+              <div id="productSuggestions" class="autocomplete-list"></div>
+            </div>
+            <div id="productPreview" class="product-preview" style="display:none">
+              <img id="productPreviewImg" alt="" />
+              <span id="productPreviewCode"></span>
+            </div>
             <label class="field-gap">Código do produto</label>
             <input id="mProductCode" type="text" />
-            <label class="field-gap">Nome do produto</label>
-            <input id="mProductName" type="text" />
             <label class="field-gap">Tipo</label>
             <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="mType" value="Static" checked /> Estático</label><label class="chip"><input type="radio" name="mType" value="Video" /> Vídeo</label></div>
             <label class="field-gap">Status</label>
@@ -374,6 +403,52 @@
     }
     function networkIcon(name){
       return ICONS[name] || `<span class="dot" style="background:${networkColor(name)}"></span>`;
+    }
+    function normalizeStr(s){
+      return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+    }
+    function productImageUrl(code){
+      const digits = String(code||'').replace(/\D/g,'');
+      if(!digits) return '';
+      return `https://www.vonder.com.br/estatico/vonder/temp/320_${digits}.jpg`;
+    }
+
+    function hideProductSuggestions(){
+      const box = $('productSuggestions'); if(box){ box.style.display = 'none'; box.innerHTML = ''; }
+    }
+
+    function updateProductPreview(code){
+      const wrap = $('productPreview'); const img = $('productPreviewImg'); const codeEl = $('productPreviewCode');
+      if(!wrap || !img || !codeEl) return;
+      if(!code){ wrap.style.display = 'none'; img.src=''; return; }
+      img.src = productImageUrl(code);
+      img.onerror = ()=>{ wrap.style.display = 'none'; };
+      codeEl.textContent = code;
+      wrap.style.display = 'flex';
+    }
+
+    function selectProduct(item){
+      $('mProductName').value = item.name;
+      $('mProductCode').value = item.code;
+      hideProductSuggestions();
+      updateProductPreview(item.code);
+    }
+
+    function showProductSuggestions(query){
+      const box = $('productSuggestions'); if(!box) return;
+      const q = normalizeStr(query.trim());
+      if(q.length < 2){ hideProductSuggestions(); return; }
+      const matches = (APP_SETTINGS.catalog||[]).filter(item=>
+        normalizeStr(item.name).includes(q) || normalizeStr(item.code).includes(q)
+      ).slice(0, 8);
+      if(matches.length===0){ box.innerHTML = `<div class="autocomplete-empty">Nenhum produto encontrado no catálogo</div>`; box.style.display = 'block'; return; }
+      box.innerHTML = matches.map(item=>
+        `<div class="autocomplete-item" data-code="${escapeHtml(item.code)}"><img src="${productImageUrl(item.code)}" alt="" onerror="this.style.visibility='hidden'" /><span class="ac-name">${escapeHtml(item.name)}</span><span class="ac-code">${escapeHtml(item.code)}</span></div>`
+      ).join('');
+      box.querySelectorAll('.autocomplete-item').forEach(el=>{
+        el.addEventListener('mousedown', (ev)=>{ ev.preventDefault(); const item = (APP_SETTINGS.catalog||[]).find(x=>x.code===el.dataset.code); if(item) selectProduct(item); });
+      });
+      box.style.display = 'block';
     }
 
     function toggleSelectMode(){
@@ -668,6 +743,8 @@
       document.querySelectorAll('.mNet').forEach(n=>n.checked=false); document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false);
       document.querySelectorAll('input[name="mPlace"]').forEach(el=>el.checked=false); const defaultPlace = document.querySelector('input[name="mPlace"][value="Feed"]'); if(defaultPlace) defaultPlace.checked=true;
       document.querySelectorAll('input[name="mStatus"]').forEach((el,i)=> el.checked = i===0);
+      hideProductSuggestions();
+      updateProductPreview('');
       $('mTitle').focus();
     }
 
@@ -758,6 +835,35 @@
         { name:'Em produção', color:'#f59e0b' },
         { name:'Aprovado', color:'#10b981' },
         { name:'Agendado', color:'#6366f1' }
+      ],
+      catalog: [
+        { code:'16.62.075.001', name:'Adesivo instantâneo cianoacrilato, 7,5 g, blister, VONDER' },
+        { code:'35.99.110.105', name:'Jogo de ferramentas com 110 peças, VONDER' },
+        { code:'35.99.110.104', name:'Jogo de ferramentas com 110 peças, para mecânico, VONDER' },
+        { code:'35.99.000.110', name:'Jogo de ferramentas com 110 peças, embalagem fechada, VONDER' },
+        { code:'35.99.059.000', name:'Jogo de ferramentas com 59 peças, VONDER' },
+        { code:'35.99.040.040', name:'Jogo de ferramentas com 40 peças, VONDER' },
+        { code:'30.72.038.000', name:'Jogo de ferramentas com 38 peças, VONDER' },
+        { code:'35.99.100.700', name:'Fixador de porta FP 700, cromado, VONDER' },
+        { code:'35.99.100.808', name:'Fixador de porta FP 808, cromado, VONDER' },
+        { code:'70.55.510.000', name:'Óculos de segurança Boxer incolor, VONDER' },
+        { code:'70.55.540.000', name:'Óculos de segurança Boxer fumê, VONDER' },
+        { code:'70.55.520.000', name:'Óculos de segurança Boxer âmbar, VONDER' },
+        { code:'70.55.140.000', name:'Óculos de segurança Foxter fumê, VONDER' },
+        { code:'60.01.100.120', name:'Parafusadeira/furadeira a bateria, 12 V, PFV 120, VONDER' },
+        { code:'68.78.156.000', name:'Inversor para solda com eletrodo e TIG, 150 A, RIV 156, VONDER' },
+        { code:'11.37.192.013', name:'Fita isolante, 19 mm x 20 m, preta, VONDER' },
+        { code:'11.37.191.013', name:'Fita isolante, 19 mm x 10 m, preta, VONDER' },
+        { code:'11.37.190.513', name:'Fita isolante, 19 mm x 5 m, preta, VONDER' },
+        { code:'11.37.191.023', name:'Fita isolante, 19 mm x 10 m, branca, VONDER' },
+        { code:'11.37.191.033', name:'Fita isolante, 19 mm x 10 m, azul, VONDER' },
+        { code:'38.68.500.005', name:'Trena de aço 5 m x 19 mm, VONDER' },
+        { code:'38.68.300.003', name:'Trena de aço 3 m x 12,5 mm, VONDER' },
+        { code:'38.68.750.075', name:'Trena de aço 7,5 m x 25 mm, VONDER' },
+        { code:'35.25.300.300', name:'Paquímetro digital, 300 mm, PD 300, VONDER' },
+        { code:'35.25.200.200', name:'Paquímetro digital, 200 mm, PD 200, VONDER' },
+        { code:'35.25.150.150', name:'Paquímetro digital, 150 mm, PD 150, VONDER' },
+        { code:'35.25.150.153', name:'Paquímetro digital, plástico, 150 mm, PD 153, VONDER' }
       ]
     };
     let APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
@@ -815,7 +921,19 @@
       const list = $('statusesList'); if(list){ list.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)} <button class="btn ghost small" data-status="${escapeHtml(s.name)}" style="margin-left:8px;padding:4px 6px" aria-label="Remover status">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-status]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.status; APP_SETTINGS.statuses = APP_SETTINGS.statuses.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
     }
 
-    function renderAllDynamicUI(){ renderTabs(); renderNetsUI(); renderEditoriasUI(); renderPlacesUI(); renderStatusUI(); }
+    function renderCatalogUI(){
+      const list = $('catalogList'); if(!list) return;
+      list.innerHTML = '';
+      (APP_SETTINGS.catalog||[]).forEach(item=>{
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px;border:1px solid var(--border);border-radius:8px;font-size:12px';
+        row.innerHTML = `<img src="${productImageUrl(item.code)}" alt="" style="width:24px;height:24px;object-fit:contain;border-radius:4px;background:#fff;border:1px solid var(--border);flex-shrink:0" onerror="this.style.visibility='hidden'" /><span style="color:var(--muted);flex-shrink:0;min-width:110px">${escapeHtml(item.code)}</span><span style="flex:1">${escapeHtml(item.name)}</span><button class="btn ghost small" data-catalog="${escapeHtml(item.code)}" aria-label="Remover produto">✕</button>`;
+        list.appendChild(row);
+      });
+      list.querySelectorAll('button[data-catalog]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.catalog; APP_SETTINGS.catalog = (APP_SETTINGS.catalog||[]).filter(x=>x.code!==v); saveSettings(); renderCatalogUI(); }));
+    }
+
+    function renderAllDynamicUI(){ renderTabs(); renderNetsUI(); renderEditoriasUI(); renderPlacesUI(); renderStatusUI(); renderCatalogUI(); }
 
     function openSettings(){
       $('sTarget').value = TARGET;
@@ -852,6 +970,8 @@
       if(post.editoria){ const arr = Array.isArray(post.editoria)?post.editoria:[post.editoria]; arr.forEach(ed=>{ const el = Array.from(document.querySelectorAll('.mEditoria')).find(x=>x.value===ed); if(el) el.checked = true; }); }
       $('mProductCode').value = post.productCode || '';
       $('mProductName').value = post.productName || '';
+      hideProductSuggestions();
+      updateProductPreview(post.productCode || '');
       // change modal title
       document.querySelector('#modalBackdrop .modal h2').textContent = 'Editar postagem';
       $('modalBackdrop').style.display = 'flex';
@@ -1026,6 +1146,22 @@
     document.getElementById('nextMonth').addEventListener('click', ()=>{ viewDate.setMonth(viewDate.getMonth()+1); buildCalendar(); render(); });
     document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('click', ()=> setView(b.dataset.view)));
     if($('addStatusBtn')) $('addStatusBtn').addEventListener('click', ()=>{ const v=$('newStatusInput').value.trim(); if(!v) return; const c = $('newStatusColor') ? $('newStatusColor').value : '#7c3aed'; APP_SETTINGS.statuses.push({name:v, color:c}); $('newStatusInput').value=''; saveSettings(); renderAllDynamicUI(); });
+    if($('addCatalogBtn')) $('addCatalogBtn').addEventListener('click', ()=>{
+      const code = $('newCatalogCode').value.trim();
+      const name = $('newCatalogName').value.trim();
+      if(!code || !name) return;
+      APP_SETTINGS.catalog = APP_SETTINGS.catalog || [];
+      APP_SETTINGS.catalog = APP_SETTINGS.catalog.filter(x=>x.code!==code);
+      APP_SETTINGS.catalog.push({code, name});
+      $('newCatalogCode').value=''; $('newCatalogName').value='';
+      saveSettings(); renderCatalogUI();
+    });
+    if($('mProductName')){
+      $('mProductName').addEventListener('input', (ev)=> showProductSuggestions(ev.target.value));
+      $('mProductName').addEventListener('focus', (ev)=>{ if(ev.target.value.trim().length>=2) showProductSuggestions(ev.target.value); });
+      $('mProductName').addEventListener('blur', ()=> setTimeout(hideProductSuggestions, 150));
+    }
+    if($('mProductCode')) $('mProductCode').addEventListener('input', (ev)=> updateProductPreview(ev.target.value.trim()));
 
 
     // Import briefing (CSV or JSON with columns)
