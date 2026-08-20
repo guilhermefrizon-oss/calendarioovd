@@ -9,7 +9,7 @@
     // Mês inicial exibido (contexto atual do projeto). Navegação livre a partir daqui.
     let viewDate = new Date(2026,7,18);
     let activeTab = 'All';
-    let currentView = 'month'; // 'month' | 'list'
+    let currentView = 'month'; // 'month' | 'week' | 'list'
     // alturas das células do dia capturadas por buildCalendar() logo antes de reconstruir o grid;
     // render() consome isso no final pra animar a troca de altura das linhas (ver ambas as funções)
     let pendingRowHeights = null;
@@ -90,7 +90,13 @@
       const chan = v=>{ v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); };
       return 0.2126*chan(r) + 0.7152*chan(g) + 0.0722*chan(b);
     }
-    function isLightColor(hex){ return relLuminance(hex) > 0.5; }
+    // razão de contraste WCAG entre duas luminâncias relativas
+    function contrastRatio(l1, l2){ const a = Math.max(l1,l2), b = Math.min(l1,l2); return (a+0.05)/(b+0.05); }
+    // escolhe #1a1a1a ou #ffffff, o que der mais contraste em cima da cor de fundo dada
+    function pickOnColor(hex){
+      const l = relLuminance(hex);
+      return contrastRatio(l,0) >= contrastRatio(l,1) ? '#1a1a1a' : '#ffffff';
+    }
     function applyColorTheme(id){
       let dark, light;
       if(id === 'custom'){
@@ -106,16 +112,17 @@
       root.setProperty('--accent', accent);
       root.setProperty('--accent-hover', mixHex(accent, '#000000', 0.15));
       root.setProperty('--accent-weak', hexToRgba(accent, 0.16));
-      root.setProperty('--on-accent', isLightColor(accent) ? '#1a1a1a' : '#ffffff');
+      root.setProperty('--on-accent', pickOnColor(accent));
+      // contraste mínimo ~4.5:1 contra fundo branco corresponde a luminância <= ~0.18
       const ink = mode === 'dark'
         ? dark
-        : (relLuminance(dark) < 0.35 ? dark : mixHex(dark, '#000000', 0.4));
+        : (relLuminance(dark) <= 0.18 ? dark : mixHex(dark, '#000000', 0.4));
       root.setProperty('--accent-ink', ink);
-      renderColorThemeGrid();
     }
     function setColorTheme(id){
       localStorage.setItem(COLOR_THEME_KEY, id);
       applyColorTheme(id);
+      renderColorThemeGrid();
     }
     function renderColorThemeGrid(){
       const grid = $('colorThemeGrid'); if(!grid) return;
@@ -135,13 +142,19 @@
       const customInput = $('customColorInput');
       if(customInput){
         customInput.addEventListener('click', ev=> ev.stopPropagation());
+        // 'input' dispara continuamente enquanto o usuário arrasta no seletor nativo de cor:
+        // só aplica ao vivo (sem recriar o grid, senão o picker aberto pode fechar no meio do
+        // arraste). O grid só é re-renderizado em 'change', quando a escolha é confirmada.
         customInput.addEventListener('input', ()=>{
           localStorage.setItem(CUSTOM_COLOR_KEY, customInput.value);
-          setColorTheme('custom');
+          localStorage.setItem(COLOR_THEME_KEY, 'custom');
+          applyColorTheme('custom');
         });
+        customInput.addEventListener('change', ()=> renderColorThemeGrid());
       }
     }
     applyColorTheme(getColorTheme());
+    renderColorThemeGrid();
 
     // ============================================================
     // HELPERS DE COR E EXIBIÇÃO — cores de tags/status, ícones de rede,
@@ -937,6 +950,59 @@
     // o necessário) do mês exibido e liga o drag-and-drop de
     // postagens entre os dias
     // ============================================================
+    // clique no número do dia/contador (abre o popup do dia) + soltar uma postagem arrastada —
+    // comportamento de uma célula de dia, compartilhado entre a grade mensal (buildCalendar) e as
+    // colunas da visão semanal (buildWeekView), pra não duplicar a lógica de drag&drop entre as duas.
+    function attachDayCellInteractions(cell, dateStr){
+      cell.querySelectorAll('.date, .day-count').forEach(el=>{
+        el.style.cursor = 'pointer';
+        el.title = 'Ver todas as postagens deste dia';
+        el.addEventListener('click', (ev)=>{ ev.stopPropagation(); openDayPosts(dateStr); });
+      });
+      // permite soltar uma postagem arrastada nesta célula
+      cell.addEventListener('dragover', ev=>{ ev.preventDefault(); cell.classList.add('drag-over'); });
+      cell.addEventListener('dragleave', ev=>{ cell.classList.remove('drag-over'); });
+      cell.addEventListener('drop', ev=>{
+        ev.preventDefault(); cell.classList.remove('drag-over');
+        const id = ev.dataTransfer.getData('text/plain');
+        if(!id) return;
+        const post = state.posts.find(x=>x.id===id);
+        if(!post) return;
+        const from = post.date;
+        const to = cell.dataset.date;
+        if(from===to) return;
+        // animação FLIP: captura a posição do card antes de mover
+        const srcEl = document.querySelector(`.event[data-id="${post.id}"]`) || document.querySelector(`.event[data-id='${post.id}']`);
+        const oldRect = srcEl ? srcEl.getBoundingClientRect() : null;
+        // efetiva a mudança de data (soltar na célula, fora de um card específico, envia a postagem para o fim do dia)
+        const beforeState = [{ id: post.id, date: post.date, order: post.order }];
+        post.date = to;
+        post.order = nextOrderForDate(to, post.id);
+        saveState();
+        buildCalendar();
+        render();
+        // anima da posição antiga até a nova
+        if(oldRect){
+          const newEl = document.querySelector(`.event[data-id="${post.id}"]`) || document.querySelector(`.event[data-id='${post.id}']`);
+          if(newEl){
+            const newRect = newEl.getBoundingClientRect();
+            const dx = oldRect.left - newRect.left;
+            const dy = oldRect.top - newRect.top;
+            newEl.style.transform = `translate(${dx}px, ${dy}px)`;
+            requestAnimationFrame(()=>{
+              newEl.classList.add('moving');
+              newEl.style.transform = '';
+              setTimeout(()=>{ newEl.classList.remove('moving'); }, 380);
+            });
+          }
+        }
+        // registra a ação no histórico de desfazer
+        pushUndo({ type:'reorder', changes: beforeState });
+        // uma nova ação invalida o histórico de refazer
+        redoStack = [];
+      });
+    }
+
     function buildCalendar(){
       const grid = $('grid');
       // guarda a altura atual de cada célula (por data) antes de destruir o grid — usado por
@@ -967,53 +1033,7 @@
           // clicar no número do dia ou no contador (0/3, 1/3...) abre o popup com todas as
           // postagens daquela data — igual ao badge "+N", mas funciona mesmo com 0, 1, 2 ou 3
           // postagens (quando não há badge "+N" porque tudo já cabe na célula)
-          cell.querySelectorAll('.date, .day-count').forEach(el=>{
-            el.style.cursor = 'pointer';
-            el.title = 'Ver todas as postagens deste dia';
-            el.addEventListener('click', (ev)=>{ ev.stopPropagation(); openDayPosts(dateStr); });
-          });
-          // permite soltar uma postagem arrastada nesta célula
-          cell.addEventListener('dragover', ev=>{ ev.preventDefault(); cell.classList.add('drag-over'); });
-          cell.addEventListener('dragleave', ev=>{ cell.classList.remove('drag-over'); });
-          cell.addEventListener('drop', ev=>{
-            ev.preventDefault(); cell.classList.remove('drag-over');
-            const id = ev.dataTransfer.getData('text/plain');
-            if(!id) return;
-            const post = state.posts.find(x=>x.id===id);
-            if(!post) return;
-            const from = post.date;
-            const to = cell.dataset.date;
-            if(from===to) return;
-            // animação FLIP: captura a posição do card antes de mover
-            const srcEl = document.querySelector(`.event[data-id="${post.id}"]`) || document.querySelector(`.event[data-id='${post.id}']`);
-            const oldRect = srcEl ? srcEl.getBoundingClientRect() : null;
-            // efetiva a mudança de data (soltar na célula, fora de um card específico, envia a postagem para o fim do dia)
-            const beforeState = [{ id: post.id, date: post.date, order: post.order }];
-            post.date = to;
-            post.order = nextOrderForDate(to, post.id);
-            saveState();
-            buildCalendar();
-            render();
-            // anima da posição antiga até a nova
-            if(oldRect){
-              const newEl = document.querySelector(`.event[data-id="${post.id}"]`) || document.querySelector(`.event[data-id='${post.id}']`);
-              if(newEl){
-                const newRect = newEl.getBoundingClientRect();
-                const dx = oldRect.left - newRect.left;
-                const dy = oldRect.top - newRect.top;
-                newEl.style.transform = `translate(${dx}px, ${dy}px)`;
-                requestAnimationFrame(()=>{
-                  newEl.classList.add('moving');
-                  newEl.style.transform = '';
-                  setTimeout(()=>{ newEl.classList.remove('moving'); }, 380);
-                });
-              }
-            }
-            // registra a ação no histórico de desfazer
-            pushUndo({ type:'reorder', changes: beforeState });
-            // uma nova ação invalida o histórico de refazer
-            redoStack = [];
-          });
+          attachDayCellInteractions(cell, dateStr);
         } else {
           cell.classList.add('empty');
           cell.innerHTML = `<div style="height:18px"></div>`;
@@ -1022,6 +1042,37 @@
       }
       // atualiza o rótulo do mês exibido (ex: "Agosto 2026")
       updateMonthLabelText();
+    }
+
+    // domingo da semana que contém `date` (mesma convenção Dom→Sáb do cabeçalho do mês)
+    function getWeekStart(date){
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      d.setDate(d.getDate() - d.getDay());
+      return d;
+    }
+
+    // ============================================================
+    // VISÃO SEMANAL — 7 colunas (Dom→Sáb) com as postagens só daquela semana, cada uma com um
+    // "+ Adicionar postagem" no rodapé pra criar já com a data daquele dia preenchida. Diferente
+    // do mês, aqui não há limite de cards por coluna (ver render()) — a coluna cresce.
+    // ============================================================
+    function buildWeekView(){
+      const grid = $('weekGrid'); if(!grid) return;
+      grid.innerHTML = '';
+      const weekStart = getWeekStart(viewDate);
+      const tStr = todayStr();
+      for(let i=0;i<7;i++){
+        const d = new Date(weekStart); d.setDate(d.getDate()+i);
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const cell = document.createElement('div');
+        cell.className = 'day week-day';
+        cell.dataset.date = dateStr;
+        if(dateStr===tStr) cell.classList.add('today');
+        cell.innerHTML = `<div class="week-day-head"><div class="week-day-top-row"><span class="week-day-label">${WEEKDAY_ABBR[i]}</span><span class="day-count"></span></div><span class="date">${d.getDate()}</span></div><div class="posts"></div><button type="button" class="week-day-add">+ Adicionar postagem</button>`;
+        attachDayCellInteractions(cell, dateStr);
+        cell.querySelector('.week-day-add').addEventListener('click', (ev)=>{ ev.stopPropagation(); closeEditState(); openModal(dateStr); });
+        grid.appendChild(cell);
+      }
     }
 
     // ============================================================
@@ -1037,6 +1088,17 @@
 
     // rótulo padrão ("Agosto 2026"), usado quando o popover está fechado
     function updateMonthLabelText(){
+      if(currentView==='week'){
+        // rótulo vira o intervalo da semana visível (ex: "17 – 23 de agosto de 2026"), já que
+        // "Agosto de 2026" sozinho não diz qual semana está sendo mostrada
+        const start = getWeekStart(viewDate);
+        const end = new Date(start); end.setDate(end.getDate()+6);
+        const sameMonth = start.getMonth()===end.getMonth() && start.getFullYear()===end.getFullYear();
+        const endLabel = `${end.getDate()} de ${end.toLocaleString('pt-BR',{month:'long'})} de ${end.getFullYear()}`;
+        const startLabel = sameMonth ? `${start.getDate()}` : `${start.getDate()} de ${start.toLocaleString('pt-BR',{month:'long'})}`;
+        $('monthLabelText').textContent = `${startLabel} – ${endLabel}`;
+        return;
+      }
       const monthLabel = viewDate.toLocaleString('pt-BR',{month:'long',year:'numeric'});
       $('monthLabelText').textContent = monthLabel.charAt(0).toUpperCase()+monthLabel.slice(1);
     }
@@ -1333,17 +1395,24 @@
     // RENDERIZAÇÃO PRINCIPAL — alterna entre Mês/Lista e desenha
     // as postagens filtradas nas células, badges e resumo da IA
     // ============================================================
-    // alterna a visão ativa entre "month" (grade) e "list" (lista)
+    // alterna a visão ativa entre "month" (grade), "week" (colunas da semana) e "list" (lista)
     function setView(v){
       currentView = v;
       $('grid').style.display = v==='month' ? 'grid' : 'none';
       $('weekdayHeader').style.display = v==='month' ? 'grid' : 'none';
+      $('weekView').style.display = v==='week' ? 'block' : 'none';
       $('listView').style.display = v==='list' ? 'flex' : 'none';
       document.querySelectorAll('#viewToggle button').forEach(b=> b.classList.toggle('active', b.dataset.view===v));
+      updateMonthLabelText();
       render();
     }
 
     function render(){
+      // visão semanal: reconstrói as 7 colunas da semana visível (viewDate) toda vez — é
+      // barato (só 7 células) e mantém render() como o único ponto que precisa saber disso,
+      // em vez de espalhar "if currentView==='week'" pelas dezenas de chamadas de
+      // buildCalendar()+render() que já existem no app inteiro
+      if(currentView==='week') buildWeekView();
       // limpa as postagens já desenhadas em cada célula
       document.querySelectorAll('.day').forEach(c=>{ const posts = c.querySelector('.posts'); if(posts) posts.innerHTML = ''; });
       const filtered = getFilteredPosts();
@@ -1351,9 +1420,9 @@
       const postsMap = {};
       filtered.forEach(p=>{ postsMap[p.date] = postsMap[p.date] || []; postsMap[p.date].push(p); });
 
-      // desenha cada célula com limite de cards visíveis + badge "+N"
+      // desenha cada célula do mês com limite de cards visíveis + badge "+N"
       const maxVisible = 3;
-      document.querySelectorAll('.day[data-date]').forEach(cell=>{
+      document.querySelectorAll('#grid .day[data-date]').forEach(cell=>{
         const date = cell.dataset.date;
         const postsEl = cell.querySelector('.posts');
         const list = sortByOrder(postsMap[date] || []);
@@ -1370,6 +1439,17 @@
         }
         else { if(mb) mb.remove(); }
       });
+
+      // colunas da visão semanal: sem limite de cards (há bastante espaço vertical), então
+      // mostra tudo em vez de cortar com "+N" como no mês
+      if(currentView==='week'){
+        document.querySelectorAll('#weekGrid .day[data-date]').forEach(cell=>{
+          const date = cell.dataset.date;
+          const postsEl = cell.querySelector('.posts');
+          const list = sortByOrder(postsMap[date] || []);
+          list.forEach(p=>{ postsEl.appendChild(createEventElement(p)); });
+        });
+      }
 
       // badges de meta diária por dia
       const YEAR = viewDate.getFullYear(), MONTH = viewDate.getMonth();
@@ -1511,6 +1591,50 @@
     }
 
     // ============================================================
+    // BUSCA DE POSTAGENS — painel ancorado na lupa do cabeçalho, ao lado de "Configurações".
+    // Filtra state.posts inteiro (não só o mês visível no calendário) por título, produto ou
+    // observações, pra achar uma postagem antiga sem precisar navegar mês a mês. Clicar num
+    // resultado abre a postagem direto no modal de edição.
+    // ============================================================
+    function openSearchPanel(){
+      $('pageHeaderActions').classList.add('search-active');
+      $('openSearch').setAttribute('aria-expanded','true');
+      renderSearchResults($('searchInput').value);
+      $('searchInput').focus();
+    }
+    function closeSearchPanel(){
+      $('pageHeaderActions').classList.remove('search-active');
+      $('openSearch').setAttribute('aria-expanded','false');
+      $('searchResults').classList.remove('open');
+      $('searchInput').value = '';
+    }
+    function toggleSearchPanel(){ $('pageHeaderActions').classList.contains('search-active') ? closeSearchPanel() : openSearchPanel(); }
+    function renderSearchResults(rawQuery){
+      const box = $('searchResults'); if(!box) return;
+      box.classList.add('open');
+      const query = normalizeStr(rawQuery.trim());
+      if(!query){ box.innerHTML = `<div class="search-hint">Digite para buscar em todas as postagens.</div>`; return; }
+      const matches = state.posts.filter(p=>{
+        const productsText = getPostProducts(p).map(pr=> `${pr.code||''} ${pr.name||''}`).join(' ');
+        const haystack = normalizeStr([p.title, p.notes, productsText].filter(Boolean).join(' '));
+        return haystack.includes(query);
+      }).sort((a,b)=> (b.date||'').localeCompare(a.date||'')).slice(0, 30);
+      if(matches.length===0){ box.innerHTML = `<div class="search-empty">Nenhuma postagem encontrada.</div>`; return; }
+      box.innerHTML = matches.map(p=>{
+        const entries = postChannelEntries(p);
+        const netsHtml = entries.map(c=> networkIcon(c.channel)).join('');
+        const dateLabel = p.date ? formatDatePt(p.date) : 'Sem data';
+        return `<div class="search-result-row" data-id="${escapeHtml(p.id)}"><span class="search-result-nets">${netsHtml}</span><span class="search-result-body"><span class="search-result-title">${escapeHtml(p.title || '(Sem título)')}</span><span class="search-result-meta">${escapeHtml(dateLabel)}</span></span></div>`;
+      }).join('');
+      box.querySelectorAll('.search-result-row').forEach(row=>{
+        row.addEventListener('click', ()=>{
+          closeSearchPanel();
+          openEditModal(row.dataset.id);
+        });
+      });
+    }
+
+    // ============================================================
     // MODAL DE CRIAR/EDITAR POSTAGEM — abrir, fechar e salvar
     // (uma postagem por rede selecionada é criada ao salvar)
     // ============================================================
@@ -1527,10 +1651,11 @@
       }
     }
 
-    function openModal(){
+    function openModal(dateStr){
       $('modalBackdrop').style.display = 'flex';
-      // pré-preenche a data com o mês/dia atualmente visível no calendário
-      const defaultDate = viewDate.toISOString().slice(0,10);
+      // pré-preenche a data: a recebida por parâmetro (ex: "+ Adicionar postagem" de uma coluna
+      // da semana) ou, na ausência dela, o mês/dia atualmente visível no calendário
+      const defaultDate = dateStr || viewDate.toISOString().slice(0,10);
       $('mDate').value = defaultDate;
       // limpa os campos do formulário
       $('mTitle').value=''; $('mNotes').value=''; $('mProductName').value='';
@@ -2389,12 +2514,22 @@
     // ============================================================
     // MODAL DE CONFIGURAÇÕES — abrir, fechar e salvar a meta
     // ============================================================
+    // fecha qualquer popover de seletor de ícone de rede que tenha ficado aberto/preso no <body>
+    // (ex: usuário clica em "Subir arquivo personalizado", cancela o diálogo do sistema sem
+    // clicar em mais nada, e sai da tela — nada mais dispara o fechamento) — sem isso, o popover
+    // fica ali flutuando e reaparece "já aberto" na mesma posição da próxima vez que Configurações abrir
+    function closeAllIconPickers(){
+      document.querySelectorAll('.icon-picker-popover').forEach(el=>{ if(el.parentNode) el.parentNode.removeChild(el); });
+      document.querySelectorAll('.icon-picker-trigger.open').forEach(el=> el.classList.remove('open'));
+    }
+
     function openSettings(){
+      closeAllIconPickers();
       $('sTarget').value = TARGET;
       $('settingsBackdrop').style.display = 'flex';
     }
 
-    function closeSettings(){ $('settingsBackdrop').style.display = 'none'; }
+    function closeSettings(){ closeAllIconPickers(); $('settingsBackdrop').style.display = 'none'; }
 
     function saveSettingsHandler(){
       TARGET = parseInt($('sTarget').value,10) || TARGET;
@@ -2613,12 +2748,21 @@
     // as setas ‹ › navegam mês (padrão) ou ano (quando o popover de mês está aberto)
     document.getElementById('prevMonth').addEventListener('click', ()=>{
       if($('monthYearPicker').classList.contains('open')){ stepPickerYear(-1); return; }
+      if(currentView==='week'){ viewDate.setDate(viewDate.getDate()-7); updateMonthLabelText(); render(); return; }
       viewDate.setMonth(viewDate.getMonth()-1); buildCalendar(); render();
     });
     document.getElementById('nextMonth').addEventListener('click', ()=>{
       if($('monthYearPicker').classList.contains('open')){ stepPickerYear(1); return; }
+      if(currentView==='week'){ viewDate.setDate(viewDate.getDate()+7); updateMonthLabelText(); render(); return; }
       viewDate.setMonth(viewDate.getMonth()+1); buildCalendar(); render();
     });
+    // busca de postagens: a lupa vira uma barra grande no lugar de Configurações/Nova postagem
+    $('openSearch').addEventListener('click', (ev)=>{ ev.stopPropagation(); toggleSearchPanel(); });
+    $('closeSearch').addEventListener('click', (ev)=>{ ev.stopPropagation(); closeSearchPanel(); });
+    $('searchWrap').addEventListener('click', ev=> ev.stopPropagation());
+    $('searchInput').addEventListener('input', ()=> renderSearchResults($('searchInput').value));
+    document.addEventListener('click', ()=> closeSearchPanel());
+    document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') closeSearchPanel(); });
     // popover de seleção rápida de mês dentro do ano
     $('monthLabel').addEventListener('click', (ev)=>{ ev.stopPropagation(); toggleMonthYearPicker(); });
     $('monthYearPicker').addEventListener('click', ev=> ev.stopPropagation());

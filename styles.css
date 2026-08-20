@@ -45,11 +45,36 @@
     h3{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-ink)}
     h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint)}
 
-    /* Cabeçalho da página: título + ações "Configurações"/"Nova postagem" */
+    /* Cabeçalho da página: título + ações "Buscar"/"Configurações"/"Nova postagem" */
     .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
     .page-header h1{margin:0 0 4px}
     .page-subtitle{margin:0;font-size:13px;color:var(--muted)}
     .page-header-actions{display:flex;gap:10px;align-items:center;flex-shrink:0}
+
+    /* Busca de postagens (lupa no cabeçalho): em repouso é só o botão-lupa; ao abrir, ela vira uma
+       barra grande que cresce pro espaço vazio do cabeçalho (entre o título e os botões), sem
+       empurrar ou esconder Configurações/Nova postagem, que continuam no lugar de sempre. */
+    .search-wrap{position:relative;flex-shrink:0}
+    .page-header-actions.search-active{flex:1;min-width:0}
+    .page-header-actions.search-active .search-wrap{flex:1;min-width:0}
+    .search-toggle-btn{display:flex}
+    .search-active .search-toggle-btn{display:none}
+    .search-bar{display:none;align-items:center;gap:8px;height:var(--control-h);padding:0 6px 0 4px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);transition:border-color .12s,box-shadow .12s}
+    .search-active .search-bar{display:flex}
+    .search-bar:focus-within{border-color:var(--accent-ink);box-shadow:0 0 0 3px var(--accent-weak)}
+    .search-bar input{flex:1;height:auto;padding:0;border:0;background:transparent}
+    .search-bar input:focus{outline:none;box-shadow:none}
+    .search-bar-icon{display:flex;align-items:center;justify-content:center;color:var(--text-faint);flex-shrink:0}
+    .search-results{display:none;flex-direction:column;gap:2px;position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:6px;max-height:360px;overflow-y:auto;z-index:45}
+    .search-active .search-results.open{display:flex}
+    .search-result-row{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--radius-sm);cursor:pointer;transition:background .12s}
+    .search-result-row:hover{background:var(--surface-muted)}
+    .search-result-nets{display:flex;align-items:center;gap:2px;flex-shrink:0}
+    .search-result-nets .net-icon-img,.search-result-nets svg{width:15px;height:15px;border-radius:50%}
+    .search-result-body{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px}
+    .search-result-title{flex:1;min-width:0;font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .search-result-meta{flex-shrink:0;font-size:11px;color:var(--muted);white-space:nowrap}
+    .search-empty,.search-hint{padding:16px 4px;text-align:center;font-size:12px;color:var(--text-faint)}
 
     /* Superfície de cartão genérica, reaproveitada pela toolbar, pelo card de sugestão e pelos grupos da lista */
     .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;box-shadow:var(--shadow-sm)}
@@ -229,6 +254,22 @@
     .posts{margin-top:8px;flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}
     .more-badge{position:absolute;right:8px;bottom:8px;background:var(--card);border-radius:var(--radius-sm);padding:3px 9px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--accent-ink);box-shadow:var(--shadow-sm);cursor:pointer}
     .more-badge:hover{background:var(--accent-weak)}
+
+    /* Visão em semana: 7 colunas (Dom→Sáb), só com as postagens daquela semana — reaproveita a
+       célula .day (fundo, borda, hoje/data em destaque) mas sem o limite de 3 cards + "+N" do mês:
+       aqui a coluna cresce com o conteúdo, então mostra tudo (ver render() em app.js). */
+    .week-view{margin-top:16px}
+    .grid-week{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;align-items:start}
+    .week-day{overflow:visible;min-height:160px}
+    .week-day-head{display:flex;flex-direction:column;gap:6px}
+    /* label + contador "x/y" na mesma linha, contador encostado na direita — igual ao mês, onde
+       ele fica no canto superior direito da célula em vez de embaixo da data */
+    .week-day-top-row{display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .week-day-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint)}
+    .week-day .posts{overflow:visible}
+    .week-day-add{border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:700;text-align:left;padding:6px 4px;margin-top:2px;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;transition:background .12s,color .12s}
+    .week-day-add:hover{background:var(--surface-muted);color:var(--text)}
+    @media (max-width:1000px){.grid-week{grid-template-columns:repeat(2,1fr)}}
 
     /* Cartão de postagem (evento) dentro de uma célula do calendário */
     .event{position:relative;display:flex;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:6px 8px 6px 10px;margin-bottom:5px;box-shadow:var(--shadow-sm);cursor:grab;overflow:hidden;transition:box-shadow .15s,border-color .15s,transform .15s}
