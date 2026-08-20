@@ -66,8 +66,89 @@
       if(n && n.color) return n.color;
       return tagColor(name, (APP_SETTINGS.networks||[]).map(x=>x.name));
     }
+    // ícones coloridos oficiais (arquivos em icons/) — usados quando o nome da rede bate com um
+    // preset conhecido, ou quando a rede tem um ícone explícito (preset escolhido ou SVG customizado
+    // enviado em Configurações → Redes)
+    const PRESET_ICONS = {
+      instagram: 'icons/instagram.svg',
+      facebook: 'icons/facebook.svg',
+      linkedin: 'icons/linkedin.svg',
+      youtube: 'icons/youtube.svg',
+      tiktok: 'icons/tiktok.svg'
+    };
+    function normalizeIconKey(s){
+      return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+    }
+    function resolveNetworkIconSrc(name){
+      const n = (APP_SETTINGS.networks||[]).find(x=>x.name===name);
+      if(n && n.icon){
+        if(n.icon.type==='custom' && n.icon.dataUrl) return n.icon.dataUrl;
+        if(n.icon.type==='preset' && PRESET_ICONS[n.icon.key]) return PRESET_ICONS[n.icon.key];
+      }
+      const key = normalizeIconKey(name);
+      if(PRESET_ICONS[key]) return PRESET_ICONS[key];
+      return null;
+    }
     function networkIcon(name){
+      const src = resolveNetworkIconSrc(name);
+      if(src) return `<img class="net-icon-img" src="${escapeHtml(src)}" alt="${escapeHtml(name)}" />`;
       return ICONS[name] || `<span class="dot" style="background:${networkColor(name)}"></span>`;
+    }
+    // seletor de ícone de rede: presets coloridos (icons/*.svg) + opção de enviar um SVG próprio.
+    // `current` é o valor salvo em n.icon ({type:'preset',key} | {type:'custom',dataUrl} | null);
+    // `onChange` é chamado com o novo valor sempre que o usuário escolhe outra opção.
+    function renderIconPicker(container, current, onChange){
+      if(!container) return;
+      container.innerHTML = '';
+      const noneBtn = document.createElement('button');
+      noneBtn.type = 'button';
+      noneBtn.className = 'icon-picker-opt' + (!current ? ' selected' : '');
+      noneBtn.title = 'Sem ícone (usa a cor)';
+      noneBtn.innerHTML = '<span class="icon-picker-none">–</span>';
+      noneBtn.addEventListener('click', ()=> onChange(null));
+      container.appendChild(noneBtn);
+
+      Object.keys(PRESET_ICONS).forEach(key=>{
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const isSel = !!(current && current.type==='preset' && current.key===key);
+        btn.className = 'icon-picker-opt' + (isSel ? ' selected' : '');
+        btn.title = key;
+        btn.innerHTML = `<img src="${PRESET_ICONS[key]}" alt="${key}" />`;
+        btn.addEventListener('click', ()=> onChange({ type:'preset', key }));
+        container.appendChild(btn);
+      });
+
+      const uploadLabel = document.createElement('label');
+      const isCustom = !!(current && current.type==='custom' && current.dataUrl);
+      uploadLabel.className = 'icon-picker-opt icon-picker-upload' + (isCustom ? ' selected' : '');
+      uploadLabel.title = 'Enviar SVG personalizado';
+      uploadLabel.innerHTML = isCustom ? `<img src="${current.dataUrl}" alt="ícone personalizado" />` : '<span class="icon-picker-upload-label">SVG</span>';
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.svg,image/svg+xml';
+      fileInput.style.display = 'none';
+      fileInput.addEventListener('click', ev=> ev.stopPropagation());
+      fileInput.addEventListener('change', ()=>{
+        const file = fileInput.files && fileInput.files[0];
+        if(!file) return;
+        if(!/\.svg$/i.test(file.name) && file.type !== 'image/svg+xml'){ alert('Envie um arquivo .svg'); fileInput.value=''; return; }
+        if(file.size > 100*1024){ alert('SVG muito grande (máx. 100KB).'); fileInput.value=''; return; }
+        const reader = new FileReader();
+        reader.onload = ()=>{
+          // remove <script> e handlers "on*" por precaução (o <img> já bloqueia execução de script,
+          // isso é só uma camada extra de higiene antes de guardar o SVG)
+          let svgText = String(reader.result || '')
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
+            .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '');
+          const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)));
+          onChange({ type:'custom', dataUrl });
+        };
+        reader.readAsText(file);
+      });
+      uploadLabel.appendChild(fileInput);
+      container.appendChild(uploadLabel);
     }
     // nome curto da rede (ex: "IG"), usado em exibições compactas — cai para o nome completo se não houver
     function networkShortName(name){
@@ -1288,7 +1369,7 @@
           row.innerHTML = `
             <div class="net-row-head">
               <span class="net-view">
-                <span class="dot" style="background:${n.color}"></span>
+                <span class="net-view-icon">${networkIcon(n.name)}</span>
                 <span class="net-view-name">${escapeHtml(n.name)}</span>
                 ${n.shortName?`<span class="net-view-short">(${escapeHtml(n.shortName)})</span>`:''}
               </span>
@@ -1296,6 +1377,7 @@
                 <input type="color" class="net-edit-color" value="${n.color||'#7c3aed'}" title="Cor da rede" style="flex-shrink:0" />
                 <input type="text" class="net-edit-name" value="${escapeHtml(n.name)}" title="Nome da rede" style="flex:2;min-width:110px" />
                 <input type="text" class="net-edit-short" value="${escapeHtml(n.shortName||'')}" maxlength="4" title="Nome curto" placeholder="Curto" style="flex:0 0 64px" />
+                <div class="net-edit-icon-picker icon-picker"></div>
               </div>
               <button type="button" class="net-row-formats-toggle">Formatos: ${escapeHtml(formatsSummary)} <span class="settings-caret">▾</span></button>
               <button type="button" class="btn ghost small net-edit-toggle" aria-label="Editar rede" title="Editar nome/nome curto/cor">✏️</button>
@@ -1374,6 +1456,12 @@
 
           // edita a cor da rede
           row.querySelector('.net-edit-color').addEventListener('change', (ev)=>{ n.color = ev.target.value; saveSettings(); renderAllDynamicUI(); render(); });
+          // ícone da rede: preset colorido ou SVG customizado enviado pelo usuário — quando não há
+          // ícone explícito mas o nome bate com um preset (ex: "Instagram"), mostra esse preset já
+          // selecionado no seletor, já que é o que de fato aparece na linha (via networkIcon)
+          const autoKey = normalizeIconKey(n.name);
+          const effectiveIcon = n.icon || (PRESET_ICONS[autoKey] ? { type:'preset', key: autoKey } : null);
+          renderIconPicker(row.querySelector('.net-edit-icon-picker'), effectiveIcon, (val)=>{ n.icon = val; saveSettings(); renderAllDynamicUI(); render(); });
           // adiciona um novo formato a essa rede
           row.querySelector('.net-add-format-btn').addEventListener('click', ()=>{
             const nameEl = row.querySelector('.net-new-format-name');
@@ -2207,13 +2295,20 @@
     // carrega configurações e postagens persistidas
     loadSettings();
     renderAllDynamicUI();
+    // ícone escolhido (ainda) para a próxima rede a ser adicionada no formulário "Adicionar rede"
+    let newNetIconValue = null;
+    function refreshNewNetIconPicker(){
+      renderIconPicker($('newNetIconPicker'), newNetIconValue, (val)=>{ newNetIconValue = val; refreshNewNetIconPicker(); });
+    }
+    refreshNewNetIconPicker();
     // liga os botões de "Adicionar" das listas de configurações
     if($('addNetBtn')) $('addNetBtn').addEventListener('click', ()=>{
       const v=$('newNetInput').value.trim(); if(!v) return;
       const c = $('newNetColor') ? $('newNetColor').value : '#7c3aed';
       const shortV = $('newNetShort') ? $('newNetShort').value.trim() : '';
-      APP_SETTINGS.networks.push({ name:v, shortName: shortV || v.slice(0,2).toUpperCase(), color:c, formats:[] });
+      APP_SETTINGS.networks.push({ name:v, shortName: shortV || v.slice(0,2).toUpperCase(), color:c, formats:[], icon: newNetIconValue });
       $('newNetInput').value=''; if($('newNetShort')) $('newNetShort').value='';
+      newNetIconValue = null; refreshNewNetIconPicker();
       saveSettings(); renderAllDynamicUI();
     });
     // formulário de nova editoria: fica oculto até o botão "+ Adicionar" (ao lado do título) ser clicado
