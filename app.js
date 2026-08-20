@@ -1,4 +1,16 @@
     // ============================================================
+    // ISOLAMENTO POR MARCA — portal-shell.js (carregado antes deste arquivo) já resolveu qual
+    // marca está ativa e expôs o sufixo em window.PortalBrand.suffix ('' para a marca padrão,
+    // '__{brandId}' para qualquer outra). Todas as chaves de localStorage e de api.php usadas
+    // neste arquivo levam esse sufixo, pra cada marca ter seu próprio calendário isolado.
+    // ============================================================
+    const BRAND_SUFFIX = (window.PortalBrand && window.PortalBrand.suffix) || '';
+    const LS_POSTS_KEY = 'calendar_posts_v1' + BRAND_SUFFIX;
+    const LS_SETTINGS_KEY = 'calendar_settings_v1' + BRAND_SUFFIX;
+    const API_POSTS_KEY = 'posts' + BRAND_SUFFIX;
+    const API_SETTINGS_KEY = 'settings' + BRAND_SUFFIX;
+
+    // ============================================================
     // ESTADO GLOBAL DA APLICAÇÃO
     // ============================================================
     // Estado principal: lista de postagens do calendário
@@ -8,7 +20,7 @@
     const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     // Mês inicial exibido (contexto atual do projeto). Navegação livre a partir daqui.
     let viewDate = new Date(2026,7,18);
-    let activeTab = 'All';
+    let activeTabs = []; // redes selecionadas no filtro rápido da toolbar; vazio = "Todas"
     let currentView = 'month'; // 'month' | 'week' | 'list'
     // alturas das células do dia capturadas por buildCalendar() logo antes de reconstruir o grid;
     // render() consome isso no final pra animar a troca de altura das linhas (ver ambas as funções)
@@ -745,6 +757,7 @@
       renderTitleSuggestion();
       renderBriefingPreview();
       renderContentSuggestions();
+      renderIntelSuggestBox();
     }
 
     // ============================================================
@@ -759,14 +772,19 @@
       $('mProductName').focus();
     }
 
+    // catálogo de produtos cadastrado em Configurações
+    function productCandidates(){
+      return (APP_SETTINGS.catalog||[]).map(item=> ({ code:item.code||'', name:item.name }));
+    }
+
     function showProductSuggestions(query){
       const box = $('productSuggestions'); if(!box) return;
       const q = normalizeStr(query.trim());
       if(q.length < 2){ hideProductSuggestions(); return; }
       const qCode = normalizeCode(query.trim());
-      const matches = (APP_SETTINGS.catalog||[]).filter(item=>
-        !selectedProducts.some(p=>p.code===item.code) &&
-        (normalizeStr(item.name).includes(q) || normalizeStr(item.code).includes(q) || normalizeCode(item.code).includes(qCode))
+      const matches = productCandidates().filter(item=>
+        !selectedProducts.some(p=> item.code ? p.code===item.code : p.name===item.name) &&
+        (normalizeStr(item.name).includes(q) || (item.code && (normalizeStr(item.code).includes(q) || normalizeCode(item.code).includes(qCode))))
       ).slice(0, 8);
       if(matches.length===0){
         box.innerHTML = `<div class="autocomplete-item ac-manual"><span class="ac-name">+ Adicionar "${escapeHtml(query.trim())}" (sem catálogo)</span></div>`;
@@ -774,11 +792,11 @@
         box.style.display = 'block';
         return;
       }
-      box.innerHTML = matches.map(item=>
-        `<div class="autocomplete-item" data-code="${escapeHtml(item.code)}"><img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'" /><span class="ac-name">${escapeHtml(item.name)}</span><span class="ac-code">${escapeHtml(item.code)}</span></div>`
+      box.innerHTML = matches.map((item,i)=>
+        `<div class="autocomplete-item" data-idx="${i}"><img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'" /><span class="ac-name">${escapeHtml(item.name)}</span><span class="ac-code">${escapeHtml(item.code)}</span></div>`
       ).join('');
-      box.querySelectorAll('.autocomplete-item').forEach(el=>{
-        el.addEventListener('mousedown', (ev)=>{ ev.preventDefault(); const item = (APP_SETTINGS.catalog||[]).find(x=>x.code===el.dataset.code); if(item) addSelectedProduct(item); });
+      box.querySelectorAll('.autocomplete-item[data-idx]').forEach(el=>{
+        el.addEventListener('mousedown', (ev)=>{ ev.preventDefault(); addSelectedProduct(matches[Number(el.dataset.idx)]); });
       });
       box.style.display = 'block';
     }
@@ -1155,7 +1173,7 @@
     // de Filtros sobre a lista completa de postagens
     // ============================================================
     function getFilteredPosts(){
-      const items = state.posts.filter(p => activeTab==='All' || postChannelEntries(p).some(c=>c.channel===activeTab));
+      const items = state.posts.filter(p => activeTabs.length===0 || postChannelEntries(p).some(c=>activeTabs.includes(c.channel)));
       return items.filter(p=>{
         // editorias
         if(filters.editorias && filters.editorias.length>0){
@@ -1671,6 +1689,7 @@
       setModalMultiChannelState(false, null);
       // postagem nova ainda não existe — não há o que duplicar/excluir
       if($('modalMenuBtn')) $('modalMenuBtn').style.display = 'none';
+      renderIntelValidation(null);
       $('mTitle').focus();
     }
 
@@ -1752,12 +1771,12 @@
     // PERSISTÊNCIA DAS POSTAGENS (localStorage)
     // ============================================================
     function saveState(){
-      localStorage.setItem('calendar_posts_v1', JSON.stringify(state.posts));
-      scheduleSyncPush('posts', ()=> state.posts);
+      localStorage.setItem(LS_POSTS_KEY, JSON.stringify(state.posts));
+      scheduleSyncPush(API_POSTS_KEY, ()=> state.posts);
     }
 
     function loadState(){
-      const raw = localStorage.getItem('calendar_posts_v1');
+      const raw = localStorage.getItem(LS_POSTS_KEY);
       if(raw){ try{ state.posts = JSON.parse(raw) || []; }catch(e){ state.posts=[]; } }
       // garante que toda postagem tenha id e status válidos
       const defaultStatus = (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho';
@@ -1826,12 +1845,12 @@
     function saveSettings(){
       // grava as configurações e a meta principal
       APP_SETTINGS.TARGET = TARGET;
-      localStorage.setItem('calendar_settings_v1', JSON.stringify(APP_SETTINGS));
-      scheduleSyncPush('settings', ()=> APP_SETTINGS);
+      localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(APP_SETTINGS));
+      scheduleSyncPush(API_SETTINGS_KEY, ()=> APP_SETTINGS);
     }
 
     function loadSettings(){
-      const raw = localStorage.getItem('calendar_settings_v1');
+      const raw = localStorage.getItem(LS_SETTINGS_KEY);
       if(raw){ try{ const s = JSON.parse(raw); APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS, s||{}); if(!APP_SETTINGS.statuses || !APP_SETTINGS.statuses.length) APP_SETTINGS.statuses = DEFAULT_SETTINGS.statuses.slice();
         // acrescenta às editorias já salvas as categorizações default que ainda não existem
         // (por nome), sem mexer nas que o usuário já tinha customizado
@@ -1901,7 +1920,7 @@
     // navegador conhece — enviado a cada save como "expected_updated_at": se alguém
     // salvou por cima nesse meio tempo, o servidor recusa (409) em vez de aceitar
     // e sobrescrever silenciosamente o trabalho da outra pessoa
-    const syncVersions = { posts: 0, settings: 0 };
+    const syncVersions = { [API_POSTS_KEY]: 0, [API_SETTINGS_KEY]: 0 };
     const syncPushTimers = {};
     function setSyncStatus(text, kind){
       const el = $('syncStatus'); if(!el) return;
@@ -1943,9 +1962,9 @@
           const result = await syncPush(key, getValue());
           if(result.conflict){
             // outra pessoa salvou primeiro: adota a versão do servidor em vez de sobrescrever
-            const storageKey = key==='posts' ? 'calendar_posts_v1' : 'calendar_settings_v1';
+            const storageKey = key===API_POSTS_KEY ? LS_POSTS_KEY : LS_SETTINGS_KEY;
             localStorage.setItem(storageKey, JSON.stringify(result.server.v));
-            if(key==='posts') loadState(); else loadSettings();
+            if(key===API_POSTS_KEY) loadState(); else loadSettings();
             syncVersions[key] = result.server.updated_at;
             if(!anyModalOpen()){ renderAllDynamicUI(); buildCalendar(); render(); }
             setSyncStatus('Atualizado com mudanças de outra pessoa', 'warn');
@@ -1963,23 +1982,120 @@
     async function syncPull(showIdleStatus){
       if(!SYNC_ENABLED) return;
       try{
-        const [postsRes, settingsRes] = await Promise.all([syncFetch('posts'), syncFetch('settings')]);
+        const [postsRes, settingsRes] = await Promise.all([syncFetch(API_POSTS_KEY), syncFetch(API_SETTINGS_KEY)]);
         let changed = false;
-        if(settingsRes.v!==null && settingsRes.updated_at!==syncVersions.settings){
-          localStorage.setItem('calendar_settings_v1', JSON.stringify(settingsRes.v));
+        if(settingsRes.v!==null && settingsRes.updated_at!==syncVersions[API_SETTINGS_KEY]){
+          localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(settingsRes.v));
           loadSettings(); changed = true;
         }
-        syncVersions.settings = settingsRes.updated_at;
-        if(postsRes.v!==null && postsRes.updated_at!==syncVersions.posts){
-          localStorage.setItem('calendar_posts_v1', JSON.stringify(postsRes.v));
+        syncVersions[API_SETTINGS_KEY] = settingsRes.updated_at;
+        if(postsRes.v!==null && postsRes.updated_at!==syncVersions[API_POSTS_KEY]){
+          localStorage.setItem(LS_POSTS_KEY, JSON.stringify(postsRes.v));
           loadState(); changed = true;
         }
-        syncVersions.posts = postsRes.updated_at;
+        syncVersions[API_POSTS_KEY] = postsRes.updated_at;
         if(changed && !anyModalOpen()){ renderAllDynamicUI(); buildCalendar(); render(); }
         if(changed || showIdleStatus) setSyncStatus('Sincronizado com o servidor', 'ok');
       }catch(e){
         setSyncStatus('Sem conexão com o servidor — usando cópia local', 'warn');
       }
+    }
+
+    // ============================================================
+    // CENTRAL DE INTELIGÊNCIA (consulta) — o calendário só LÊ o aprendizado (DNA) já gerado
+    // por editoria; quem treina a IA é a tela intelligence-center.html. intelligence-data.js
+    // (carregado antes deste arquivo) resolve sozinho o isolamento por marca e concentra toda
+    // a lógica de análise (IntelStore.generateDNA/validatePost) — aqui só usamos o resultado
+    // pra sugerir conteúdo (renderIntelSuggestBox) e validar o rascunho atual (wireIntelValidation).
+    // ============================================================
+    let INTEL = (typeof IntelStore !== 'undefined') ? IntelStore.readLocal() : { editorias:{} };
+    async function refreshIntel(){
+      if(!SYNC_ENABLED || typeof IntelStore === 'undefined') return;
+      try{
+        const res = await IntelStore.fetchServer();
+        if(res.v!==null){
+          INTEL = IntelStore.normalize(res.v);
+          IntelStore.writeLocal(INTEL);
+          if($('modalBackdrop').style.display === 'flex') renderIntelSuggestBox();
+        }
+      }catch(e){ /* offline — segue com a última cópia local conhecida */ }
+    }
+
+    // editoria(s) marcada(s) no modal que já têm DNA gerado pela Central de Inteligência —
+    // usa a primeira (na ordem em que aparecem nos checkboxes) como referência para sugestões
+    // e validação, já que combinar o DNA de várias editorias ao mesmo tempo não faria sentido
+    function selectedEditoriasWithDna(){
+      const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
+      return editorias.filter(name=> INTEL.editorias[name] && INTEL.editorias[name].dna);
+    }
+
+    function renderIntelSuggestBox(){
+      const box = $('intelSuggestBox'); if(!box) return;
+      const names = selectedEditoriasWithDna();
+      if(names.length===0){ box.style.display = 'none'; box.innerHTML = ''; return; }
+      const editoriaName = names[0];
+      const dna = INTEL.editorias[editoriaName].dna;
+      const briefingLines = [
+        `Editoria: ${editoriaName}`,
+        `Estrutura recomendada: ${dna.recommendedStructure.join(' → ')}`,
+        dna.hooks[0] ? `Gancho de abertura sugerido: ${dna.hooks[0]}` : null,
+        dna.ctas[0] ? `CTA sugerido: ${dna.ctas[0]}` : null,
+        dna.recurringWords.length ? `Palavras recorrentes desta editoria: ${dna.recurringWords.slice(0,5).map(w=>w.word).join(', ')}` : null
+      ].filter(Boolean).join('\n');
+      box.style.display = 'flex';
+      box.innerHTML = `
+        <div class="intel-modal-box-title">${UI_ICONS.idea(13)} Direcionamento da IA — Central de Inteligência${names.length>1?` <span style="font-weight:400;text-transform:none">(baseado em "${escapeHtml(editoriaName)}")</span>`:''}</div>
+        <ul class="intel-rule-list">
+          <li><b>Estrutura:</b> ${escapeHtml(dna.recommendedStructure.join(' → '))}</li>
+          ${dna.hooks[0] ? `<li><b>Gancho:</b> ${escapeHtml(dna.hooks[0])}</li>` : ''}
+          ${dna.ctas[0] ? `<li><b>CTA:</b> ${escapeHtml(dna.ctas[0])}</li>` : ''}
+          ${dna.dominantVisualFormat ? `<li><b>Formato visual predominante no histórico:</b> ${escapeHtml(dna.dominantVisualFormat)}</li>` : ''}
+        </ul>
+        <div class="intel-modal-actions">
+          <button type="button" id="intelUseBriefingBtn" class="btn small">Usar como briefing para o designer</button>
+        </div>
+      `;
+      $('intelUseBriefingBtn').addEventListener('click', ()=>{
+        const notes = $('mNotes');
+        notes.value = notes.value.trim() ? `${notes.value.trim()}\n\n${briefingLines}` : briefingLines;
+        refreshModalDynamic();
+      });
+    }
+
+    function scoreColor(score){
+      if(score===null) return 'var(--text-faint)';
+      if(score>=70) return 'var(--success)';
+      if(score>=45) return 'var(--accent-ink)';
+      return 'var(--danger)';
+    }
+    function renderIntelValidation(result){
+      const el = $('intelValidateResult'); if(!el) return;
+      if(!result){ el.innerHTML = ''; return; }
+      if(result.score===null){
+        el.innerHTML = `<div class="bg-inline-warning" style="margin-top:10px">${escapeHtml(result.improvements[0])}</div>`;
+        return;
+      }
+      const color = scoreColor(result.score);
+      el.innerHTML = `
+        <div class="intel-adherence" style="margin-top:12px">
+          <div class="intel-adherence-header"><span>Nível de aderência ao DNA da editoria</span><span style="color:${color};font-weight:900">${result.score}%</span></div>
+          <div class="intel-score-bar"><div class="intel-score-bar-fill" style="width:${result.score}%;background:${color}"></div></div>
+          ${result.mainConcept ? `<div class="intel-main-concept"><b>Conceito principal:</b> ${escapeHtml(result.mainConcept)}</div>` : ''}
+        </div>
+        ${result.strengths.length ? `<ul class="intel-rule-list intel-rule-list--positive" style="margin-top:10px">${result.strengths.map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>` : ''}
+        ${result.improvements.length ? `<ul class="intel-rule-list intel-rule-list--warn" style="margin-top:8px">${result.improvements.map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>` : ''}
+      `;
+    }
+    function wireIntelValidation(){
+      const btn = $('intelValidateBtn'); if(!btn) return;
+      btn.addEventListener('click', ()=>{
+        const names = selectedEditoriasWithDna();
+        const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
+        if(editorias.length===0){ alert('Selecione uma editoria antes de analisar a publicação.'); return; }
+        const dna = names.length ? INTEL.editorias[names[0]].dna : null;
+        const result = IntelStore.validatePost({ title: $('mTitle').value, caption: $('mNotes').value }, dna);
+        renderIntelValidation(result);
+      });
     }
 
     // nomes das editorias como lista de strings — usado onde é preciso comparar/colorir por nome
@@ -2021,12 +2137,30 @@
     function renderTabs(){
       const tabs = $('tabs'); tabs.innerHTML = '';
       const allBtn = document.createElement('button'); allBtn.className='btn ghost'; allBtn.dataset.tab='All'; allBtn.id='tabAll'; allBtn.textContent='Todas'; tabs.appendChild(allBtn);
-      APP_SETTINGS.networks.forEach(n=>{ const b = document.createElement('button'); b.className='btn ghost icon-only'; b.dataset.tab = n.name; b.title = n.name; b.setAttribute('aria-label', n.name); b.innerHTML = networkIcon(n.name); tabs.appendChild(b); });
-      // liga o clique de cada aba
-      tabs.querySelectorAll('button').forEach(b=>{ b.addEventListener('click', ()=>{ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); b.classList.remove('ghost'); tabs.classList.toggle('all-active', b.dataset.tab==='All'); activeTab = b.dataset.tab; render(); }); });
-      // garante que a aba ativa esteja com a classe correta após reconstruir a lista
-      const active = Array.from(tabs.children).find(x=>x.dataset.tab===activeTab) || tabs.children[0]; if(active){ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); active.classList.remove('ghost'); }
-      tabs.classList.toggle('all-active', activeTab==='All');
+      APP_SETTINGS.networks.forEach(n=>{ const b = document.createElement('button'); b.className='btn ghost icon-only'; b.dataset.tab = n.name; b.title = n.name; b.setAttribute('aria-label', n.name); b.innerHTML = networkIcon(n.name) + '<span class="tab-remove" aria-hidden="true">&times;</span>'; tabs.appendChild(b); });
+      // liga o clique de cada aba — "Todas" limpa a seleção; cada rede alterna dentro/fora de
+      // activeTabs, permitindo selecionar várias redes ao mesmo tempo (seleção múltipla)
+      tabs.querySelectorAll('button').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          if(b.dataset.tab==='All'){ activeTabs = []; }
+          else{ const i = activeTabs.indexOf(b.dataset.tab); if(i>=0) activeTabs.splice(i,1); else activeTabs.push(b.dataset.tab); }
+          updateTabsActiveUI();
+          render();
+        });
+      });
+      updateTabsActiveUI();
+    }
+
+    // aplica as classes visuais (.ghost por botão + .all-active no container) de acordo com o
+    // activeTabs atual — chamada após clique e após reconstruir a lista de abas
+    function updateTabsActiveUI(){
+      const tabs = $('tabs'); if(!tabs) return;
+      const allSelected = activeTabs.length===0;
+      tabs.querySelectorAll('button').forEach(b=>{
+        const isActive = b.dataset.tab==='All' ? allSelected : activeTabs.includes(b.dataset.tab);
+        b.classList.toggle('ghost', !isActive);
+      });
+      tabs.classList.toggle('all-active', allSelected);
     }
 
     // nome da rede cujo sub-dropdown de formatos está aberto em Configurações (persiste entre
@@ -2582,6 +2716,7 @@
       // "change"), então a pré-visualização e as sugestões de título só ficam em dia com um
       // refresh explícito aqui no final
       refreshModalDynamic();
+      renderIntelValidation(null);
       $('modalBackdrop').style.display = 'flex';
     }
 
@@ -2894,10 +3029,18 @@
     // botão "⋮" do modal de edição — fixo, ligado uma única vez; lê editingId no momento do
     // clique (por isso o getter), já que o mesmo botão é reaproveitado a cada postagem editada
     if($('modalMenuBtn')) wireCardMenuButton($('modalMenuBtn'), () => editingId);
+    wireIntelValidation();
     wireModalDismiss('settingsBackdrop', closeSettings);
     wireModalDismiss('bulkEditBackdrop', closeBulkEdit);
     wireModalDismiss('filtersBackdrop', closeFilters);
-    wireModalDismiss('dayPostsBackdrop', closeDayPosts);
+    wireModalDismiss('dayPostsBackdrop', closeDayPosts, '#dayPostsCloseBtn');
+    // botão "+" do modal "Postagens do dia" — cria uma postagem nova já com a data do dia aberto
+    if($('dayPostsAddBtn')) $('dayPostsAddBtn').addEventListener('click', ()=>{
+      const dateStr = openDayPostsDate;
+      closeDayPosts();
+      closeEditState();
+      openModal(dateStr);
+    });
     // menu lateral do modal de Configurações — clicar numa categoria mostra o painel correspondente à direita
     document.querySelectorAll('.settings-nav-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
@@ -2957,7 +3100,9 @@
     // (só no modo local/offline — num calendário sincronizado com o servidor não faz sentido
     // criar posts de exemplo pra toda a equipe; espera o syncPull() trazer os dados reais)
     buildCalendar();
-    if(!SYNC_ENABLED && state.posts.length===0){
+    // exemplos de demonstração só fazem sentido pra marca padrão (a base de dados que já
+    // existia antes do portal) — uma marca nova criada pelo usuário deve começar zerada
+    if(!SYNC_ENABLED && state.posts.length===0 && BRAND_SUFFIX===''){
       state.posts.push({ id: generateId(), title: 'Campanha: Lançamento Comunidade', date: '2026-08-18', channel: 'Instagram', color:'#E4405F', status:'Aprovado', editoria:['Lançamentos'], place:'Feed', type:'Static' });
       state.posts.push({ id: generateId(), title: 'Blog: Anúncio oficial', date: '2026-08-20', channel: 'Blog', color:'#06b6d4', status:'Em produção', editoria:['Informativo'], place:'Feed', type:'Static' });
       state.posts.push({ id: generateId(), title: 'Postagem de teste — Social', date: '2026-08-19', channel: 'Twitter', color:'#f97316', status:'Rascunho', editoria:['Destaques'], place:'Feed', type:'Video' });
@@ -2975,6 +3120,9 @@
     if(SYNC_ENABLED){
       syncPull();
       setInterval(()=> syncPull(), 20000);
+      // mesma cadência pra Central de Inteligência (só leitura aqui — quem treina é intelligence-center.html)
+      refreshIntel();
+      setInterval(()=> refreshIntel(), 20000);
     } else {
       setSyncStatus('Salvando só neste navegador (abra pelo endereço do servidor pra sincronizar)', 'warn');
     }

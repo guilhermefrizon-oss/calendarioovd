@@ -8,11 +8,24 @@
  * cache ou troca de navegador/computador, e a equipe inteira compartilha o mesmo
  * calendário.
  *
- * Uso (chamado por app.js via fetch, sempre com caminho relativo "api.php"):
- *   GET  api.php?k=posts     -> { v: [...] | null, updated_at: <int> }
- *   GET  api.php?k=settings  -> { v: {...} | null, updated_at: <int> }
- *   POST api.php?k=posts     body: { v: [...], expected_updated_at: <int> }
- *   POST api.php?k=settings  body: { v: {...}, expected_updated_at: <int> }
+ * Uso (chamado por app.js/intelligence-center.js via fetch, sempre com caminho relativo "api.php"):
+ *   GET  api.php?k=posts       -> { v: [...] | null, updated_at: <int> }
+ *   GET  api.php?k=settings    -> { v: {...} | null, updated_at: <int> }
+ *   GET  api.php?k=intel       -> { v: {...} | null, updated_at: <int> }
+ *   GET  api.php?k=brands      -> { v: [...] | null, updated_at: <int> }
+ *   POST api.php?k=posts       body: { v: [...], expected_updated_at: <int> }
+ *   POST api.php?k=settings    body: { v: {...}, expected_updated_at: <int> }
+ *   POST api.php?k=intel       body: { v: {...}, expected_updated_at: <int> }
+ *   POST api.php?k=brands      body: { v: [...], expected_updated_at: <int> }
+ *
+ * "intel" guarda o aprendizado da Central de Inteligência (referências enviadas + DNA
+ * gerado por editoria).
+ *
+ * "posts"/"settings"/"intel" também aceitam um sufixo "__{brandId}" (ex:
+ * k=posts__b1a2b3) — é assim que o portal isola os dados de cada perfil de
+ * marca: a marca padrão usa as chaves sem sufixo (dados que já existiam antes
+ * do portal), marcas novas ganham seu próprio conjunto de linhas na tabela.
+ * "brands" (sem sufixo) guarda a lista de perfis de marca em si.
  *
  * O POST usa concorrência otimista: expected_updated_at precisa bater com o
  * updated_at atual no banco. Se outra pessoa salvou por cima nesse meio tempo,
@@ -24,9 +37,10 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
 $key = isset($_GET['k']) ? $_GET['k'] : '';
-if(!in_array($key, ['posts', 'settings'], true)){
+$isValidKey = ($key === 'brands') || preg_match('/^(posts|settings|intel)(__[a-z0-9-]{1,40})?$/', $key);
+if(!$isValidKey){
     http_response_code(400);
-    echo json_encode(['error' => 'chave inválida (use k=posts ou k=settings)']);
+    echo json_encode(['error' => 'chave inválida (use k=posts, k=settings, k=intel, k=brands, ou uma dessas com sufixo __{brandId})']);
     exit;
 }
 

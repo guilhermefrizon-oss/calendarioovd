@@ -8,6 +8,7 @@
       --backdrop:rgba(15,15,13,.5);
       --radius-sm:8px;--radius-md:12px;--radius-lg:16px;
       --shadow-sm:0 1px 2px rgba(15,15,13,.06);--shadow-md:0 6px 16px rgba(15,15,13,.08);--shadow-lg:0 20px 40px rgba(15,15,13,.16);
+      --event-shadow:0 1px 3px rgba(15,15,13,.10),0 1px 2px rgba(15,15,13,.06);--event-shadow-hover:0 10px 22px rgba(15,15,13,.14),0 2px 6px rgba(15,15,13,.08);
       --base-font-family:'Lato',Segoe UI,Arial,sans-serif;
       /* altura padrão compartilhada por inputs de texto/data/número, selects, o seletor de cor e
          botões (tamanho normal) — garante que fiquem alinhados quando aparecem lado a lado, como
@@ -25,11 +26,110 @@
       --success:#4ade80;--success-bg:#142a1c;--success-border:#1f4b2c;
       --backdrop:rgba(0,0,0,.65);
       --shadow-sm:0 1px 2px rgba(0,0,0,.25);--shadow-md:0 6px 16px rgba(0,0,0,.35);--shadow-lg:0 20px 40px rgba(0,0,0,.5);
+      --event-shadow:0 1px 3px rgba(0,0,0,.35),0 1px 2px rgba(0,0,0,.25);--event-shadow-hover:0 10px 24px rgba(0,0,0,.5),0 2px 6px rgba(0,0,0,.35);
     }
     /* Reset global e layout base da página */
     *{box-sizing:border-box}
-    body{font-family:var(--base-font-family);background:var(--bg);margin:0;padding:28px;color:var(--text);-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
-    .container{max-width:1600px;margin:0 auto}
+    body{font-family:var(--base-font-family);background:var(--bg);margin:0;padding:0;color:var(--text);-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+    .container{max-width:1900px;margin:0 auto}
+
+    /* Shell do portal: sidebar fixa à esquerda (menu de ferramentas + seletor de marca,
+       montados por portal-shell.js) + área de conteúdo da ferramenta atual à direita. O
+       padding:28px que antes vivia no body agora é do .portal-main, pra sidebar ficar
+       encostada nas bordas da janela. */
+    .portal-shell{display:flex;align-items:stretch;min-height:100vh}
+    .portal-sidebar{width:236px;flex-shrink:0;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:18px;padding:18px 14px;position:sticky;top:0;height:100vh;overflow-y:auto;transition:width .2s ease,padding .2s ease}
+    .portal-main{flex:1;min-width:0;padding:28px}
+
+    .portal-topbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .portal-logo{display:flex;align-items:center;gap:8px;padding:0 4px;font-weight:900;font-size:15px;color:var(--text);letter-spacing:-.01em;min-width:0}
+    .portal-logo-mark{width:26px;height:26px;border-radius:8px;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex-shrink:0}
+
+    /* Navegação entre ferramentas do portal — mesma linguagem visual de .settings-nav-btn
+       (usado no menu lateral de Configurações), só que como links <a> em vez de <button> */
+    .portal-nav{display:flex;flex-direction:column;gap:2px}
+    .portal-nav-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:var(--radius-sm);color:var(--muted);font-weight:700;font-size:13px;text-decoration:none;transition:background .12s,color .12s}
+    .portal-nav-item svg{flex-shrink:0}
+    .portal-nav-item:hover{background:var(--surface-muted);color:var(--text)}
+    .portal-nav-item.active{background:var(--accent-weak);color:var(--accent-ink)}
+
+    /* Botão de recolher/expandir a sidebar — quadradinho só com ícone, ao lado da logo
+       (mesmo estilo compacto do toggle "|←" de referência) */
+    .portal-collapse-btn{flex-shrink:0;width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--muted);cursor:pointer;transition:background .12s,color .12s}
+    .portal-collapse-btn:hover{background:var(--surface-muted);color:var(--text)}
+    .portal-collapse-btn svg{flex-shrink:0}
+
+    /* Seletor de marca: mesmo mecanismo de trigger+popover ancorado no <body> via
+       position:fixed que .icon-picker-trigger/.icon-picker-popover já usam — necessário
+       porque a sidebar tem overflow-y:auto, que cortaria um popover position:absolute preso nela */
+    .portal-brand-trigger{display:flex;align-items:center;gap:9px;width:100%;padding:8px 9px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);cursor:pointer;text-align:left;font-family:inherit;transition:border-color .12s,background .12s}
+    .portal-brand-trigger:hover{background:var(--surface-muted)}
+    .portal-brand-trigger.open{border-color:var(--accent-ink);box-shadow:0 0 0 2px var(--accent-weak)}
+    .portal-brand-dot{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:900;color:var(--on-accent);overflow:hidden}
+    .portal-brand-dot img{width:100%;height:100%;object-fit:cover;display:block}
+    .portal-brand-trigger-body{flex:1;min-width:0}
+    .portal-brand-trigger-name{font-size:13.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .portal-brand-trigger-chevron{flex-shrink:0;display:flex;color:var(--text-faint)}
+
+    /* Textos que somem ao recolher a sidebar: em vez de display:none (que troca de estado na
+       hora, dessincronizado da largura da sidebar animando), encolhem/desaparecem juntos com
+       a mesma duração — sem isso o texto "pipocava" largo antes do menu terminar de encolher */
+    .portal-logo-text,
+    .portal-nav-item span,
+    .portal-brand-trigger-body,
+    .portal-brand-trigger-chevron{
+      overflow:hidden;white-space:nowrap;max-width:170px;opacity:1;
+      transition:max-width .2s ease,opacity .12s ease;
+    }
+
+    .portal-brand-popover{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:8px;width:250px;z-index:200;max-height:70vh;overflow-y:auto}
+    .portal-brand-row{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--radius-sm);cursor:pointer}
+    .portal-brand-row:hover{background:var(--surface-muted)}
+    .portal-brand-row.active{background:var(--accent-weak)}
+    .portal-brand-row .portal-brand-dot{width:24px;height:24px;font-size:10px}
+    .portal-brand-row-name{flex:1;min-width:0;font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .portal-brand-row-edit{flex-shrink:0;width:24px;height:24px;border:0;background:transparent;color:var(--text-faint);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .portal-brand-row-edit:hover{background:var(--card);color:var(--text)}
+    .portal-brand-edit-fields{display:flex;align-items:center;gap:6px;padding:6px 8px}
+    .portal-brand-edit-fields input[type=text]{flex:1;height:30px;padding:0 8px;font-size:12.5px}
+    .pb-edit-photo{flex-shrink:0;cursor:pointer;display:block}
+    .pb-edit-photo .portal-brand-dot{width:30px;height:30px;font-size:11px}
+    .portal-brand-divider{height:1px;background:var(--border);margin:6px 2px}
+    .portal-brand-add{display:flex;align-items:center;gap:8px;width:100%;padding:8px;border:0;background:transparent;color:var(--accent-ink);font-weight:700;font-size:12.5px;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit}
+    .portal-brand-add:hover{background:var(--accent-weak)}
+
+    /* Upload de foto de perfil no modal "Nova marca" */
+    .portal-brand-photo-upload{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px dashed var(--border-strong);border-radius:var(--radius-sm);cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);transition:background .12s,border-color .12s}
+    .portal-brand-photo-upload:hover{background:var(--surface-muted);border-color:var(--accent-ink)}
+    .portal-brand-photo-preview{width:36px;height:36px;border-radius:50%;flex-shrink:0;background:var(--surface-muted);display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--text-faint)}
+    .portal-brand-photo-preview img{width:100%;height:100%;object-fit:cover;display:block}
+
+    /* Sidebar recolhida: tanto via botão manual (.collapsed, alternado por portal-shell.js e
+       persistido) quanto automaticamente em telas estreitas (media query abaixo). O topbar
+       (logo + botão de recolher) empilha na vertical pra caber nos 72px de largura. */
+    .portal-sidebar.collapsed{width:72px;padding:14px 10px}
+    .portal-sidebar.collapsed .portal-topbar{flex-direction:column;gap:10px}
+    .portal-sidebar.collapsed .portal-logo-text,
+    .portal-sidebar.collapsed .portal-nav-item span,
+    .portal-sidebar.collapsed .portal-brand-trigger-body,
+    .portal-sidebar.collapsed .portal-brand-trigger-chevron{max-width:0;opacity:0;transition:max-width .2s ease,opacity .08s ease}
+    /* o "gap" do flex ainda reserva espaço ao redor de um filho escondido via max-width:0 —
+       sem zerar o gap aqui, o ícone visível (logo/avatar) fica puxado pra esquerda, fora do
+       centro real da coluna de ícones, e cada linha desalinha numa medida diferente */
+    .portal-sidebar.collapsed .portal-logo{gap:0}
+    .portal-sidebar.collapsed .portal-nav-item{justify-content:center;gap:0}
+    .portal-sidebar.collapsed .portal-brand-trigger{width:auto;margin:0 auto;justify-content:center;gap:0;padding:5px;border-color:transparent;background:transparent}
+    .portal-sidebar.collapsed .portal-brand-trigger:hover{background:var(--surface-muted)}
+
+    @media (max-width:760px){
+      .portal-sidebar{width:72px;padding:14px 10px}
+      .portal-topbar{flex-direction:column;gap:10px}
+      .portal-logo-text,.portal-nav-item span,.portal-brand-trigger-body,.portal-brand-trigger-chevron{max-width:0;opacity:0}
+      .portal-logo{gap:0}
+      .portal-nav-item{justify-content:center;gap:0}
+      .portal-brand-trigger{width:auto;margin:0 auto;justify-content:center;gap:0;padding:5px;border-color:transparent;background:transparent}
+      .portal-brand-trigger:hover{background:var(--surface-muted)}
+    }
 
     /* Escala tipográfica do site — sempre usar a tag semântica correspondente ao nível:
        H1 · título da página (só existe um, no topo) — 23px/900
@@ -90,7 +190,8 @@
     input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent-ink);box-shadow:0 0 0 3px var(--accent-weak)}
 
     /* Botões — altura igual à dos campos de texto/select/cor, para ficarem alinhados quando lado a lado */
-    .btn{height:var(--control-h);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--accent);color:var(--on-accent);padding:0 14px;border-radius:var(--radius-sm);border:0;cursor:pointer;font-weight:700;font-size:13px;transition:background .12s,transform .06s,box-shadow .12s;font-family:inherit}
+    .btn{height:var(--control-h);display:inline-flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;background:var(--accent);color:var(--on-accent);padding:0 14px;border-radius:var(--radius-sm);border:0;cursor:pointer;font-weight:700;font-size:13px;transition:background .12s,transform .06s,box-shadow .12s;font-family:inherit}
+    .btn svg{flex-shrink:0}
     .btn:hover{background:var(--accent-hover);box-shadow:var(--shadow-sm)}
     .btn:active{transform:translateY(1px)}
     .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border);font-weight:700}
@@ -162,7 +263,11 @@
        ao selecionar "Todas" (classe .all-active no container), todas ficam coloridas. */
     .tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     #tabs button{border-radius:var(--radius-sm);padding:6px 13px;font-size:12.5px;height:30px}
-    #tabs button.icon-only{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:transparent;border:0}
+    #tabs button.icon-only{position:relative;width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:transparent;border:0}
+    /* X pequeno que aparece sobre o ícone quando aquela rede está selecionada (seleção múltipla) —
+       puramente indicativo: o clique continua indo pro botão inteiro, que já alterna a seleção */
+    .tab-remove{display:none;position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:var(--accent-ink);color:var(--card);align-items:center;justify-content:center;font-size:10px;line-height:1;border:1.5px solid var(--card);pointer-events:none}
+    #tabs button.icon-only:not(.ghost) .tab-remove{display:flex}
     #tabs button.icon-only:hover{box-shadow:0 0 0 2px var(--surface-muted)}
     #tabs button.icon-only:not(.ghost){box-shadow:0 0 0 2px var(--accent-ink)}
     #tabs button.icon-only .net-icon-img,
@@ -272,8 +377,8 @@
     @media (max-width:1000px){.grid-week{grid-template-columns:repeat(2,1fr)}}
 
     /* Cartão de postagem (evento) dentro de uma célula do calendário */
-    .event{position:relative;display:flex;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:6px 8px 6px 10px;margin-bottom:5px;box-shadow:var(--shadow-sm);cursor:grab;overflow:hidden;transition:box-shadow .15s,border-color .15s,transform .15s}
-    .event:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong);transform:translateY(-1px)}
+    .event{position:relative;display:flex;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:6px 8px 6px 10px;margin-bottom:5px;box-shadow:var(--event-shadow);cursor:grab;overflow:hidden;transition:box-shadow .15s,border-color .15s,transform .15s}
+    .event:hover{box-shadow:var(--event-shadow-hover);border-color:var(--border-strong);transform:translateY(-2px)}
     .event[draggable="true"]{transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .18s,box-shadow .15s,border-color .15s}
     .event.dragging{opacity:0.5;transform:scale(.98)}
     .event.moving{transition:transform .36s cubic-bezier(.2,.9,.2,1)}
@@ -498,4 +603,116 @@
     .bp-separator{color:var(--border-strong);font-size:11px;letter-spacing:1px;line-height:1;white-space:nowrap;overflow:hidden;margin:10px 0}
     .bp-content{margin-top:2px}
     .bp-content-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-ink);margin-bottom:5px}
+
+    /* ============================================================
+       GUIA DE MARCA (brand-guide.html) — página inteira com menu lateral,
+       reaproveitando .settings-layout/.settings-sidebar/.settings-nav-btn/
+       .settings-panel do modal de Configurações (mesmo padrão visual de
+       abas laterais), mas sem os limites de altura/largura pensados para
+       um modal, já que aqui é o conteúdo principal da página.
+       ============================================================ */
+    .bg-layout-card{padding:0;overflow:hidden}
+    .bg-layout{display:flex;align-items:stretch}
+    .bg-layout .settings-sidebar{flex:0 0 220px;padding:20px 14px;border-right:1px solid var(--border)}
+    .bg-layout .settings-content{flex:1;min-width:0;max-height:none;overflow:visible;padding:22px 26px}
+    .bg-layout .settings-panel{gap:18px}
+    @media (max-width:640px){
+      .bg-layout{flex-direction:column}
+      .bg-layout .settings-sidebar{flex-direction:row;flex-wrap:wrap;flex:none;border-right:0;border-bottom:1px solid var(--border);padding:12px 14px}
+      .bg-layout .settings-content{padding:18px}
+      .bg-layout .settings-nav-btn{width:auto}
+    }
+
+    /* texto de apoio discreto abaixo de um h3 de seção, explicando pra que serve o cadastro */
+    .bg-section-desc{font-size:11.5px;color:var(--muted);margin:-4px 0 2px;line-height:1.5}
+
+    /* formulário de "adicionar item" acima de cada lista cadastrável — mesmos campos empilhados
+       numa caixa tracejada, para diferenciar visualmente de um item já salvo (ver .bg-list-row) */
+    .bg-add-form{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:12px;border:1px dashed var(--border-strong);border-radius:var(--radius-md);background:var(--card)}
+    .bg-add-form-row{display:flex;gap:8px;flex-wrap:wrap}
+    .bg-add-form-row > *{flex:1 1 160px;min-width:140px}
+
+    /* lista de itens já cadastrados — uma .bg-list-row por item, com título + subtítulo(s) à
+       esquerda e um botão de remover à direita; usada por palavras proibidas, terminologia,
+       produtos, linhas, públicos, pilares, formatos, dimensões, CTAs, hashtags, disclaimers,
+       requisitos, arquivos, personas etc. (ver setupListSection() em brand-guide.js) */
+    .bg-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    .bg-list-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)}
+    .bg-list-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .bg-list-row-title{font-size:13px;font-weight:700;color:var(--text);word-break:break-word}
+    .bg-list-row-sub{font-size:12px;color:var(--muted);line-height:1.5;word-break:break-word}
+    .bg-list-row a{color:var(--accent-ink);font-weight:700;text-decoration:none}
+    .bg-list-row a:hover{text-decoration:underline}
+    .bg-list-row .btn-icon{flex-shrink:0}
+    .bg-empty{font-size:12px;color:var(--text-faint);padding:10px 2px}
+
+    /* chips removíveis (ex: atributos de personalidade do tom de voz) — reaproveita .chip,
+       só acrescenta o wrap da lista */
+    .bg-chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+
+    /* ícone de arquivo genérico (documento) usado na lista de Arquivos base e nos arquivos do logo */
+    .bg-file-icon{width:34px;height:34px;border-radius:var(--radius-sm);background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--border)}
+
+    /* linha de persona: avatar circular (foto enviada ou iniciais) + nome/papel/descrição */
+    .bg-persona-avatar{width:44px;height:44px;border-radius:50%;background:var(--accent-weak);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;flex-shrink:0;overflow:hidden}
+    .bg-persona-avatar img{width:100%;height:100%;object-fit:cover}
     .bp-content-text{font-size:13px;line-height:1.6;color:var(--text)}
+
+    /* ============================================================
+       CONEXÃO GUIA DE MARCA ↔ CALENDÁRIO — usadas no modal de criar/editar
+       postagem (visual-editor.html), alimentadas pelo BRAND_GUIDE lido em
+       app.js (ver findForbiddenWords()/renderBrandGuideQuickInsert()).
+       ============================================================ */
+    /* aviso de palavra proibida — só avisa, não impede salvar */
+    .bg-inline-warning{margin-top:8px;padding:8px 10px;border:1px solid var(--danger-border);border-radius:var(--radius-sm);background:var(--danger-bg);color:var(--danger);font-size:12px;line-height:1.5}
+
+    /* painel de CTAs/hashtags/disclaimers do Guia de Marca, com inserção de um clique */
+    .bg-quick-insert{margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted);display:flex;flex-direction:column;gap:8px}
+    .bg-quick-insert-title{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint)}
+    .bg-quick-insert-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+    .bg-quick-insert-label{font-size:11px;font-weight:700;color:var(--muted);flex:0 0 auto;margin-right:2px}
+    .bg-quick-chip{background:var(--card);cursor:pointer}
+    .bg-quick-chip:hover{background:var(--accent-weak);border-color:var(--accent-ink);color:var(--accent-ink)}
+
+    /* ============================================================
+       CENTRAL DE INTELIGÊNCIA (intelligence-center.html/js) — biblioteca de editorias,
+       pílulas de status do aprendizado, listas de regras do DNA e barra de aderência da
+       validação inteligente. Também usadas no bloco de integração dentro do modal de
+       criar/editar postagem (visual-editor.html), alimentadas pelo IntelStore em app.js.
+       ============================================================ */
+    .intel-editoria-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+    .intel-editoria-card{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-muted);cursor:pointer;transition:background .12s,border-color .12s}
+    .intel-editoria-card:hover{border-color:var(--border-strong)}
+    .intel-editoria-card.active{background:var(--accent-weak);border-color:var(--accent-ink)}
+    .intel-editoria-card-top{display:flex;align-items:center;gap:8px}
+    .intel-editoria-card-name{font-size:13.5px;font-weight:700;color:var(--text)}
+    .intel-editoria-card-stat{font-size:12px;color:var(--muted)}
+    .intel-editoria-card-updated{font-size:11px;color:var(--text-faint)}
+
+    .intel-status-pill{display:inline-flex;align-items:center;width:fit-content;padding:3px 9px;border-radius:99px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;border:1px solid transparent}
+    .intel-status-pill.muted{background:var(--surface-muted);color:var(--text-faint);border-color:var(--border)}
+    .intel-status-pill.warn{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)}
+    .intel-status-pill.ok{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
+
+    .intel-workspace-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 20px 0}
+    .intel-workspace-title{margin:0;display:flex;align-items:center;gap:9px;font-size:16px}
+
+    .intel-rule-list{list-style:none;display:flex;flex-direction:column;gap:7px;margin:0;padding:0;font-size:12.5px;line-height:1.5;color:var(--text)}
+    .intel-rule-list li{padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)}
+    .intel-rule-list--ordered{list-style:decimal;padding-left:20px}
+    .intel-rule-list--ordered li{background:transparent;border:0;padding:2px 0}
+    .intel-rule-list--positive li{border-color:var(--success-border);background:var(--success-bg);color:var(--success)}
+    .intel-rule-list--warn li{border-color:var(--danger-border);background:var(--danger-bg);color:var(--danger)}
+
+    .intel-adherence-header{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
+    .intel-score-bar{height:8px;border-radius:99px;background:var(--surface-muted);overflow:hidden;border:1px solid var(--border)}
+    .intel-score-bar-fill{height:100%;border-radius:99px;transition:width .25s}
+    .intel-main-concept{font-size:12.5px;line-height:1.55;color:var(--muted);margin-top:10px}
+    .intel-main-concept b{color:var(--text)}
+
+    /* bloco de integração no modal de postagem (app.js) — mesma linguagem visual de
+       .bg-quick-insert, mas com destaque de cor de acento pra sinalizar que é a IA falando */
+    .intel-modal-box{margin-top:10px;padding:12px 14px;border:1px solid var(--accent-ink);border-radius:var(--radius-sm);background:var(--accent-weak);display:flex;flex-direction:column;gap:10px}
+    .intel-modal-box-title{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--accent-ink)}
+    .intel-modal-box .intel-rule-list li{background:var(--card)}
+    .intel-modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
