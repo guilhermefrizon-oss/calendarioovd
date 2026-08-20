@@ -46,9 +46,9 @@
     // ============================================================
     const TAG_PALETTE = ['#7c3aed','#0284c7','#16a34a','#b45309','#dc2626','#db2777','#0d9488','#4f46e5','#65a30d','#ea580c'];
     function hexToRgba(hex, alpha){
-      const h = (hex||'#7c3aed').replace('#','');
+      const h = (hex||'#F6BE00').replace('#','');
       const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
-      const n = parseInt(full,16) || 0x7c3aed;
+      const n = parseInt(full,16) || 0xF6BE00;
       const r=(n>>16)&255,g=(n>>8)&255,b=n&255;
       return `rgba(${r},${g},${b},${alpha})`;
     }
@@ -222,7 +222,7 @@
       selectedProducts.forEach((p, idx)=>{
         const chip = document.createElement('span'); chip.className = 'product-chip';
         const img = p.code ? `<img src="${productImageUrl(p.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'" />` : '';
-        chip.innerHTML = `${img}<div class="pc-body"><span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}</div><button type="button" class="pc-remove" data-idx="${idx}" aria-label="Remover produto">✕</button>`;
+        chip.innerHTML = `${img}<div class="pc-body"><span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}</div><button type="button" class="pc-remove" data-idx="${idx}" aria-label="Remover produto">${UI_ICONS.x(12)}</button>`;
         wrap.appendChild(chip);
       });
       wrap.querySelectorAll('.pc-remove').forEach(bt=> bt.addEventListener('click', ()=>{ const i = parseInt(bt.dataset.idx,10); selectedProducts.splice(i,1); renderSelectedProducts(); }));
@@ -300,7 +300,7 @@
       if($('mTitle').value.trim()){ box.style.display = 'none'; return; }
       const suggestions = suggestTitles(3);
       if(suggestions.length===0){ box.style.display = 'none'; return; }
-      box.innerHTML = `<div class="ts-header"><span class="ts-icon">✨</span><span>Sugestões de título</span><button type="button" class="ts-shuffle" title="Gerar outras opções">🔄</button></div>` +
+      box.innerHTML = `<div class="ts-header"><span class="ts-icon">${UI_ICONS.idea(13)}</span><span>Sugestões de título</span><button type="button" class="ts-shuffle" title="Gerar outras opções">${UI_ICONS.shuffle(13)}</button></div>` +
         suggestions.map(s=>`<div class="ts-option"><span class="ts-text">${escapeHtml(s)}</span><button type="button" class="ts-use" data-text="${escapeHtml(s)}">Usar</button></div>`).join('');
       box.querySelectorAll('.ts-use').forEach(bt=> bt.addEventListener('click', ()=>{ $('mTitle').value = bt.dataset.text; box.style.display = 'none'; renderModalPreview(); }));
       box.querySelector('.ts-shuffle').addEventListener('click', renderTitleSuggestion);
@@ -332,7 +332,7 @@
       if(status) tags.push(`<span class="tag" style="${tagStyle(stColor)}">${escapeHtml(status)}</span>`);
       editorias.forEach(ed=> tags.push(`<span class="tag" style="${tagStyle(editoriaColor(ed))}">${escapeHtml(ed)}</span>`));
       nets.forEach(n=> tags.push(`<span class="tag tag--outline">${networkIcon(n)} ${escapeHtml(n)}</span>`));
-      if(type==='Video') tags.push(`<span class="tag tag--outline">🎬 Vídeo</span>`);
+      if(type==='Video') tags.push(`<span class="tag tag--outline">${UI_ICONS.film(11)} Vídeo</span>`);
       if(collab) tags.push(`<span class="tag tag--collab">Collab</span>`);
       selectedProducts.forEach(p=>{ if(p.code) tags.push(`<img class="mp-prod-thumb" src="${productImageUrl(p.code)}" referrerpolicy="no-referrer" onerror="this.style.display='none'" alt="" title="${escapeHtml(p.name)}" />`); });
       wrap.querySelector('.mp-meta').innerHTML = tags.join('');
@@ -480,7 +480,7 @@
     // ÍCONES SVG — redes sociais e formatos (Feed/Story)
     // ============================================================
     const ICONS = {
-      Instagram: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="5" stroke="#7c3aed" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="3.2" stroke="#7c3aed" stroke-width="1.6" fill="none"/><circle cx="17.5" cy="6.5" r="0.9" fill="#7c3aed"/></svg>`,
+      Instagram: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="5" stroke="#E4405F" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="3.2" stroke="#E4405F" stroke-width="1.6" fill="none"/><circle cx="17.5" cy="6.5" r="0.9" fill="#E4405F"/></svg>`,
       Twitter: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 5.92c-.63.28-1.3.47-2 .56.72-.43 1.27-1.12 1.53-1.94-.68.4-1.44.69-2.25.85C18.9 4.5 17.7 4 16.4 4c-2.02 0-3.66 1.64-3.66 3.66 0 .29.03.57.09.84C9.2 8.4 6.2 6.7 4.1 4.1c-.32.56-.5 1.2-.5 1.88 0 1.3.66 2.45 1.66 3.12-.6-.02-1.17-.18-1.66-.46v.05c0 1.77 1.26 3.25 2.93 3.59-.31.08-.64.12-.98.12-.24 0-.48-.02-.71-.07.48 1.5 1.87 2.6 3.52 2.63-1.29 1.01-2.92 1.61-4.69 1.61-.3 0-.6-.02-.9-.05C6.95 20.2 9.37 21 12 21c7.07 0 10.94-5.86 10.94-10.94l-.01-.5C22 7.45 22.5 6.7 22 5.92z" fill="#1DA1F2"/></svg>`,
       LinkedIn: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="3" width="20" height="18" rx="2" stroke="#0A66C2" stroke-width="1.2" fill="none"/><path d="M6 10.5v6M8 7.5v9M11 7.5v9M14 7.5v9" stroke="#0A66C2" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
       Blog: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 7.5h18M3 12h12M3 16.5h9" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round"/></svg>`,
@@ -492,6 +492,46 @@
       Stories: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="6" stroke="currentColor" stroke-width="1.6"/></svg>`,
       Reels: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.6"/><path d="M10 9l5 3-5 3V9z" fill="currentColor"/></svg>`
     };
+
+    // ============================================================
+    // ÍCONES DE INTERFACE — substitui emojis/glifos de texto (✕ ✏️ ✨ 🔄 📅 📋 ⋮ ⠿ ↩ ↪ ‹ › ▾)
+    // por contornos SVG (estilo Feather/Lucide: stroke=currentColor, herda cor e tamanho do
+    // elemento pai). Cada helper aceita um tamanho opcional (padrão 14px).
+    // ============================================================
+    function svgIcon(paths, size, extraAttrs){
+      return `<svg class="icon" width="${size||14}" height="${size||14}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" ${extraAttrs||''}>${paths}</svg>`;
+    }
+    const UI_ICONS = {
+      x: (s)=> svgIcon('<path d="M18 6 6 18"/><path d="M6 6l12 12"/>', s),
+      edit: (s)=> svgIcon('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>', s),
+      check: (s)=> svgIcon('<path d="M20 6 9 17l-5-5"/>', s),
+      idea: (s)=> svgIcon('<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2Z"/>', s),
+      shuffle: (s)=> svgIcon('<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>', s),
+      calendar: (s)=> svgIcon('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>', s),
+      copy: (s)=> svgIcon('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>', s),
+      undo: (s)=> svgIcon('<path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>', s),
+      redo: (s)=> svgIcon('<path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/>', s),
+      chevronLeft: (s)=> svgIcon('<path d="m15 18-6-6 6-6"/>', s),
+      chevronRight: (s)=> svgIcon('<path d="m9 18 6-6-6-6"/>', s),
+      chevronDown: (s)=> svgIcon('<path d="m6 9 6 6 6-6"/>', s),
+      moreVertical: (s)=> svgIcon('<circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/>', s),
+      grip: (s)=> svgIcon('<circle cx="9" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="19" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="19" r="1.2" fill="currentColor" stroke="none"/>', s),
+      film: (s)=> svgIcon('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M10.5 9.5l5 2.5-5 2.5v-5z" fill="currentColor" stroke="none"/>', s),
+      clock: (s)=> svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>', s),
+      checkCircle: (s)=> svgIcon('<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>', s),
+      circle: (s)=> svgIcon('<circle cx="12" cy="12" r="9"/>', s)
+    };
+    // escolhe um ícone para um status pelo nome (heurística por palavra-chave — cobre os status
+    // padrão e a maioria dos nomes customizados; cai num círculo neutro quando não reconhece)
+    function statusIconFor(name){
+      const n = normalizeIconKey(name);
+      if(/public/.test(n)) return UI_ICONS.checkCircle;
+      if(/aprov|conclu|final|done/.test(n)) return UI_ICONS.checkCircle;
+      if(/agend|schedul/.test(n)) return UI_ICONS.clock;
+      if(/produc|producao|progress|revis/.test(n)) return UI_ICONS.shuffle;
+      if(/rascunho|draft/.test(n)) return UI_ICONS.edit;
+      return UI_ICONS.circle;
+    }
 
     // gera um id único para uma nova postagem
     function generateId(){ return 'p-' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
@@ -784,7 +824,7 @@
     // cada card é recriado do zero a cada render (então religar o clique não acumula listeners)
     function buildCardMenu(p, btnClass){
       const btn = document.createElement('button');
-      btn.type = 'button'; btn.className = btnClass; btn.setAttribute('aria-label','Mais ações'); btn.title = 'Mais ações'; btn.textContent = '⋮';
+      btn.type = 'button'; btn.className = btnClass; btn.setAttribute('aria-label','Mais ações'); btn.title = 'Mais ações'; btn.innerHTML = UI_ICONS.moreVertical(14);
       wireCardMenuButton(btn, p.id);
       return { btn };
     }
@@ -851,7 +891,7 @@
       const tagsHtml = [
         ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
         multi ? `<span class="tag tag--outline">${formatsCount} formatos</span>` : '',
-        hasVideo ? `<span class="tag tag--outline">🎬 Vídeo</span>` : '',
+        hasVideo ? `<span class="tag tag--outline">${UI_ICONS.film(11)} Vídeo</span>` : '',
         p.collab ? `<span class="tag tag--collab">Collab</span>` : ''
       ].filter(Boolean).join('');
       const prods = getPostProducts(p);
@@ -901,9 +941,9 @@
         ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
         multi ? `<span class="tag tag--outline">${formatsCount} formatos</span>` : '',
         p.collab ? `<span class="tag tag--collab">Collab</span>` : '',
-        hasVideo ? `<span class="tag tag--outline">🎬 Vídeo</span>` : ''
+        hasVideo ? `<span class="tag tag--outline">${UI_ICONS.film(11)} Vídeo</span>` : ''
       ].filter(Boolean).join('');
-      row.innerHTML = `<span class="drag-handle" title="Arraste para reordenar">⠿</span><span class="list-row-bar" style="background:${stColor}"></span><span class="list-row-title">${escapeHtml(p.title)}</span><span class="list-row-channel" title="${escapeHtml(channelTitle)}">${icon}${channelLabel}</span><span class="list-row-tags">${tagsHtml}</span><span class="tag" style="${tagStyle(stColor)}">${escapeHtml(p.status||'')}</span>`;
+      row.innerHTML = `<span class="drag-handle" title="Arraste para reordenar">${UI_ICONS.grip(14)}</span><span class="list-row-bar" style="background:${stColor}"></span><span class="list-row-title">${escapeHtml(p.title)}</span><span class="list-row-channel" title="${escapeHtml(channelTitle)}">${icon}${channelLabel}</span><span class="list-row-tags">${tagsHtml}</span><span class="tag" style="${tagStyle(stColor)}">${escapeHtml(p.status||'')}</span>`;
       const { btn: menuBtn } = buildCardMenu(p, 'list-row-menu-btn');
       row.appendChild(menuBtn);
       row.addEventListener('click', ()=> openEditModal(p.id));
@@ -1204,7 +1244,7 @@
     // CONFIGURAÇÕES DA APLICAÇÃO — redes, editorias, formatos,
     // status, catálogo de produtos e metas (persistidas no localStorage)
     // ============================================================
-    const BRAND_COLORS = { Instagram:'#7c3aed', Twitter:'#1DA1F2', LinkedIn:'#0A66C2', Blog:'#ef4444', Email:'#374151' };
+    const BRAND_COLORS = { Instagram:'#E4405F', Twitter:'#1DA1F2', LinkedIn:'#0A66C2', Blog:'#ef4444', Email:'#374151' };
     const BRAND_SHORT_NAMES = { Instagram:'IG', Twitter:'TW', LinkedIn:'LI', Blog:'BL', Email:'EM' };
     // formatos padrão por rede — cada rede tem seu próprio conjunto (ex: Reels só existe no Instagram),
     // cada formato com as dimensões (px) e extensões de arquivo aceitas
@@ -1226,7 +1266,7 @@
       TARGET: 3,
       WEEK_VIDEO_TARGET: 3,
       networks: [
-        { name:'Instagram', shortName:'IG', color:'#7c3aed', formats: NETWORK_DEFAULT_FORMATS.Instagram.map(f=>Object.assign({},f)) },
+        { name:'Instagram', shortName:'IG', color:'#E4405F', formats: NETWORK_DEFAULT_FORMATS.Instagram.map(f=>Object.assign({},f)) },
         { name:'Twitter', shortName:'TW', color:'#1DA1F2', formats: NETWORK_DEFAULT_FORMATS.Twitter.map(f=>Object.assign({},f)) },
         { name:'LinkedIn', shortName:'LI', color:'#0A66C2', formats: NETWORK_DEFAULT_FORMATS.LinkedIn.map(f=>Object.assign({},f)) },
         { name:'Blog', shortName:'BL', color:'#ef4444', formats: NETWORK_DEFAULT_FORMATS.Blog.map(f=>Object.assign({},f)) },
@@ -1374,14 +1414,14 @@
                 ${n.shortName?`<span class="net-view-short">(${escapeHtml(n.shortName)})</span>`:''}
               </span>
               <div class="net-edit-fields">
-                <input type="color" class="net-edit-color" value="${n.color||'#7c3aed'}" title="Cor da rede" style="flex-shrink:0" />
+                <input type="color" class="net-edit-color" value="${n.color||'#F6BE00'}" title="Cor da rede" style="flex-shrink:0" />
                 <input type="text" class="net-edit-name" value="${escapeHtml(n.name)}" title="Nome da rede" style="flex:2;min-width:110px" />
                 <input type="text" class="net-edit-short" value="${escapeHtml(n.shortName||'')}" maxlength="4" title="Nome curto" placeholder="Curto" style="flex:0 0 64px" />
                 <div class="net-edit-icon-picker icon-picker"></div>
               </div>
-              <button type="button" class="net-row-formats-toggle">Formatos: ${escapeHtml(formatsSummary)} <span class="settings-caret">▾</span></button>
-              <button type="button" class="btn ghost small net-edit-toggle" aria-label="Editar rede" title="Editar nome/nome curto/cor">✏️</button>
-              <button type="button" class="btn ghost small net-remove-btn" aria-label="Remover rede">✕</button>
+              <button type="button" class="net-row-formats-toggle">Formatos: ${escapeHtml(formatsSummary)} <span class="settings-caret">${UI_ICONS.chevronDown(11)}</span></button>
+              <button type="button" class="btn ghost small net-edit-toggle" aria-label="Editar rede" title="Editar nome/nome curto/cor">${UI_ICONS.edit(13)}</button>
+              <button type="button" class="btn ghost small net-remove-btn" aria-label="Remover rede">${UI_ICONS.x(13)}</button>
             </div>
             <div class="net-row-formats">
               <div class="net-row-formats-list" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -1405,7 +1445,7 @@
             const meta = [dims, exts].filter(Boolean).join(' · ');
             const item = document.createElement('div');
             item.className = 'format-row';
-            item.innerHTML = `<span class="format-row-name">${escapeHtml(f.name)}</span>${meta?`<span class="format-row-meta">${escapeHtml(meta)}</span>`:''}<button type="button" class="btn ghost small net-remove-format-btn" aria-label="Remover formato">✕</button>`;
+            item.innerHTML = `<span class="format-row-name">${escapeHtml(f.name)}</span>${meta?`<span class="format-row-meta">${escapeHtml(meta)}</span>`:''}<button type="button" class="btn ghost small net-remove-format-btn" aria-label="Remover formato">${UI_ICONS.x(13)}</button>`;
             item.querySelector('.net-remove-format-btn').addEventListener('click', (ev)=>{
               ev.stopPropagation();
               n.formats = (n.formats||[]).filter(x=>x.name!==f.name);
@@ -1611,13 +1651,13 @@
                 <span class="net-view-name">${escapeHtml(e.name)}</span>
               </span>
               <div class="net-edit-fields">
-                <input type="color" class="ed-edit-color" value="${e.color||'#7c3aed'}" title="Cor da editoria" style="flex-shrink:0" />
+                <input type="color" class="ed-edit-color" value="${e.color||'#F6BE00'}" title="Cor da editoria" style="flex-shrink:0" />
                 <input type="text" class="ed-edit-name" value="${escapeHtml(e.name)}" title="Nome da editoria" style="flex:2;min-width:110px" />
               </div>` +
-            (hasSchedule ? `<span class="chip" style="font-size:11px" title="Repete em dias fixos">📅 ${escapeHtml(scheduleLabel)} · ${escapeHtml(channelsLabel)}</span><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}">Aplicar ao mês visível</button>` : '') +
-            `<button type="button" class="net-row-formats-toggle ed-schedule-toggle">${hasSchedule?'Editar datas/formatos':'+ Datas e formatos'} <span class="settings-caret">▾</span></button>
-              <button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome/cor">✏️</button>
-              <button type="button" class="btn ghost small" data-editoria="${escapeHtml(e.name)}" aria-label="Remover editoria">✕</button>
+            (hasSchedule ? `<span class="chip" style="font-size:11px" title="Repete em dias fixos">${UI_ICONS.calendar(12)} ${escapeHtml(scheduleLabel)} · ${escapeHtml(channelsLabel)}</span><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}">Aplicar ao mês visível</button>` : '') +
+            `<button type="button" class="net-row-formats-toggle ed-schedule-toggle">${hasSchedule?'Editar datas/formatos':'+ Datas e formatos'} <span class="settings-caret">${UI_ICONS.chevronDown(11)}</span></button>
+              <button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome/cor">${UI_ICONS.edit(13)}</button>
+              <button type="button" class="btn ghost small" data-editoria="${escapeHtml(e.name)}" aria-label="Remover editoria">${UI_ICONS.x(13)}</button>
             </div>
             <div class="net-row-formats">
               <div class="ed-schedule-editor" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -1772,9 +1812,32 @@
 
     function renderStatusUI(){
       const m = $('mStatusContainer'); if(m){ m.innerHTML=''; APP_SETTINGS.statuses.forEach((s,i)=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="radio" name="mStatus" value="${escapeHtml(s.name)}" ${i===0?'checked':''} /> <span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)}`; m.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
-      const fc = $('filterStatusContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fStatus" value="${escapeHtml(s.name)}" /> <span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)}`; fc.appendChild(lbl); }); }
+      renderQuickStatusFilter();
       const bs = $('bStatusSelect'); if(bs){ bs.innerHTML = '<option value="">Manter</option>' + APP_SETTINGS.statuses.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join(''); }
-      const list = $('statusesList'); if(list){ list.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)} <button class="btn ghost small" data-status="${escapeHtml(s.name)}" style="margin-left:8px" aria-label="Remover status">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-status]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.status; APP_SETTINGS.statuses = APP_SETTINGS.statuses.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
+      const list = $('statusesList'); if(list){ list.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)} <button class="btn ghost small" data-status="${escapeHtml(s.name)}" style="margin-left:8px" aria-label="Remover status">${UI_ICONS.x(13)}</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-status]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.status; APP_SETTINGS.statuses = APP_SETTINGS.statuses.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
+    }
+
+    // Filtro rápido de status (toolbar): um chip por status, com a cor e um ícone que resume o
+    // sentido do nome (heurística em statusIconFor) — clique alterna dentro/fora de filters.statuses
+    // e já refaz o calendário na hora, sem precisar abrir o modal de Filtros (estilo mLabs)
+    function renderQuickStatusFilter(){
+      const row = $('quickStatusFilter'); if(!row) return;
+      row.innerHTML = '';
+      APP_SETTINGS.statuses.forEach(s=>{
+        const chip = document.createElement('button');
+        const active = filters.statuses.includes(s.name);
+        chip.type = 'button';
+        chip.className = 'status-filter-chip' + (active ? ' active' : '');
+        chip.style.setProperty('--st-color', s.color);
+        chip.style.setProperty('--st-weak', hexToRgba(s.color, 0.14));
+        chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${statusIconFor(s.name)(13)}<span>${escapeHtml(s.name)}</span>`;
+        chip.addEventListener('click', ()=>{
+          const idx = filters.statuses.indexOf(s.name);
+          if(idx>=0) filters.statuses.splice(idx,1); else filters.statuses.push(s.name);
+          buildCalendar(); render(); renderQuickStatusFilter();
+        });
+        row.appendChild(chip);
+      });
     }
 
     function renderCatalogUI(){
@@ -1783,7 +1846,7 @@
       (APP_SETTINGS.catalog||[]).forEach(item=>{
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px;border:1px solid var(--border);border-radius:8px;font-size:12px';
-        row.innerHTML = `<img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" style="width:24px;height:24px;object-fit:contain;border-radius:4px;background:#fff;border:1px solid var(--border);flex-shrink:0" onerror="this.style.visibility='hidden'" /><span style="color:var(--muted);flex-shrink:0;min-width:110px">${escapeHtml(item.code)}</span><span style="flex:1">${escapeHtml(item.name)}</span><button class="btn ghost small" data-catalog="${escapeHtml(item.code)}" aria-label="Remover produto">✕</button>`;
+        row.innerHTML = `<img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" style="width:24px;height:24px;object-fit:contain;border-radius:4px;background:#fff;border:1px solid var(--border);flex-shrink:0" onerror="this.style.visibility='hidden'" /><span style="color:var(--muted);flex-shrink:0;min-width:110px">${escapeHtml(item.code)}</span><span style="flex:1">${escapeHtml(item.name)}</span><button class="btn ghost small" data-catalog="${escapeHtml(item.code)}" aria-label="Remover produto">${UI_ICONS.x(13)}</button>`;
         list.appendChild(row);
       });
       list.querySelectorAll('button[data-catalog]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.catalog; APP_SETTINGS.catalog = (APP_SETTINGS.catalog||[]).filter(x=>x.code!==v); saveSettings(); renderCatalogUI(); }));
@@ -2069,7 +2132,7 @@
     document.addEventListener('click', ()=> closeMonthYearPicker());
     document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') closeMonthYearPicker(); });
     document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('click', ()=> setView(b.dataset.view)));
-    if($('addStatusBtn')) $('addStatusBtn').addEventListener('click', ()=>{ const v=$('newStatusInput').value.trim(); if(!v) return; const c = $('newStatusColor') ? $('newStatusColor').value : '#7c3aed'; APP_SETTINGS.statuses.push({name:v, color:c}); $('newStatusInput').value=''; saveSettings(); renderAllDynamicUI(); });
+    if($('addStatusBtn')) $('addStatusBtn').addEventListener('click', ()=>{ const v=$('newStatusInput').value.trim(); if(!v) return; const c = $('newStatusColor') ? $('newStatusColor').value : '#F6BE00'; APP_SETTINGS.statuses.push({name:v, color:c}); $('newStatusInput').value=''; saveSettings(); renderAllDynamicUI(); });
     if($('addCatalogBtn')) $('addCatalogBtn').addEventListener('click', ()=>{
       const code = $('newCatalogCode').value.trim();
       const name = $('newCatalogName').value.trim();
@@ -2089,9 +2152,9 @@
       const btn = $('mCopyBriefingBtn');
       if(!currentBriefingText){ return; }
       copyTextToClipboard(currentBriefingText).then(()=>{
-        const original = btn.textContent;
-        btn.textContent = '✓';
-        setTimeout(()=>{ btn.textContent = original; }, 1200);
+        const original = btn.innerHTML;
+        btn.innerHTML = UI_ICONS.check(14);
+        setTimeout(()=>{ btn.innerHTML = original; }, 1200);
       });
     });
     document.querySelectorAll('input[name="mType"]').forEach(el=> el.addEventListener('change', refreshModalDynamic));
@@ -2246,7 +2309,6 @@
       filters.editorias = Array.from(document.querySelectorAll('.fEditoria:checked')).map(x=>x.value);
       filters.places = Array.from(document.querySelectorAll('.fPlace:checked')).map(x=>x.value);
       filters.types = Array.from(document.querySelectorAll('.fType:checked')).map(x=>x.value);
-      filters.statuses = Array.from(document.querySelectorAll('.fStatus:checked')).map(x=>x.value);
       const coll = document.querySelector('input[name="fCollab"]:checked'); filters.collab = coll?coll.value:'any';
       $('filtersBackdrop').style.display='none'; buildCalendar(); render();
     });
@@ -2254,9 +2316,8 @@
       document.querySelectorAll('.fEditoria').forEach(x=>x.checked=false);
       document.querySelectorAll('.fPlace').forEach(x=>x.checked=false);
       document.querySelectorAll('.fType').forEach(x=>x.checked=false);
-      document.querySelectorAll('.fStatus').forEach(x=>x.checked=false);
       const any = document.querySelector('input[name="fCollab"][value="any"]'); if(any) any.checked = true;
-      filters.editorias = []; filters.places = []; filters.types = []; filters.statuses = []; filters.collab='any'; $('filtersBackdrop').style.display='none'; buildCalendar(); render();
+      filters.editorias = []; filters.places = []; filters.types = []; filters.statuses = []; filters.collab='any'; $('filtersBackdrop').style.display='none'; buildCalendar(); render(); renderQuickStatusFilter();
     });
     function closeFilters(){ $('filtersBackdrop').style.display = 'none'; }
 
@@ -2304,7 +2365,7 @@
     // liga os botões de "Adicionar" das listas de configurações
     if($('addNetBtn')) $('addNetBtn').addEventListener('click', ()=>{
       const v=$('newNetInput').value.trim(); if(!v) return;
-      const c = $('newNetColor') ? $('newNetColor').value : '#7c3aed';
+      const c = $('newNetColor') ? $('newNetColor').value : '#F6BE00';
       const shortV = $('newNetShort') ? $('newNetShort').value.trim() : '';
       APP_SETTINGS.networks.push({ name:v, shortName: shortV || v.slice(0,2).toUpperCase(), color:c, formats:[], icon: newNetIconValue });
       $('newNetInput').value=''; if($('newNetShort')) $('newNetShort').value='';
@@ -2327,7 +2388,7 @@
     if($('addEditoriaBtn')) $('addEditoriaBtn').addEventListener('click', ()=>{
       const v=$('newEditoriaInput').value.trim(); if(!v){ alert('Digite o nome da editoria.'); return; }
       if(APP_SETTINGS.editorias.some(x=>x.name===v)){ alert('Já existe uma editoria com esse nome.'); return; }
-      const entry = { name: v, color: $('newEditoriaColor') ? $('newEditoriaColor').value : '#7c3aed' };
+      const entry = { name: v, color: $('newEditoriaColor') ? $('newEditoriaColor').value : '#F6BE00' };
       const scheduleValue = newEditoriaScheduleEditor ? newEditoriaScheduleEditor.getValue() : null;
       if(scheduleValue) entry.schedule = scheduleValue;
       APP_SETTINGS.editorias.push(entry);
@@ -2338,7 +2399,7 @@
     // monta o calendário e, se ainda não houver nenhuma postagem, cria exemplos de demonstração
     buildCalendar();
     if(state.posts.length===0){
-      state.posts.push({ id: generateId(), title: 'Campanha: Lançamento Comunidade', date: '2026-08-18', channel: 'Instagram', color:'#7c3aed', status:'Aprovado', editoria:['Lançamentos'], place:'Feed', type:'Static' });
+      state.posts.push({ id: generateId(), title: 'Campanha: Lançamento Comunidade', date: '2026-08-18', channel: 'Instagram', color:'#E4405F', status:'Aprovado', editoria:['Lançamentos'], place:'Feed', type:'Static' });
       state.posts.push({ id: generateId(), title: 'Blog: Anúncio oficial', date: '2026-08-20', channel: 'Blog', color:'#06b6d4', status:'Em produção', editoria:['Informativo'], place:'Feed', type:'Static' });
       state.posts.push({ id: generateId(), title: 'Postagem de teste — Social', date: '2026-08-19', channel: 'Twitter', color:'#f97316', status:'Rascunho', editoria:['Destaques'], place:'Feed', type:'Video' });
       saveState();

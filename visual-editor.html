@@ -4,7 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Editor Visual — Calendário de Postagens</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -27,16 +29,16 @@
       <!-- Linha 1: navegação de mês, alternância Mês/Lista, resumo da IA e desfazer/refazer -->
       <div class="toolbar-row">
         <div class="month-nav">
-          <button id="prevMonth" class="btn-icon" aria-label="Mês anterior">‹</button>
+          <button id="prevMonth" class="btn-icon" aria-label="Mês anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
           <div class="month-label-wrap">
-            <button type="button" id="monthLabel" class="month-label" aria-haspopup="true" aria-expanded="false"><span id="monthLabelText">Agosto 2026</span> <span class="month-label-caret">▾</span></button>
+            <button type="button" id="monthLabel" class="month-label" aria-haspopup="true" aria-expanded="false"><span id="monthLabelText">Agosto 2026</span> <span class="month-label-caret"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></button>
             <!-- Popover de seleção rápida de mês dentro do ano (abre ao clicar no rótulo do mês).
                  Enquanto aberto, as setas ‹ › do cabeçalho (fora deste popover) trocam de ano em vez de mês. -->
             <div id="monthYearPicker" class="month-year-picker">
               <div class="myp-months" id="mypMonths"></div>
             </div>
           </div>
-          <button id="nextMonth" class="btn-icon" aria-label="Próximo mês">›</button>
+          <button id="nextMonth" class="btn-icon" aria-label="Próximo mês"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
         </div>
         <div class="view-toggle" id="viewToggle">
           <button data-view="month" class="active">Mês</button>
@@ -44,8 +46,8 @@
         </div>
         <div class="toolbar-spacer"></div>
         <div id="aiSummary" class="ai-info"></div>
-        <button id="undoBtn" class="btn-icon" title="Desfazer (Ctrl+Z)">↩</button>
-        <button id="redoBtn" class="btn-icon" title="Refazer (Ctrl+Y)">↪</button>
+        <button id="undoBtn" class="btn-icon" title="Desfazer (Ctrl+Z)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+        <button id="redoBtn" class="btn-icon" title="Refazer (Ctrl+Y)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg></button>
       </div>
       <!-- Linha 2: abas de canal (preenchidas via JS) e ações em massa (filtros, seleção, lote, importar/exportar) -->
       <div class="toolbar-row">
@@ -57,6 +59,11 @@
         <button id="importBriefingBtn" class="btn ghost">Importar Briefing</button>
         <button id="exportCsvBtn" class="btn ghost">Exportar CSV</button>
         <button id="resetMonthBtn" class="btn ghost danger" style="margin-left:8px" title="Apaga todas as postagens do mês visível">Resetar mês</button>
+      </div>
+      <!-- Linha 3: filtro rápido por status — ícone + cor por etapa, clique alterna sem precisar abrir o modal de Filtros -->
+      <div class="toolbar-row">
+        <span class="status-filter-label">Status</span>
+        <div id="quickStatusFilter" class="status-filter-row"></div>
       </div>
 
       <!-- Visão em calendário mensal: cabeçalho de dias da semana + grade de células (montada pelo JS em buildCalendar) -->
@@ -72,7 +79,7 @@
       <!-- Modal de Filtros: refina os posts exibidos por editoria, formato, tipo, status e collab -->
       <div id="filtersBackdrop" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true">
-          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
+          <button type="button" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
           <h2>Filtros</h2>
           <div style="display:flex;flex-direction:column;gap:12px">
             <div>
@@ -86,10 +93,6 @@
             <div>
               <label style="font-weight:600">Tipo</label>
               <div id="filterTypesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
-            </div>
-            <div>
-              <label style="font-weight:600">Status</label>
-              <div id="filterStatusContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
             </div>
             <div>
               <label style="font-weight:600">Collab</label>
@@ -109,7 +112,7 @@
       <!-- Modal de Edição em Lote: aplica data/formato/tipo/status/collab a todas as postagens selecionadas -->
       <div id="bulkEditBackdrop" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true">
-          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
+          <button type="button" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
           <h2>Edição em Lote</h2>
           <div style="display:flex;flex-direction:column;gap:10px">
             <label>Aplicar somente se preenchido (deixe em branco para pular)</label>
@@ -132,7 +135,7 @@
       <!-- Modal "Postagens do dia": abre ao clicar no badge "+N" quando um dia tem mais cards do que cabe na célula -->
       <div id="dayPostsBackdrop" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true">
-          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
+          <button type="button" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
           <h2 id="dayPostsTitle">Postagens do dia</h2>
           <div id="dayPostsList" style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden"></div>
         </div>
@@ -140,7 +143,7 @@
       <!-- Modal de Configurações: metas, redes, editorias, formatos, status e catálogo de produtos (tudo persistido no localStorage) -->
       <div id="settingsBackdrop" class="modal-backdrop">
         <div class="modal modal--wide" role="dialog" aria-modal="true">
-          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
+          <button type="button" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
           <h2>Configurações</h2>
           <div class="settings-layout">
 
@@ -176,7 +179,7 @@
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                   <input id="newNetInput" type="text" placeholder="Nome da rede (ex: Instagram)" style="flex:2;min-width:140px" />
                   <input id="newNetShort" type="text" placeholder="Nome curto (ex: IG)" maxlength="4" style="flex:1;min-width:110px" />
-                  <input id="newNetColor" type="color" value="#7c3aed" />
+                  <input id="newNetColor" type="color" value="#F6BE00" />
                   <button id="addNetBtn" class="btn ghost">Adicionar</button>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -198,7 +201,7 @@
                     <label>Nome da editoria</label>
                     <div style="display:flex;gap:8px;align-items:center">
                       <input id="newEditoriaInput" type="text" placeholder="Ex: Destaques" />
-                      <input id="newEditoriaColor" type="color" value="#7c3aed" title="Cor da etiqueta" />
+                      <input id="newEditoriaColor" type="color" value="#F6BE00" title="Cor da etiqueta" />
                     </div>
                   </div>
                   <div id="newEditoriaScheduleFields" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -214,7 +217,7 @@
                 <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Cor de cada etapa — aparece na barra lateral dos cards.</div>
                 <div style="display:flex;gap:8px;align-items:center">
                   <input id="newStatusInput" type="text" placeholder="Novo status" />
-                  <input id="newStatusColor" type="color" value="#7c3aed" />
+                  <input id="newStatusColor" type="color" value="#F6BE00" />
                   <button id="addStatusBtn" class="btn ghost">Adicionar</button>
                 </div>
                 <div id="statusesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
@@ -243,8 +246,8 @@
     <!-- Modal de Criar/Editar postagem: pré-visualização ao vivo + campos de conteúdo, categorização, produção, distribuição e notas -->
     <div id="modalBackdrop" class="modal-backdrop">
       <div class="modal" role="dialog" aria-modal="true">
-        <button type="button" id="modalMenuBtn" class="modal-close" style="right:48px;display:none" aria-label="Mais ações" title="Mais ações">⋮</button>
-        <button type="button" id="modalCloseBtn" class="modal-close" aria-label="Fechar">✕</button>
+        <button type="button" id="modalMenuBtn" class="modal-close" style="right:48px;display:none" aria-label="Mais ações" title="Mais ações"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg></button>
+        <button type="button" id="modalCloseBtn" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
         <h2 id="modalTitleHeading">Criar postagem</h2>
 
         <div id="modalPreview" class="modal-preview">
@@ -317,7 +320,7 @@
             <div class="form-group">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
                 <div class="fg-label" style="margin-bottom:0">Pré-visualização do briefing</div>
-                <button type="button" id="mCopyBriefingBtn" class="btn-icon" style="width:26px;height:26px;font-size:13px;flex-shrink:0" title="Copiar texto do briefing" aria-label="Copiar texto do briefing">📋</button>
+                <button type="button" id="mCopyBriefingBtn" class="btn-icon" style="width:26px;height:26px;font-size:13px;flex-shrink:0" title="Copiar texto do briefing" aria-label="Copiar texto do briefing"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
               </div>
               <div style="font-size:11.5px;color:var(--muted);margin:-6px 0 4px">Texto consolidado a partir dos campos preenchidos acima, atualizado em tempo real.</div>
               <div id="mBriefingPreview" style="font-size:13px;line-height:1.7;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted);color:var(--text)"></div>
