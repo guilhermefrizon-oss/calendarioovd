@@ -192,6 +192,18 @@
     .list-empty{padding:44px 20px;text-align:center;color:var(--muted);background:var(--card);border-radius:var(--radius-md);border:1px dashed var(--border);font-size:13px}
 
     .net-icon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:6px}
+    .net-icon-img{width:16px;height:16px;display:inline-block;vertical-align:middle;border-radius:50%}
+    .net-view-icon{display:inline-flex;align-items:center;justify-content:center}
+
+    /* seletor de ícone de rede (presets + upload de SVG), usado em "Adicionar rede" e na edição de cada rede */
+    .icon-picker{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+    .icon-picker-opt{width:26px;height:26px;padding:0;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--border);border-radius:50%;background:var(--card);cursor:pointer;flex-shrink:0}
+    .icon-picker-opt:hover{border-color:var(--border-strong)}
+    .icon-picker-opt.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset,0 0 0 1px var(--accent)}
+    .icon-picker-opt img{width:18px;height:18px;border-radius:50%}
+    .icon-picker-none{font-size:14px;line-height:1;color:var(--muted)}
+    .icon-picker-upload{font-size:0}
+    .icon-picker-upload-label{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.02em}
 
     /* Modal genérico: fundo escurecido (backdrop) + caixa central, usado por todos os 4 modais */
     .modal-backdrop{position:fixed;inset:0;background:var(--backdrop);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
