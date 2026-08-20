@@ -4,7 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Editor Visual — Calendário de Postagens</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -22,39 +24,50 @@
       </div>
     </div>
 
-    <!-- Barra de ferramentas + calendário/lista + card de sugestão da IA + modais auxiliares (filtros, edição em lote, configurações) -->
+    <!-- Barra de ferramentas + calendário/lista + modais auxiliares (filtros, edição em lote, configurações) -->
     <div class="card toolbar-card">
       <!-- Linha 1: navegação de mês, alternância Mês/Lista, resumo da IA e desfazer/refazer -->
       <div class="toolbar-row">
         <div class="month-nav">
-          <button id="prevMonth" class="btn-icon" aria-label="Mês anterior">‹</button>
+          <button id="prevMonth" class="btn-icon" aria-label="Mês anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
           <div class="month-label-wrap">
-            <button type="button" id="monthLabel" class="month-label" aria-haspopup="true" aria-expanded="false"><span id="monthLabelText">Agosto 2026</span> <span class="month-label-caret">▾</span></button>
+            <button type="button" id="monthLabel" class="month-label" aria-haspopup="true" aria-expanded="false"><span id="monthLabelText">Agosto 2026</span> <span class="month-label-caret"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></button>
             <!-- Popover de seleção rápida de mês dentro do ano (abre ao clicar no rótulo do mês).
                  Enquanto aberto, as setas ‹ › do cabeçalho (fora deste popover) trocam de ano em vez de mês. -->
             <div id="monthYearPicker" class="month-year-picker">
               <div class="myp-months" id="mypMonths"></div>
             </div>
           </div>
-          <button id="nextMonth" class="btn-icon" aria-label="Próximo mês">›</button>
+          <button id="nextMonth" class="btn-icon" aria-label="Próximo mês"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
         </div>
         <div class="view-toggle" id="viewToggle">
           <button data-view="month" class="active">Mês</button>
           <button data-view="list">Lista</button>
         </div>
         <div class="toolbar-spacer"></div>
-        <div id="aiSummary" class="ai-info"></div>
-        <button id="undoBtn" class="btn-icon" title="Desfazer (Ctrl+Z)">↩</button>
-        <button id="redoBtn" class="btn-icon" title="Refazer (Ctrl+Y)">↪</button>
+        <span id="syncStatus" class="sync-status" title="Estado da sincronização com o servidor"></span>
+        <div class="ai-summary-wrap">
+          <button type="button" id="aiSummary" class="ai-info" aria-haspopup="true" aria-expanded="false" title="Ver resumo do mês"></button>
+          <!-- Dropdown com o resumo do mês (Tipo/Editoria/Redes sociais), abre ao clicar na contagem acima -->
+          <div id="monthSummaryDropdown" class="month-summary-dropdown">
+            <div id="monthSummaryTitle" class="month-summary-dropdown-title"></div>
+            <div class="view-toggle" id="monthSummaryToggle">
+              <button type="button" data-group="type" class="active">Tipo</button>
+              <button type="button" data-group="editoria">Editoria</button>
+              <button type="button" data-group="rede">Redes sociais</button>
+            </div>
+            <div id="monthSummaryList" class="ms-list"></div>
+          </div>
+        </div>
+        <button id="undoBtn" class="btn-icon" title="Desfazer (Ctrl+Z)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+        <button id="redoBtn" class="btn-icon" title="Refazer (Ctrl+Y)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg></button>
       </div>
-      <!-- Linha 2: abas de canal (preenchidas via JS) e ações em massa (filtros, seleção, lote, importar/exportar) -->
+      <!-- Linha 2: abas de canal (preenchidas via JS, somente ícones) e ações em massa (filtros, importar/exportar) -->
       <div class="toolbar-row">
         <div id="tabs" class="tabs"></div>
         <div class="toolbar-spacer"></div>
         <button id="filtersBtn" class="btn ghost">Filtros</button>
-        <button id="toggleSelect" class="btn ghost">Selecionar</button>
-        <button id="bulkEditBtn" class="btn ghost">Editar em lote</button>
-        <button id="importBriefingBtn" class="btn ghost">Importar Briefing</button>
+        <button id="exportBriefingBtn" class="btn ghost" title="Baixa um .txt com o briefing de todas as postagens, agrupado por data">Exportar para Briefing</button>
         <button id="exportCsvBtn" class="btn ghost">Exportar CSV</button>
         <button id="resetMonthBtn" class="btn ghost danger" style="margin-left:8px" title="Apaga todas as postagens do mês visível">Resetar mês</button>
       </div>
@@ -66,41 +79,41 @@
       <div id="grid" class="grid-month"></div>
       <!-- Visão em lista: alternativa ao calendário, agrupada por dia (oculta por padrão) -->
       <div id="listView" class="list-view" style="display:none"></div>
-      <!-- Card de sugestão da IA com metas de posts/vídeos, preenchido pelo JS em render() -->
-      <div id="suggestionCard" class="card suggestion-card" style="display:none"></div>
 
       <!-- Modal de Filtros: refina os posts exibidos por editoria, formato, tipo, status e collab -->
       <div id="filtersBackdrop" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true">
-          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
-          <h2>Filtros</h2>
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <div>
-              <label style="font-weight:600">Editoria</label>
-              <div id="filterEditoriasContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+          <div class="modal-header">
+            <h2>Filtros</h2>
+            <div class="modal-header-actions">
+              <button type="button" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
             </div>
-            <div>
-              <label style="font-weight:600">Formato</label>
-              <div id="filterPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
-            </div>
-            <div>
-              <label style="font-weight:600">Tipo</label>
-              <div id="filterTypesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
-            </div>
-            <div>
-              <label style="font-weight:600">Status</label>
-              <div id="filterStatusContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-            </div>
-            <div>
-              <label style="font-weight:600">Collab</label>
-              <div style="display:flex;gap:8px;margin-top:6px">
-                <label class="chip"><input type="radio" name="fCollab" value="any" checked/> Qualquer</label>
-                <label class="chip"><input type="radio" name="fCollab" value="only"/> Apenas Collab</label>
-                <label class="chip"><input type="radio" name="fCollab" value="no"/> Sem Collab</label>
+          </div>
+          <div class="modal-body">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-weight:600">Editoria</label>
+                <div id="filterEditoriasContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+              </div>
+              <div>
+                <label style="font-weight:600">Formato</label>
+                <div id="filterPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
+              </div>
+              <div>
+                <label style="font-weight:600">Tipo</label>
+                <div id="filterTypesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
+              </div>
+              <div>
+                <label style="font-weight:600">Collab</label>
+                <div style="display:flex;gap:8px;margin-top:6px">
+                  <label class="chip"><input type="radio" name="fCollab" value="any" checked/> Qualquer</label>
+                  <label class="chip"><input type="radio" name="fCollab" value="only"/> Apenas Collab</label>
+                  <label class="chip"><input type="radio" name="fCollab" value="no"/> Sem Collab</label>
+                </div>
               </div>
             </div>
           </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <div class="modal-footer">
             <button id="clearFilters" class="btn ghost">Limpar</button>
             <button id="applyFilters" class="btn">Aplicar</button>
           </div>
@@ -109,21 +122,27 @@
       <!-- Modal de Edição em Lote: aplica data/formato/tipo/status/collab a todas as postagens selecionadas -->
       <div id="bulkEditBackdrop" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true">
-          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
-          <h2>Edição em Lote</h2>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <label>Aplicar somente se preenchido (deixe em branco para pular)</label>
-            <label>Data (YYYY-MM-DD)</label>
-            <input id="bDate" type="date" />
-            <label class="field-gap">Formato</label>
-            <div id="bPlaceContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-            <label class="field-gap">Tipo</label>
-            <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="bType" value="" checked /> Manter</label><label class="chip"><input type="radio" name="bType" value="Static" /> Estático</label><label class="chip"><input type="radio" name="bType" value="Video" /> Vídeo</label></div>
-            <label class="field-gap">Status</label>
-            <select id="bStatusSelect"></select>
-            <label class="field-gap"><input type="checkbox" id="bCollabToggle" /> Forçar Collab = ligado (desmarque para manter)</label>
+          <div class="modal-header">
+            <h2>Edição em Lote</h2>
+            <div class="modal-header-actions">
+              <button type="button" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <div class="modal-body">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <label>Aplicar somente se preenchido (deixe em branco para pular)</label>
+              <label>Data (YYYY-MM-DD)</label>
+              <input id="bDate" type="date" />
+              <label class="field-gap">Formato</label>
+              <div id="bPlaceContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+              <label class="field-gap">Tipo</label>
+              <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="bType" value="" checked /> Manter</label><label class="chip"><input type="radio" name="bType" value="Static" /> Estático</label><label class="chip"><input type="radio" name="bType" value="Video" /> Vídeo</label></div>
+              <label class="field-gap">Status</label>
+              <select id="bStatusSelect"></select>
+              <label class="field-gap"><input type="checkbox" id="bCollabToggle" /> Forçar Collab = ligado (desmarque para manter)</label>
+            </div>
+          </div>
+          <div class="modal-footer">
             <button id="cancelBulk" class="btn ghost">Cancelar</button>
             <button id="applyBulk" class="btn">Aplicar</button>
           </div>
@@ -132,16 +151,27 @@
       <!-- Modal "Postagens do dia": abre ao clicar no badge "+N" quando um dia tem mais cards do que cabe na célula -->
       <div id="dayPostsBackdrop" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true">
-          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
-          <h2 id="dayPostsTitle">Postagens do dia</h2>
-          <div id="dayPostsList" style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden"></div>
+          <div class="modal-header">
+            <h2 id="dayPostsTitle">Postagens do dia</h2>
+            <div class="modal-header-actions">
+              <button type="button" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <div class="modal-body">
+            <div id="dayPostsList" style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden"></div>
+          </div>
         </div>
       </div>
       <!-- Modal de Configurações: metas, redes, editorias, formatos, status e catálogo de produtos (tudo persistido no localStorage) -->
       <div id="settingsBackdrop" class="modal-backdrop">
         <div class="modal modal--wide" role="dialog" aria-modal="true">
-          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
-          <h2>Configurações</h2>
+          <div class="modal-header">
+            <h2>Configurações</h2>
+            <div class="modal-header-actions">
+              <button type="button" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <div class="modal-body">
           <div class="settings-layout">
 
             <!-- Menu lateral: escolhe qual seção aparece à direita -->
@@ -158,30 +188,30 @@
             <div class="settings-content">
 
               <div class="settings-panel active" id="secAparencia">
+                <label>Modo</label>
                 <div style="display:flex;gap:8px">
                   <label class="chip"><input type="radio" name="sTheme" value="light" checked /> Claro</label>
                   <label class="chip"><input type="radio" name="sTheme" value="dark" /> Escuro</label>
                 </div>
+                <label style="margin-top:10px">Cor do tema</label>
+                <div id="colorThemeGrid" class="color-theme-grid"></div>
               </div>
 
               <div class="settings-panel" id="secMetas">
                 <label>Meta diária de posts</label>
                 <input id="sTarget" type="number" min="1" max="20" />
-                <label class="field-gap">Meta semanal de vídeos</label>
-                <input id="sWeekVideos" type="number" min="0" max="20" />
               </div>
 
               <div class="settings-panel" id="secRedes">
-                <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Nome curto = exibição compacta em calendário, filtros e etiquetas. Cor = identificação visual da rede.</div>
+                <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Nome curto = exibição compacta em calendário, filtros e etiquetas.</div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                   <input id="newNetInput" type="text" placeholder="Nome da rede (ex: Instagram)" style="flex:2;min-width:140px" />
                   <input id="newNetShort" type="text" placeholder="Nome curto (ex: IG)" maxlength="4" style="flex:1;min-width:110px" />
-                  <input id="newNetColor" type="color" value="#7c3aed" />
                   <button id="addNetBtn" class="btn ghost">Adicionar</button>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                   <span style="font-size:11.5px;color:var(--muted)">Ícone:</span>
-                  <div id="newNetIconPicker" class="icon-picker"></div>
+                  <div id="newNetIconPicker"></div>
                 </div>
                 <div style="font-size:11.5px;color:var(--muted);margin:2px 0 -2px">Cada rede tem seus próprios formatos (ex: Instagram = Feed, Stories, Reels) — clique numa rede para configurá-los.</div>
                 <div id="netsList" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
@@ -198,7 +228,7 @@
                     <label>Nome da editoria</label>
                     <div style="display:flex;gap:8px;align-items:center">
                       <input id="newEditoriaInput" type="text" placeholder="Ex: Destaques" />
-                      <input id="newEditoriaColor" type="color" value="#7c3aed" title="Cor da etiqueta" />
+                      <input id="newEditoriaColor" type="color" value="#F6BE00" title="Cor da etiqueta" />
                     </div>
                   </div>
                   <div id="newEditoriaScheduleFields" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -214,7 +244,7 @@
                 <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Cor de cada etapa — aparece na barra lateral dos cards.</div>
                 <div style="display:flex;gap:8px;align-items:center">
                   <input id="newStatusInput" type="text" placeholder="Novo status" />
-                  <input id="newStatusColor" type="color" value="#7c3aed" />
+                  <input id="newStatusColor" type="color" value="#F6BE00" />
                   <button id="addStatusBtn" class="btn ghost">Adicionar</button>
                 </div>
                 <div id="statusesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
@@ -232,7 +262,8 @@
 
             </div>
           </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          </div>
+          <div class="modal-footer">
             <button id="cancelSettings" class="btn ghost">Cancelar</button>
             <button id="saveSettings" class="btn">Salvar</button>
           </div>
@@ -240,36 +271,31 @@
       </div>
     </div>
 
-    <!-- Modal de Criar/Editar postagem: pré-visualização ao vivo + campos de conteúdo, categorização, produção, distribuição e notas -->
+    <!-- Modal de Criar/Editar postagem: campos de publicação, salvamento, tipo, produto(s), redes sociais, produção, sugestões e conteúdo -->
     <div id="modalBackdrop" class="modal-backdrop">
       <div class="modal" role="dialog" aria-modal="true">
-        <button type="button" id="modalMenuBtn" class="modal-close" style="right:48px;display:none" aria-label="Mais ações" title="Mais ações">⋮</button>
-        <button type="button" id="modalCloseBtn" class="modal-close" aria-label="Fechar">✕</button>
-        <h2 id="modalTitleHeading">Criar postagem</h2>
-
-        <div id="modalPreview" class="modal-preview">
-          <div class="mp-bar"></div>
-          <div class="mp-body">
-            <div class="mp-title placeholder">Sua postagem aparecerá aqui</div>
-            <div class="mp-meta"></div>
+        <div class="modal-header">
+          <h2 id="modalTitleHeading">Criar postagem</h2>
+          <div class="modal-header-actions">
+            <button type="button" id="modalMenuBtn" class="modal-close" style="display:none" aria-label="Mais ações" title="Mais ações"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg></button>
+            <button type="button" id="modalCloseBtn" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
           </div>
         </div>
+        <div class="modal-body">
 
         <div class="grid-2">
           <div>
             <div class="form-group">
-              <div class="fg-label">Conteúdo</div>
+              <h3 class="fg-label">Publicação</h3>
               <label>Título</label>
               <input id="mTitle" type="text" placeholder="Título da postagem" />
               <div id="titleSuggestion" class="title-suggestion"></div>
               <label class="field-gap">Data</label>
               <input id="mDate" type="date" />
-              <label class="field-gap">Formato</label>
-              <div id="mPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
             </div>
 
             <div class="form-group">
-              <div class="fg-label">Salvar</div>
+              <h3 class="fg-label">Salvar</h3>
               <label>Briefing salvo em:</label>
               <input id="mBriefingLink" type="text" placeholder="Link ou local onde o briefing foi salvo" />
               <label class="field-gap">Referências salvas em:</label>
@@ -279,52 +305,66 @@
             </div>
 
             <div class="form-group">
-              <div class="fg-label">Categorização</div>
+              <h3 class="fg-label">Tipo da publicação</h3>
               <label>Editoria</label>
               <div id="editoriasContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-              <label class="field-gap">Produto(s)</label>
+            </div>
+
+            <div class="form-group">
+              <h3 class="fg-label">Produto(s)</h3>
+              <label>Buscar produto</label>
               <div class="autocomplete-wrap">
                 <input id="mProductName" type="text" placeholder="Digite para buscar no catálogo Vonder..." autocomplete="off" />
                 <div id="productSuggestions" class="autocomplete-list"></div>
               </div>
               <div id="selectedProductsList" class="selected-products"></div>
+              <label class="field-gap">Imagem:</label>
+              <input id="mImageLink" type="text" placeholder="Link ou local onde a arte/imagem de referência está salva" />
+              <label class="field-gap">Observações:</label>
+              <textarea id="mImageNotes" rows="2" placeholder="Observações sobre o produto ou a imagem acima"></textarea>
+            </div>
+          </div>
+          <div>
+            <div class="form-group">
+              <h3 class="fg-label">Redes sociais</h3>
+              <label>Redes</label>
+              <div id="mMultiChannelNote" style="display:none;font-size:11.5px;color:var(--muted);margin:-2px 0 6px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)"></div>
+              <div id="netsContainer" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:6px"></div>
             </div>
 
             <div class="form-group">
-              <div class="fg-label">Produção</div>
+              <h3 class="fg-label">Produção</h3>
               <label>Tipo</label>
               <div style="display:flex;gap:8px;margin-top:6px">
                 <label class="chip"><input type="radio" name="mType" value="Static" checked /> <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor"/><path d="M21 16l-5.5-5.5L11 15l-2.5-2.5L3 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Estático</label>
                 <label class="chip"><input type="radio" name="mType" value="Video" /> <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 9.5l5 2.5-5 2.5v-5z" fill="currentColor"/></svg> Vídeo</label>
               </div>
-              <label class="field-gap">Status</label>
-              <div id="mStatusContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+              <label class="field-gap">Formato</label>
+              <div id="mPlacesContainer" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
             </div>
-          </div>
-          <div>
+
             <div class="form-group">
-              <div class="fg-label">Distribuição</div>
-              <label>Redes</label>
-              <div id="mMultiChannelNote" style="display:none;font-size:11.5px;color:var(--muted);margin:-2px 0 6px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)"></div>
-              <div id="netsContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
-              <div class="field-gap"><label><input type="checkbox" id="mCollab" /> <span style="margin-left:8px">Collab (não entra na contagem)</span></label></div>
+              <h3 class="fg-label">Sugestões de conteúdo</h3>
+              <div style="font-size:11.5px;color:var(--muted);margin:-6px 0 8px">3 ideias de pauta e estrutura recomendadas para a editoria selecionada.</div>
+              <div id="contentSuggestions"></div>
             </div>
             <div class="form-group">
-              <div class="fg-label">Notas</div>
-              <label>Observações</label>
-              <textarea id="mNotes" rows="5"></textarea>
+              <h3 class="fg-label">Conteúdo da publicação</h3>
+              <label>Texto</label>
+              <textarea id="mNotes" rows="5" placeholder="Escreva o conteúdo da publicação, a partir das sugestões acima ou do zero"></textarea>
             </div>
             <div class="form-group">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
-                <div class="fg-label" style="margin-bottom:0">Pré-visualização do briefing</div>
-                <button type="button" id="mCopyBriefingBtn" class="btn-icon" style="width:26px;height:26px;font-size:13px;flex-shrink:0" title="Copiar texto do briefing" aria-label="Copiar texto do briefing">📋</button>
+              <div class="fg-label" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <h3 style="margin-bottom:0;padding-bottom:0;border-bottom:0">Pré-visualização do briefing</h3>
+                <button type="button" id="mCopyBriefingBtn" class="btn-icon" style="width:26px;height:26px;font-size:13px;flex-shrink:0" title="Copiar texto do briefing" aria-label="Copiar texto do briefing"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
               </div>
               <div style="font-size:11.5px;color:var(--muted);margin:-6px 0 4px">Texto consolidado a partir dos campos preenchidos acima, atualizado em tempo real.</div>
               <div id="mBriefingPreview" style="font-size:13px;line-height:1.7;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted);color:var(--text)"></div>
             </div>
           </div>
         </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        </div>
+        <div class="modal-footer">
           <button id="cancelModal" class="btn ghost">Cancelar</button>
           <button id="saveModal" class="btn">Salvar</button>
         </div>

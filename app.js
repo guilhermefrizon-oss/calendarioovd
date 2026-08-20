@@ -10,9 +10,11 @@
     let viewDate = new Date(2026,7,18);
     let activeTab = 'All';
     let currentView = 'month'; // 'month' | 'list'
-    // metas configuráveis (persistidas nas Configurações)
+    // alturas das células do dia capturadas por buildCalendar() logo antes de reconstruir o grid;
+    // render() consome isso no final pra animar a troca de altura das linhas (ver ambas as funções)
+    let pendingRowHeights = null;
+    // meta configurável (persistida nas Configurações)
     let TARGET = 3;
-    let WEEK_VIDEO_TARGET = 3;
     let isEditing = false;
     let editingId = null;
     // estado dos filtros aplicados ao calendário/lista
@@ -37,8 +39,109 @@
     function setTheme(theme){
       localStorage.setItem(THEME_KEY, theme);
       applyTheme(theme);
+      applyColorTheme(getColorTheme());
     }
     applyTheme(localStorage.getItem(THEME_KEY) || 'light');
+
+    // ============================================================
+    // COR DO TEMA — paleta de destaque (accent) do calendário. Cada
+    // opção traz uma cor para o modo escuro e outra para o modo claro;
+    // ao trocar, recalcula --accent/--accent-ink/--accent-hover/
+    // --accent-weak/--on-accent na hora, sem precisar de "Salvar".
+    // ============================================================
+    const COLOR_THEME_KEY = 'calendar_color_theme_v1';
+    const CUSTOM_COLOR_KEY = 'calendar_color_theme_custom_v1';
+    const COLOR_THEMES = [
+      { id:'dourado',  name:'Dourado',   dark:'#F6BE00', light:'#F6BE00' },
+      { id:'azul',     name:'Azul',      dark:'#2f6fed', light:'#7fb0f2' },
+      { id:'cinza',    name:'Cinza',     dark:'#6b6b70', light:'#a8a8ae' },
+      { id:'petroleo', name:'Petróleo',  dark:'#3c5878', light:'#8fa8c4' },
+      { id:'ardosia',  name:'Ardósia',   dark:'#3e4f63', light:'#8898a8' },
+      { id:'esverdeado',name:'Esverdeado',dark:'#3f5a52', light:'#a0b4ac' },
+      { id:'turquesa', name:'Turquesa',  dark:'#0f9488', light:'#5fd6c4' },
+      { id:'verde',    name:'Verde',     dark:'#2f8a3a', light:'#8fd68a' },
+      { id:'oliva',    name:'Oliva',     dark:'#5a6a3a', light:'#b0c090' },
+      { id:'laranja',  name:'Laranja',   dark:'#d9720f', light:'#f5b878' },
+      { id:'marrom',   name:'Marrom',    dark:'#8a5a3a', light:'#d0ac8c' },
+      { id:'vinho',    name:'Vinho',     dark:'#a8264a', light:'#f0a0be' },
+      { id:'rose',     name:'Rosé',      dark:'#7a4650', light:'#cfa8ae' },
+      { id:'magenta',  name:'Magenta',   dark:'#a52a92', light:'#f0a8e4' },
+      { id:'roxo',     name:'Roxo',      dark:'#6a3fa0', light:'#c4a8f0' },
+    ];
+    function getColorTheme(){ return localStorage.getItem(COLOR_THEME_KEY) || 'dourado'; }
+    function hexToRgbObj(hex){
+      const h = (hex||'#000000').replace('#','');
+      const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
+      const n = parseInt(full,16) || 0;
+      return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+    }
+    function rgbToHex(r,g,b){
+      return '#'+[r,g,b].map(v=> Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+    }
+    // mistura hex com withHex; amount 0..1 = quanto de withHex entra na mistura
+    function mixHex(hex, withHex, amount){
+      const a = hexToRgbObj(hex), b = hexToRgbObj(withHex);
+      return rgbToHex(a.r+(b.r-a.r)*amount, a.g+(b.g-a.g)*amount, a.b+(b.b-a.b)*amount);
+    }
+    // luminância relativa (WCAG) — usada pra decidir se um texto claro ou escuro
+    // fica mais legível em cima de uma cor de destaque
+    function relLuminance(hex){
+      const { r, g, b } = hexToRgbObj(hex);
+      const chan = v=>{ v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); };
+      return 0.2126*chan(r) + 0.7152*chan(g) + 0.0722*chan(b);
+    }
+    function isLightColor(hex){ return relLuminance(hex) > 0.5; }
+    function applyColorTheme(id){
+      let dark, light;
+      if(id === 'custom'){
+        const hex = localStorage.getItem(CUSTOM_COLOR_KEY) || '#F6BE00';
+        dark = hex; light = hex;
+      } else {
+        const palette = COLOR_THEMES.find(p=>p.id===id) || COLOR_THEMES[0];
+        dark = palette.dark; light = palette.light;
+      }
+      const mode = document.documentElement.getAttribute('data-theme') || 'light';
+      const accent = mode === 'dark' ? dark : light;
+      const root = document.documentElement.style;
+      root.setProperty('--accent', accent);
+      root.setProperty('--accent-hover', mixHex(accent, '#000000', 0.15));
+      root.setProperty('--accent-weak', hexToRgba(accent, 0.16));
+      root.setProperty('--on-accent', isLightColor(accent) ? '#1a1a1a' : '#ffffff');
+      const ink = mode === 'dark'
+        ? dark
+        : (relLuminance(dark) < 0.35 ? dark : mixHex(dark, '#000000', 0.4));
+      root.setProperty('--accent-ink', ink);
+      renderColorThemeGrid();
+    }
+    function setColorTheme(id){
+      localStorage.setItem(COLOR_THEME_KEY, id);
+      applyColorTheme(id);
+    }
+    function renderColorThemeGrid(){
+      const grid = $('colorThemeGrid'); if(!grid) return;
+      const current = getColorTheme();
+      const customHex = localStorage.getItem(CUSTOM_COLOR_KEY) || '#F6BE00';
+      const checkSvg = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+      const swatches = COLOR_THEMES.map(p=>{
+        const selected = current === p.id;
+        return `<button type="button" class="color-swatch${selected?' selected':''}" data-color-theme="${p.id}" title="${escapeHtml(p.name)}" style="--sw-dark:${p.dark};--sw-light:${p.light}">${selected? `<span class="color-swatch-check">${checkSvg}</span>` : ''}</button>`;
+      }).join('');
+      const customSelected = current === 'custom';
+      const customSwatch = `<button type="button" class="color-swatch color-swatch-custom${customSelected?' selected':''}" data-color-theme="custom" title="Personalizada" style="--sw-dark:${customHex};--sw-light:${customHex}">${customSelected? `<span class="color-swatch-check">${checkSvg}</span>` : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-4 12.5-12.5a2.12 2.12 0 0 1 3 3L6 21l-4 1Z"/><path d="m14.5 5.5 4 4"/></svg>'}<input type="color" id="customColorInput" value="${customHex}" title="Escolher cor personalizada" /></button>`;
+      grid.innerHTML = swatches + customSwatch;
+      grid.querySelectorAll('.color-swatch:not(.color-swatch-custom)').forEach(btn=>{
+        btn.addEventListener('click', ()=> setColorTheme(btn.dataset.colorTheme));
+      });
+      const customInput = $('customColorInput');
+      if(customInput){
+        customInput.addEventListener('click', ev=> ev.stopPropagation());
+        customInput.addEventListener('input', ()=>{
+          localStorage.setItem(CUSTOM_COLOR_KEY, customInput.value);
+          setColorTheme('custom');
+        });
+      }
+    }
+    applyColorTheme(getColorTheme());
 
     // ============================================================
     // HELPERS DE COR E EXIBIÇÃO — cores de tags/status, ícones de rede,
@@ -46,13 +149,12 @@
     // ============================================================
     const TAG_PALETTE = ['#7c3aed','#0284c7','#16a34a','#b45309','#dc2626','#db2777','#0d9488','#4f46e5','#65a30d','#ea580c'];
     function hexToRgba(hex, alpha){
-      const h = (hex||'#7c3aed').replace('#','');
+      const h = (hex||'#F6BE00').replace('#','');
       const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
-      const n = parseInt(full,16) || 0x7c3aed;
+      const n = parseInt(full,16) || 0xF6BE00;
       const r=(n>>16)&255,g=(n>>8)&255,b=n&255;
       return `rgba(${r},${g},${b},${alpha})`;
     }
-    function tagStyle(hex){ return `background:${hexToRgba(hex,0.12)};color:${hex};border:1px solid ${hexToRgba(hex,0.28)}`; }
     function tagColor(name, list){
       const idx = (list||[]).indexOf(name);
       return TAG_PALETTE[(idx<0?0:idx) % TAG_PALETTE.length];
@@ -72,6 +174,7 @@
     const PRESET_ICONS = {
       instagram: 'icons/instagram.svg',
       facebook: 'icons/facebook.svg',
+      twitter: 'icons/twitter.svg',
       linkedin: 'icons/linkedin.svg',
       youtube: 'icons/youtube.svg',
       tiktok: 'icons/tiktok.svg'
@@ -94,19 +197,73 @@
       if(src) return `<img class="net-icon-img" src="${escapeHtml(src)}" alt="${escapeHtml(name)}" />`;
       return ICONS[name] || `<span class="dot" style="background:${networkColor(name)}"></span>`;
     }
-    // seletor de ícone de rede: presets coloridos (icons/*.svg) + opção de enviar um SVG próprio.
+    // seletor de ícone de rede: um botão-gatilho circular (mostra o ícone atual) que abre um
+    // popover com os presets coloridos (icons/*.svg) + opção de enviar um SVG próprio, em vez de
+    // jogar tudo numa fileira inline (que quebrava linha de forma torta ao lado dos outros campos
+    // da linha, na edição de uma rede já cadastrada).
     // `current` é o valor salvo em n.icon ({type:'preset',key} | {type:'custom',dataUrl} | null);
     // `onChange` é chamado com o novo valor sempre que o usuário escolhe outra opção.
     function renderIconPicker(container, current, onChange){
       if(!container) return;
       container.innerHTML = '';
+      container.className = (container.className ? container.className + ' ' : '') + 'icon-picker-wrap';
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'icon-picker-trigger';
+      trigger.title = 'Escolher ícone da rede';
+      trigger.setAttribute('aria-haspopup', 'true');
+      trigger.setAttribute('aria-expanded', 'false');
+      if(current && current.type==='custom' && current.dataUrl) trigger.innerHTML = `<img src="${current.dataUrl}" alt="ícone personalizado" />`;
+      else if(current && current.type==='preset' && PRESET_ICONS[current.key]) trigger.innerHTML = `<img src="${PRESET_ICONS[current.key]}" alt="${current.key}" />`;
+      else trigger.innerHTML = '<span class="icon-picker-none">–</span>';
+
+      // o popover é ancorado ao <body> (não fica dentro de `container`) porque o gatilho costuma
+      // estar dentro de uma linha de rede com overflow:hidden (truque do cantos arredondados) ou
+      // de um painel de Configurações com scroll — um popover position:absolute preso ali dentro
+      // seria cortado. Fica desanexado do body exceto enquanto estiver aberto.
+      const popover = document.createElement('div');
+      popover.className = 'icon-picker-popover';
+
+      function positionPopover(){
+        const r = trigger.getBoundingClientRect();
+        popover.style.top = `${r.bottom + 6}px`;
+        popover.style.left = `${r.left}px`;
+      }
+      function closePopover(){
+        if(popover.parentNode) popover.parentNode.removeChild(popover);
+        trigger.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('mousedown', onDocClick);
+        window.removeEventListener('scroll', closePopover, true);
+        window.removeEventListener('resize', closePopover);
+      }
+      function onDocClick(ev){ if(!container.contains(ev.target) && !popover.contains(ev.target)) closePopover(); }
+      function openPopover(){
+        document.querySelectorAll('.icon-picker-popover').forEach(el=>{ if(el.parentNode) el.parentNode.removeChild(el); });
+        document.querySelectorAll('.icon-picker-trigger.open').forEach(el=> el.classList.remove('open'));
+        document.body.appendChild(popover);
+        positionPopover();
+        trigger.classList.add('open');
+        trigger.setAttribute('aria-expanded', 'true');
+        document.addEventListener('mousedown', onDocClick);
+        window.addEventListener('scroll', closePopover, true);
+        window.addEventListener('resize', closePopover);
+      }
+      trigger.addEventListener('click', ()=> popover.parentNode ? closePopover() : openPopover());
+
+      const pick = (val)=>{ onChange(val); closePopover(); };
+
+      const grid = document.createElement('div');
+      grid.className = 'icon-picker-grid';
+
       const noneBtn = document.createElement('button');
       noneBtn.type = 'button';
       noneBtn.className = 'icon-picker-opt' + (!current ? ' selected' : '');
-      noneBtn.title = 'Sem ícone (usa a cor)';
+      noneBtn.title = 'Sem ícone';
       noneBtn.innerHTML = '<span class="icon-picker-none">–</span>';
-      noneBtn.addEventListener('click', ()=> onChange(null));
-      container.appendChild(noneBtn);
+      noneBtn.addEventListener('click', ()=> pick(null));
+      grid.appendChild(noneBtn);
 
       Object.keys(PRESET_ICONS).forEach(key=>{
         const btn = document.createElement('button');
@@ -115,15 +272,15 @@
         btn.className = 'icon-picker-opt' + (isSel ? ' selected' : '');
         btn.title = key;
         btn.innerHTML = `<img src="${PRESET_ICONS[key]}" alt="${key}" />`;
-        btn.addEventListener('click', ()=> onChange({ type:'preset', key }));
-        container.appendChild(btn);
+        btn.addEventListener('click', ()=> pick({ type:'preset', key }));
+        grid.appendChild(btn);
       });
+      popover.appendChild(grid);
 
-      const uploadLabel = document.createElement('label');
       const isCustom = !!(current && current.type==='custom' && current.dataUrl);
-      uploadLabel.className = 'icon-picker-opt icon-picker-upload' + (isCustom ? ' selected' : '');
-      uploadLabel.title = 'Enviar SVG personalizado';
-      uploadLabel.innerHTML = isCustom ? `<img src="${current.dataUrl}" alt="ícone personalizado" />` : '<span class="icon-picker-upload-label">SVG</span>';
+      const uploadBtn = document.createElement('label');
+      uploadBtn.className = 'icon-picker-upload-btn' + (isCustom ? ' selected' : '');
+      uploadBtn.innerHTML = `${isCustom ? `<img src="${current.dataUrl}" alt="ícone personalizado" class="icon-picker-upload-preview" />` : UI_ICONS.upload(15)}<span>${isCustom ? 'Trocar arquivo personalizado' : 'Subir arquivo personalizado'}</span>`;
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.accept = '.svg,image/svg+xml';
@@ -143,12 +300,15 @@
             .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
             .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '');
           const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)));
-          onChange({ type:'custom', dataUrl });
+          pick({ type:'custom', dataUrl });
         };
         reader.readAsText(file);
       });
-      uploadLabel.appendChild(fileInput);
-      container.appendChild(uploadLabel);
+      uploadBtn.appendChild(fileInput);
+      popover.appendChild(uploadBtn);
+
+      container.appendChild(trigger);
+      container.appendChild(popover);
     }
     // nome curto da rede (ex: "IG"), usado em exibições compactas — cai para o nome completo se não houver
     function networkShortName(name){
@@ -222,7 +382,7 @@
       selectedProducts.forEach((p, idx)=>{
         const chip = document.createElement('span'); chip.className = 'product-chip';
         const img = p.code ? `<img src="${productImageUrl(p.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'" />` : '';
-        chip.innerHTML = `${img}<div class="pc-body"><span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}</div><button type="button" class="pc-remove" data-idx="${idx}" aria-label="Remover produto">✕</button>`;
+        chip.innerHTML = `${img}<div class="pc-body"><span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}</div><button type="button" class="pc-remove" data-idx="${idx}" aria-label="Remover produto">${UI_ICONS.x(12)}</button>`;
         wrap.appendChild(chip);
       });
       wrap.querySelectorAll('.pc-remove').forEach(bt=> bt.addEventListener('click', ()=>{ const i = parseInt(bt.dataset.idx,10); selectedProducts.splice(i,1); renderSelectedProducts(); }));
@@ -300,42 +460,118 @@
       if($('mTitle').value.trim()){ box.style.display = 'none'; return; }
       const suggestions = suggestTitles(3);
       if(suggestions.length===0){ box.style.display = 'none'; return; }
-      box.innerHTML = `<div class="ts-header"><span class="ts-icon">✨</span><span>Sugestões de título</span><button type="button" class="ts-shuffle" title="Gerar outras opções">🔄</button></div>` +
+      box.innerHTML = `<div class="ts-header"><span class="ts-icon">${UI_ICONS.idea(13)}</span><span>Sugestões de título</span><button type="button" class="ts-shuffle" title="Gerar outras opções">${UI_ICONS.shuffle(13)}</button></div>` +
         suggestions.map(s=>`<div class="ts-option"><span class="ts-text">${escapeHtml(s)}</span><button type="button" class="ts-use" data-text="${escapeHtml(s)}">Usar</button></div>`).join('');
-      box.querySelectorAll('.ts-use').forEach(bt=> bt.addEventListener('click', ()=>{ $('mTitle').value = bt.dataset.text; box.style.display = 'none'; renderModalPreview(); }));
+      box.querySelectorAll('.ts-use').forEach(bt=> bt.addEventListener('click', ()=>{ $('mTitle').value = bt.dataset.text; box.style.display = 'none'; refreshModalDynamic(); }));
       box.querySelector('.ts-shuffle').addEventListener('click', renderTitleSuggestion);
       box.style.display = 'flex';
     }
 
     // ============================================================
-    // PRÉ-VISUALIZAÇÃO AO VIVO DO MODAL — reflete título, status,
-    // redes, editorias, tipo e produtos escolhidos em tempo real
+    // SUGESTÕES DE CONTEÚDO — 3 pautas com estrutura recomendada,
+    // de acordo com a(s) editoria(s) marcada(s) no modal
     // ============================================================
-    function renderModalPreview(){
-      const wrap = $('modalPreview'); if(!wrap) return;
-      const title = $('mTitle').value.trim();
-      const statusEl = document.querySelector('input[name="mStatus"]:checked');
-      const status = statusEl ? statusEl.value : '';
-      const stColor = statusColor(status);
-      const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
+    // frase do produto para entrar nas sugestões ("o <produto>"); cai para um termo
+    // genérico quando nada foi selecionado ainda, pra sugestão nunca ficar vazia
+    function contentProductPhrase(){
+      if(selectedProducts.length===0) return 'produto';
+      const names = selectedProducts.map(p=>shortenProductName(p.name)).filter(Boolean);
+      return names.length ? joinProductNames(names) : 'produto';
+    }
+
+    // cada editoria tem exatamente 3 pautas fixas, com estrutura (gancho/desenvolvimento/CTA)
+    // e boas práticas de web/formato — pensadas pro objetivo específico daquela editoria
+    const CONTENT_SUGGESTIONS_BY_EDITORIA = {
+      'Informativo': [
+        p => ({ subject: `Como escolher a ferramenta certa para cada tipo de reparo`,
+          structure: `<b>Gancho:</b> parta de uma dúvida comum do público. <b>Desenvolvimento:</b> explique o critério de escolha em 3 passos simples. <b>CTA:</b> convide a conferir o catálogo. <b>Boas práticas web:</b> título claro e buscável (SEO), parágrafos curtos e escaneáveis, uma imagem por ideia.` }),
+        p => ({ subject: `Curiosidades técnicas sobre ${p} que poucas pessoas conhecem`,
+          structure: `<b>Gancho:</b> um dado ou fato pouco conhecido. <b>Desenvolvimento:</b> 2-3 curiosidades em linguagem simples. <b>CTA:</b> reforce a autoridade da marca no tema. <b>Boas práticas web:</b> use bullet points, evite jargão sem explicação, capriche no alt text das imagens.` }),
+        p => ({ subject: `Perguntas frequentes sobre uso e conservação de ${p}`,
+          structure: `<b>Formato:</b> FAQ com 3-5 perguntas reais de clientes. <b>Desenvolvimento:</b> respostas objetivas e diretas. <b>CTA:</b> convide a tirar dúvidas nos comentários/DM. <b>Boas práticas web:</b> hierarquia visual clara (pergunta em destaque, resposta abaixo), facilita compartilhamento.` })
+      ],
+      'Destaques': [
+        p => ({ subject: `Os produtos mais vendidos da semana e por que os profissionais confiam neles`,
+          structure: `<b>Gancho:</b> prova social (número de vendas/avaliações). <b>Desenvolvimento:</b> 2-3 diferenciais técnicos. <b>CTA:</b> confira a linha completa. <b>Boas práticas web:</b> depoimentos reais quando possível, imagens de alta qualidade do produto em uso.` }),
+        p => ({ subject: `Comparativo rápido: qual ${p} combina com a sua necessidade`,
+          structure: `<b>Desenvolvimento:</b> 2-3 opções lado a lado, com o diferencial de cada uma. <b>CTA:</b> oriente a escolha e direcione para falar com um consultor. <b>Boas práticas web:</b> tabela ou carrossel comparativo, texto direto ao ponto.` }),
+        p => ({ subject: `Bastidores da qualidade: como a VONDER testa seus produtos`,
+          structure: `<b>Gancho:</b> processo/controle de qualidade como história. <b>Desenvolvimento:</b> prova de autoridade (certificações, testes). <b>CTA:</b> reforce confiança na marca. <b>Boas práticas web:</b> storytelling autêntico, carrossel ou vídeo curto funcionam bem aqui.` })
+      ],
+      'Lançamentos': [
+        p => ({ subject: `Chegou ${p}: a novidade que resolve um problema comum`,
+          structure: `<b>Atenção:</b> anúncio forte logo na primeira frase. <b>Interesse:</b> o problema que resolve. <b>Desejo:</b> benefícios e diferenciais. <b>Ação:</b> onde comprar/saiba mais. <b>Boas práticas web:</b> use urgência real (edição limitada, pré-venda), link direto na bio/primeiro comentário.` }),
+        p => ({ subject: `Antes e depois: o que muda no seu trabalho com ${p}`,
+          structure: `<b>Desenvolvimento:</b> mostre o cenário anterior (dor) → a solução (o lançamento) → o resultado (transformação). <b>CTA:</b> compre agora/saiba mais. <b>Boas práticas web:</b> vídeo ou comparação visual antes/depois performa melhor, legenda curta e direta.` }),
+        p => ({ subject: `5 motivos para conhecer ${p} hoje`,
+          structure: `<b>Formato:</b> lista numerada, um benefício claro por item (não só característica). <b>CTA:</b> saiba mais/compre. <b>Boas práticas web:</b> use números ímpares (3, 5, 7), o primeiro e o último item são os mais fortes.` })
+      ],
+      'Dica VONDER': [
+        p => ({ subject: `Como usar ${p} com segurança e eficiência`,
+          structure: `<b>Formato:</b> passo a passo numerado (3-5 passos). <b>Desenvolvimento:</b> um verbo de ação por passo. <b>CTA:</b> dica extra de especialista no fim. <b>Boas práticas web:</b> vídeo curto ou carrossel funciona melhor para tutoriais.` }),
+        p => ({ subject: `Erro comum que reduz a vida útil de ${p} (e como evitar)`,
+          structure: `<b>Gancho:</b> o erro/mito comum. <b>Desenvolvimento:</b> por que ele prejudica o resultado. <b>CTA:</b> mostre o jeito correto. <b>Boas práticas web:</b> título com gatilho de curiosidade, imagem clara do "jeito certo".` }),
+        p => ({ subject: `Truque rápido: economize tempo usando ${p} desta forma`,
+          structure: `<b>Formato:</b> dica única e direta, com demonstração visual. <b>CTA:</b> convide a testar e compartilhar o resultado. <b>Boas práticas web:</b> ótimo para Reels/Stories, use texto na tela para quem assiste sem áudio.` })
+      ],
+      'Trend': [
+        p => ({ subject: `Como aproveitar a tendência do momento no dia a dia de trabalho`,
+          structure: `<b>Desenvolvimento:</b> conecte a tendência ao universo da marca de forma natural, aplicando com o produto. <b>CTA:</b> leve e participativo. <b>Boas práticas web:</b> aja rápido (newsjacking), use os formatos/áudios em alta da rede, mantenha o tom autêntico.` }),
+        p => ({ subject: `Desafio ou meme do momento adaptado para o universo VONDER`,
+          structure: `<b>Formato:</b> use o formato viral já conhecido do público, com um toque de humor ligado ao produto. <b>CTA:</b> convide a interagir/marcar alguém. <b>Boas práticas web:</b> não force a venda dentro do trend, priorize entretenimento e responda comentários rápido.` }),
+        p => ({ subject: `Opinião rápida da marca sobre um assunto em alta no setor`,
+          structure: `<b>Gancho:</b> traga o fato/notícia em alta. <b>Desenvolvimento:</b> posicione a marca com uma opinião curta e relevante. <b>CTA:</b> pergunta que abre a conversa. <b>Boas práticas web:</b> texto curto, cuidado com temas sensíveis, funciona bem em LinkedIn/Twitter.` })
+      ],
+      'Personalizado': [
+        p => ({ subject: `Defina aqui o tema específico desta campanha personalizada`,
+          structure: `<b>Antes de tudo:</b> defina objetivo e público-alvo da peça. <b>Estrutura:</b> gancho, desenvolvimento e CTA claros, com tom adaptado à ocasião. <b>Boas práticas web:</b> uma única mensagem central por peça, CTA único e mensurável.` }),
+        p => ({ subject: `Conteúdo sob demanda alinhado a uma data ou ação comercial específica`,
+          structure: `<b>Desenvolvimento:</b> parta do briefing/ação comercial e construa a narrativa em torno do motivo (data, parceria, evento). <b>CTA:</b> específico da ação. <b>Boas práticas web:</b> confirme prazos e aprovações antes da produção, mantenha a identidade visual da marca.` }),
+        p => ({ subject: `Colaboração ou parceria com conteúdo sob medida`,
+          structure: `<b>Desenvolvimento:</b> apresente o parceiro/contexto e destaque o valor conjunto para o público. <b>CTA:</b> direcione para a ação combinada (link, evento, sorteio). <b>Boas práticas web:</b> alinhe expectativas com o parceiro antes de publicar, use marcação cruzada quando fizer sentido.` })
+      ]
+    };
+
+    // monta até 3 sugestões combinando as editorias marcadas em rodízio (1ª de cada editoria,
+    // depois a 2ª de cada...) — assim o bloco mostra sempre 3 opções, tanto com uma única
+    // editoria marcada (as 3 dela) quanto com várias (uma de cada, até completar 3)
+    function pickContentSuggestions(){
       const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
-      const typeEl = document.querySelector('input[name="mType"]:checked');
-      const type = typeEl ? typeEl.value : 'Static';
-      const collab = $('mCollab') ? $('mCollab').checked : false;
+      if(editorias.length===0) return [];
+      const p = contentProductPhrase();
+      const lists = editorias.map(ed=>{
+        const gens = CONTENT_SUGGESTIONS_BY_EDITORIA[ed] || CONTENT_SUGGESTIONS_BY_EDITORIA['Personalizado'];
+        return gens.map(fn=> Object.assign({ editoria: ed }, fn(p)));
+      });
+      const result = [];
+      for(let i=0; result.length<3; i++){
+        let addedAny = false;
+        for(const list of lists){ if(i < list.length){ result.push(list[i]); addedAny = true; if(result.length>=3) break; } }
+        if(!addedAny) break;
+      }
+      return result;
+    }
 
-      wrap.querySelector('.mp-bar').style.background = stColor;
-      const titleEl = wrap.querySelector('.mp-title');
-      titleEl.textContent = title || 'Sua postagem aparecerá aqui';
-      titleEl.classList.toggle('placeholder', !title);
+    function renderContentSuggestions(){
+      const box = $('contentSuggestions'); if(!box) return;
+      const multiEditoria = document.querySelectorAll('.mEditoria:checked').length > 1;
+      const suggestions = pickContentSuggestions();
+      if(suggestions.length===0){ box.innerHTML = `<div class="cs-empty">Selecione uma editoria em Categorização para ver sugestões de pauta.</div>`; return; }
+      box.innerHTML = `<div class="cs-list">${suggestions.map((s,idx)=>`<div class="cs-card">${multiEditoria?`<span class="cs-editoria">${escapeHtml(s.editoria)}</span>`:''}<div class="cs-subject">${escapeHtml(s.subject)}</div><div class="cs-structure">${s.structure}</div><div class="cs-actions"><button type="button" class="cs-use" data-idx="${idx}">Usar no conteúdo</button></div></div>`).join('')}</div>`;
+      box.querySelectorAll('.cs-use').forEach(bt=> bt.addEventListener('click', ()=>{
+        const s = suggestions[parseInt(bt.dataset.idx,10)]; if(!s) return;
+        const plainStructure = s.structure.replace(/<[^>]+>/g,'');
+        const block = `Pauta: ${s.subject}\nEstrutura: ${plainStructure}`;
+        const notes = $('mNotes');
+        notes.value = notes.value.trim() ? `${notes.value.trim()}\n\n${block}` : block;
+        refreshModalDynamic();
+      }));
+    }
 
-      const tags = [];
-      if(status) tags.push(`<span class="tag" style="${tagStyle(stColor)}">${escapeHtml(status)}</span>`);
-      editorias.forEach(ed=> tags.push(`<span class="tag" style="${tagStyle(editoriaColor(ed))}">${escapeHtml(ed)}</span>`));
-      nets.forEach(n=> tags.push(`<span class="tag tag--outline">${networkIcon(n)} ${escapeHtml(n)}</span>`));
-      if(type==='Video') tags.push(`<span class="tag tag--outline">🎬 Vídeo</span>`);
-      if(collab) tags.push(`<span class="tag tag--collab">Collab</span>`);
-      selectedProducts.forEach(p=>{ if(p.code) tags.push(`<img class="mp-prod-thumb" src="${productImageUrl(p.code)}" referrerpolicy="no-referrer" onerror="this.style.display='none'" alt="" title="${escapeHtml(p.name)}" />`); });
-      wrap.querySelector('.mp-meta').innerHTML = tags.join('');
+    // formata uma data "YYYY-MM-DD" como "20 de agosto de 2026"
+    function formatDatePt(dateStr){
+      const [y,m,d] = dateStr.split('-').map(Number);
+      return new Date(y, m-1, d).toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
     }
 
     // junta uma lista em português natural: "A", "A e B", "A, B e C"
@@ -349,34 +585,129 @@
     // renderBriefingPreview(), é o que o botão de copiar manda pra área de transferência
     let currentBriefingText = '';
 
-    // pré-visualização do texto do briefing, abaixo de Notas — consolida título, formatos (com
-    // dimensões) e os links de onde salvar arte/referências, na ordem: Título, Formatos,
-    // Dimensões, Salvar em, Referências salvas em. Não inclui "Briefing salvo em" porque esse
-    // campo indica onde o PRÓPRIO briefing fica, não é conteúdo do briefing em si.
+    // monta uma linha rotulada (label em destaque + valor) da pré-visualização do briefing —
+    // `truncate` deixa o valor em uma linha só com reticências (bom pra links/caminhos longos,
+    // que são o que mais "engorda" o bloco visualmente); o valor completo fica no title (tooltip)
+    function bpRow(label, value, truncate){
+      return `<div class="bp-row"><span class="bp-row-label">${escapeHtml(label)}</span><span class="bp-row-value${truncate?' bp-row-value--clip':''}"${truncate?` title="${escapeHtml(value)}"`:''}>${escapeHtml(value)}</span></div>`;
+    }
+
+    // mesma linha rotulada, mas com o valor em lista (um item por linha) em vez de texto corrido
+    // — usado em Produto(s), pra ficar fácil de ler quando há mais de um produto na postagem
+    function bpListRow(label, items){
+      const li = items.map(item=> `<li>${escapeHtml(item)}</li>`).join('');
+      return `<div class="bp-row"><span class="bp-row-label">${escapeHtml(label)}</span><ul class="bp-row-list">${li}</ul></div>`;
+    }
+
+    // linha divisória entre o cabeçalho (título + campos) e o Conteúdo — feita de caracteres de
+    // texto reais (não só uma borda CSS), pra ir junto tanto ao copiar pelo botão quanto ao
+    // selecionar o texto na mão e colar em outro editor
+    const BRIEFING_SEPARATOR = '─'.repeat(32);
+
+    // monta as linhas de texto puro do briefing de uma postagem, na ordem: Título, Publicação
+    // prevista para, Formatos, Salvar em, Referências salvas em, Produto(s), Imagem, Observações
+    // e Conteúdo — compartilhada entre a pré-visualização ao vivo do modal (a partir dos campos
+    // do formulário) e a exportação de briefing (a partir de um post já salvo)
+    function buildBriefingPlainLines({ title, dateLabel, formatsText, hasFormats, artsLink, referencesLink, productItems, imageLink, imageNotes, content }){
+      const plainLines = [];
+      if(title) plainLines.push(title);
+      if(title && (dateLabel || hasFormats || artsLink || referencesLink || productItems.length || imageLink || imageNotes)) plainLines.push(BRIEFING_SEPARATOR);
+      if(dateLabel) plainLines.push(`Publicação prevista para ${dateLabel}`);
+      if(hasFormats) plainLines.push(`Formatos: ${formatsText}`);
+      if(artsLink) plainLines.push(`Salvar em: ${artsLink}`);
+      if(referencesLink) plainLines.push(`Referências salvas em: ${referencesLink}`);
+      if(productItems.length){
+        plainLines.push('Produto(s):');
+        productItems.forEach(item=> plainLines.push(`- ${item}`));
+      }
+      if(imageLink) plainLines.push(`Imagem: ${imageLink}`);
+      if(imageNotes) plainLines.push(`Observações: ${imageNotes}`);
+      if(content){
+        if(plainLines.length) plainLines.push(BRIEFING_SEPARATOR);
+        plainLines.push(`Conteúdo:\n${content}`);
+      }
+      return plainLines;
+    }
+
+    // mesmo texto de briefing (título, formatos, links, produto(s), imagem, observações e
+    // conteúdo) de uma postagem já salva em state.posts — usado na exportação em lote
+    function buildPostBriefingText(post){
+      const title = (post.title||'').trim();
+      const dateLabel = post.date ? formatDatePt(post.date) : '';
+      const entries = postChannelEntries(post);
+      const checkedPlaces = [...new Set(entries.flatMap(c=>c.places||[]))];
+      const formats = formatsForNetworks(entries.map(c=>c.channel)).filter(f=> checkedPlaces.includes(f.name));
+      const formatsText = formats.length
+        ? formats.map(f=> (f.width && f.height) ? `${f.name} (${f.width}x${f.height}px)` : f.name).join(', ')
+        : joinPt(checkedPlaces);
+      const products = getPostProducts(post);
+      const productItems = products.map(p=> [p.code, p.name].filter(Boolean).join(' – '));
+      const plainLines = buildBriefingPlainLines({
+        title, dateLabel, formatsText, hasFormats: checkedPlaces.length>0,
+        artsLink: (post.artsLink||'').trim(), referencesLink: (post.referencesLink||'').trim(),
+        productItems, imageLink: (post.imageLink||'').trim(), imageNotes: (post.imageNotes||'').trim(),
+        content: (post.notes||'').trim()
+      });
+      return plainLines.join('\n');
+    }
+
+    // pré-visualização do texto do briefing, abaixo de Conteúdo da publicação — consolida
+    // título, data prevista, formatos (com dimensões), links de onde salvar arte/referências,
+    // produto(s), imagem de referência e o próprio conteúdo da publicação. A versão em texto
+    // puro (currentBriefingText, usada pelo botão de copiar) segue a ordem: Título, Publicação
+    // prevista para, Formatos, Salvar em, Referências salvas em, Produto, Imagem, Observações e
+    // Conteúdo — mas a exibição visual é montada à parte, em linhas rotuladas mais fáceis de
+    // escanear que um parágrafo corrido, com o Conteúdo destacado num bloco próprio no fim.
+    // Não inclui "Briefing salvo em" porque esse campo indica onde o PRÓPRIO briefing fica,
+    // não é conteúdo do briefing em si.
     function renderBriefingPreview(){
       const el = $('mBriefingPreview'); if(!el) return;
       const title = $('mTitle').value.trim();
       const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
-      const checkedPlaces = Array.from(document.querySelectorAll('input[name="mPlace"]:checked')).map(n=>n.value);
+      const checkedPlaces = [...new Set(Array.from(document.querySelectorAll('input[name="mPlace"]:checked')).map(n=>n.value))];
       const formats = formatsForNetworks(nets).filter(f=> checkedPlaces.includes(f.name));
-      const dims = formats.filter(f=> f.width && f.height).map(f=> `${f.width}x${f.height}px`);
+      const formatsText = formats.length
+        ? formats.map(f=> (f.width && f.height) ? `${f.name} (${f.width}x${f.height}px)` : f.name).join(', ')
+        : joinPt(checkedPlaces);
       const artsLink = $('mArtsLink').value.trim();
       const referencesLink = $('mReferencesLink').value.trim();
+      const imageLink = $('mImageLink').value.trim();
+      const imageNotes = $('mImageNotes').value.trim();
+      const content = $('mNotes').value.trim();
+      const dateVal = $('mDate').value;
+      const dateLabel = dateVal ? formatDatePt(dateVal) : '';
+      // um item de texto por produto ("código – nome completo"), sem código quando o produto não tem um
+      const productItems = selectedProducts.map(p=> [p.code, p.name].filter(Boolean).join(' – '));
 
-      // cada linha guarda a versão em texto puro (pro botão de copiar) e em HTML (pra exibição,
-      // só o título em negrito) lado a lado, pra nunca ficarem dessincronizadas — por exemplo,
-      // se o Título ainda estiver vazio mas outros campos já preenchidos
-      const rows = [];
-      if(title) rows.push({ plain: title, html: `<strong>${escapeHtml(title)}</strong>` });
-      if(checkedPlaces.length) rows.push({ plain: `Formatos: ${joinPt(checkedPlaces)}` });
-      if(dims.length) rows.push({ plain: `Dimensões: ${joinPt(dims)}` });
-      if(artsLink) rows.push({ plain: `Salvar em: ${artsLink}` });
-      if(referencesLink) rows.push({ plain: `Referências salvas em: ${referencesLink}` });
+      // texto puro pro botão de copiar — uma frase natural por campo, na mesma ordem da exibição
+      const plainLines = buildBriefingPlainLines({ title, dateLabel, formatsText, hasFormats: checkedPlaces.length>0, artsLink, referencesLink, productItems, imageLink, imageNotes, content });
+      currentBriefingText = plainLines.join('\n');
 
-      currentBriefingText = rows.map(r=>r.plain).join('\n');
-      el.innerHTML = rows.length>0
-        ? rows.map(r=>`<div>${r.html || escapeHtml(r.plain)}</div>`).join('')
-        : `<span style="color:var(--text-faint)">Preencha os campos acima para ver o texto do briefing aqui.</span>`;
+      if(plainLines.length===0){
+        el.innerHTML = `<span style="color:var(--text-faint)">Preencha os campos acima para ver o texto do briefing aqui.</span>`;
+        return;
+      }
+
+      // exibição visual: título como cabeçalho, campos agrupados em linhas rotuladas e o
+      // conteúdo da publicação isolado num bloco próprio, separado por uma linha divisória
+      const metaRows = [];
+      if(dateLabel) metaRows.push(bpRow('Publicação prevista', dateLabel));
+      if(checkedPlaces.length) metaRows.push(bpRow('Formatos', formatsText));
+      if(artsLink) metaRows.push(bpRow('Salvar em', artsLink, true));
+      if(referencesLink) metaRows.push(bpRow('Referências salvas em', referencesLink, true));
+      if(productItems.length) metaRows.push(bpListRow('Produto(s)', productItems));
+      if(imageLink) metaRows.push(bpRow('Imagem', imageLink, true));
+      if(imageNotes) metaRows.push(bpRow('Observações', imageNotes));
+
+      let html = '';
+      if(title) html += `<div class="bp-title">${escapeHtml(title)}</div>`;
+      if(title && metaRows.length) html += `<div class="bp-separator">${BRIEFING_SEPARATOR}</div>`;
+      if(metaRows.length) html += `<div class="bp-meta">${metaRows.join('')}</div>`;
+      if(content){
+        if(title || metaRows.length) html += `<div class="bp-separator">${BRIEFING_SEPARATOR}</div>`;
+        html += `<div class="bp-content"><div class="bp-content-label">Conteúdo</div><div class="bp-content-text">${escapeHtml(content).replace(/\n/g,'<br>')}</div></div>`;
+      }
+      el.innerHTML = html;
     }
 
     // copia texto para a área de transferência — tenta a Clipboard API moderna e cai para o
@@ -399,8 +730,8 @@
 
     function refreshModalDynamic(){
       renderTitleSuggestion();
-      renderModalPreview();
       renderBriefingPreview();
+      renderContentSuggestions();
     }
 
     // ============================================================
@@ -479,12 +810,11 @@
     // ============================================================
     // ÍCONES SVG — redes sociais e formatos (Feed/Story)
     // ============================================================
+    // no estilo "app icon" (círculo colorido + glifo branco), igual aos ícones de arquivo em
+    // icons/*.svg — usados só para redes sem preset de arquivo (Blog, Email, redes customizadas)
     const ICONS = {
-      Instagram: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="5" stroke="#7c3aed" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="3.2" stroke="#7c3aed" stroke-width="1.6" fill="none"/><circle cx="17.5" cy="6.5" r="0.9" fill="#7c3aed"/></svg>`,
-      Twitter: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 5.92c-.63.28-1.3.47-2 .56.72-.43 1.27-1.12 1.53-1.94-.68.4-1.44.69-2.25.85C18.9 4.5 17.7 4 16.4 4c-2.02 0-3.66 1.64-3.66 3.66 0 .29.03.57.09.84C9.2 8.4 6.2 6.7 4.1 4.1c-.32.56-.5 1.2-.5 1.88 0 1.3.66 2.45 1.66 3.12-.6-.02-1.17-.18-1.66-.46v.05c0 1.77 1.26 3.25 2.93 3.59-.31.08-.64.12-.98.12-.24 0-.48-.02-.71-.07.48 1.5 1.87 2.6 3.52 2.63-1.29 1.01-2.92 1.61-4.69 1.61-.3 0-.6-.02-.9-.05C6.95 20.2 9.37 21 12 21c7.07 0 10.94-5.86 10.94-10.94l-.01-.5C22 7.45 22.5 6.7 22 5.92z" fill="#1DA1F2"/></svg>`,
-      LinkedIn: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="3" width="20" height="18" rx="2" stroke="#0A66C2" stroke-width="1.2" fill="none"/><path d="M6 10.5v6M8 7.5v9M11 7.5v9M14 7.5v9" stroke="#0A66C2" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-      Blog: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 7.5h18M3 12h12M3 16.5h9" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round"/></svg>`,
-      Email: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="4" width="19" height="16" rx="2" stroke="#374151" stroke-width="1.2" fill="none"/><path d="M3 7l9 6 9-6" stroke="#374151" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+      Blog: `<svg width="14" height="14" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="16" fill="#ef4444"/><path d="M9 12h14M9 16h10M9 20h7" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>`,
+      Email: `<svg width="14" height="14" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="16" fill="#374151"/><rect x="7" y="10" width="18" height="13" rx="2" stroke="white" stroke-width="1.6" fill="none"/><path d="M8 11.5l8 6 8-6" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`
     };
     const FORMAT_ICONS = {
       Feed: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5-4 4-3-3-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -492,6 +822,47 @@
       Stories: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="6" stroke="currentColor" stroke-width="1.6"/></svg>`,
       Reels: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.6"/><path d="M10 9l5 3-5 3V9z" fill="currentColor"/></svg>`
     };
+
+    // ============================================================
+    // ÍCONES DE INTERFACE — substitui emojis/glifos de texto (✕ ✏️ ✨ 🔄 📅 📋 ⋮ ⠿ ↩ ↪ ‹ › ▾)
+    // por contornos SVG (estilo Feather/Lucide: stroke=currentColor, herda cor e tamanho do
+    // elemento pai). Cada helper aceita um tamanho opcional (padrão 14px).
+    // ============================================================
+    function svgIcon(paths, size, extraAttrs){
+      return `<svg class="icon" width="${size||14}" height="${size||14}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" ${extraAttrs||''}>${paths}</svg>`;
+    }
+    const UI_ICONS = {
+      x: (s)=> svgIcon('<path d="M18 6 6 18"/><path d="M6 6l12 12"/>', s),
+      edit: (s)=> svgIcon('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>', s),
+      check: (s)=> svgIcon('<path d="M20 6 9 17l-5-5"/>', s),
+      idea: (s)=> svgIcon('<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2Z"/>', s),
+      shuffle: (s)=> svgIcon('<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>', s),
+      calendar: (s)=> svgIcon('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>', s),
+      copy: (s)=> svgIcon('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>', s),
+      undo: (s)=> svgIcon('<path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>', s),
+      redo: (s)=> svgIcon('<path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/>', s),
+      chevronLeft: (s)=> svgIcon('<path d="m15 18-6-6 6-6"/>', s),
+      chevronRight: (s)=> svgIcon('<path d="m9 18 6-6-6-6"/>', s),
+      chevronDown: (s)=> svgIcon('<path d="m6 9 6 6 6-6"/>', s),
+      moreVertical: (s)=> svgIcon('<circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/>', s),
+      grip: (s)=> svgIcon('<circle cx="9" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="19" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="19" r="1.2" fill="currentColor" stroke="none"/>', s),
+      film: (s)=> svgIcon('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M10.5 9.5l5 2.5-5 2.5v-5z" fill="currentColor" stroke="none"/>', s),
+      clock: (s)=> svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>', s),
+      checkCircle: (s)=> svgIcon('<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>', s),
+      circle: (s)=> svgIcon('<circle cx="12" cy="12" r="9"/>', s),
+      upload: (s)=> svgIcon('<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>', s)
+    };
+    // escolhe um ícone para um status pelo nome (heurística por palavra-chave — cobre os status
+    // padrão e a maioria dos nomes customizados; cai num círculo neutro quando não reconhece)
+    function statusIconFor(name){
+      const n = normalizeIconKey(name);
+      if(/public/.test(n)) return UI_ICONS.checkCircle;
+      if(/aprov|conclu|final|done/.test(n)) return UI_ICONS.checkCircle;
+      if(/agend|schedul/.test(n)) return UI_ICONS.clock;
+      if(/produc|producao|progress|revis/.test(n)) return UI_ICONS.shuffle;
+      if(/rascunho|draft/.test(n)) return UI_ICONS.edit;
+      return UI_ICONS.circle;
+    }
 
     // gera um id único para uma nova postagem
     function generateId(){ return 'p-' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
@@ -568,6 +939,12 @@
     // ============================================================
     function buildCalendar(){
       const grid = $('grid');
+      // guarda a altura atual de cada célula (por data) antes de destruir o grid — usado por
+      // render() pra animar suavemente a troca de altura das linhas quando um card muda de dia,
+      // em vez do corte seco de uma célula que encolhe/cresce instantaneamente
+      const oldHeights = new Map();
+      grid.querySelectorAll('.day[data-date]').forEach(cell=> oldHeights.set(cell.dataset.date, cell.getBoundingClientRect().height));
+      if(oldHeights.size) pendingRowHeights = oldHeights;
       grid.innerHTML = '';
       const YEAR = viewDate.getFullYear();
       const MONTH = viewDate.getMonth();
@@ -587,6 +964,14 @@
           cell.dataset.date = dateStr;
           if(dateStr===tStr) cell.classList.add('today');
           cell.innerHTML = `<div class="day-head"><span class="date">${dayIndex}</span><span class="day-count"></span></div><div class="posts"></div>`;
+          // clicar no número do dia ou no contador (0/3, 1/3...) abre o popup com todas as
+          // postagens daquela data — igual ao badge "+N", mas funciona mesmo com 0, 1, 2 ou 3
+          // postagens (quando não há badge "+N" porque tudo já cabe na célula)
+          cell.querySelectorAll('.date, .day-count').forEach(el=>{
+            el.style.cursor = 'pointer';
+            el.title = 'Ver todas as postagens deste dia';
+            el.addEventListener('click', (ev)=>{ ev.stopPropagation(); openDayPosts(dateStr); });
+          });
           // permite soltar uma postagem arrastada nesta célula
           cell.addEventListener('dragover', ev=>{ ev.preventDefault(); cell.classList.add('drag-over'); });
           cell.addEventListener('dragleave', ev=>{ cell.classList.remove('drag-over'); });
@@ -784,7 +1169,7 @@
     // cada card é recriado do zero a cada render (então religar o clique não acumula listeners)
     function buildCardMenu(p, btnClass){
       const btn = document.createElement('button');
-      btn.type = 'button'; btn.className = btnClass; btn.setAttribute('aria-label','Mais ações'); btn.title = 'Mais ações'; btn.textContent = '⋮';
+      btn.type = 'button'; btn.className = btnClass; btn.setAttribute('aria-label','Mais ações'); btn.title = 'Mais ações'; btn.innerHTML = UI_ICONS.moreVertical(14);
       wireCardMenuButton(btn, p.id);
       return { btn };
     }
@@ -839,25 +1224,16 @@
     // cria o elemento do card de postagem (evento) usado na grade do calendário
     function createEventElement(p){
       const div = document.createElement('div'); div.className='event'; div.setAttribute('draggable','true'); div.dataset.id = p.id;
-      const stColor = statusColor(p.status);
       const entries = postChannelEntries(p);
-      const multi = entries.length>1;
-      const formatsCount = entries.reduce((n,c)=> n+(c.places||[]).length, 0);
-      const hasVideo = entries.some(c=>(c.types||[]).some(t=>(t||'').toLowerCase()==='video'));
-      const icon = multi ? entries.map(c=>networkIcon(c.channel)).join('') : networkIcon(p.channel);
-      const channelLabel = multi ? `${entries.length} redes` : escapeHtml(networkShortName(p.channel));
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
-      const placeText = multi ? `${formatsCount} formatos` : (Array.isArray(p.place)?p.place.join('/'):(p.place||''));
-      const tagsHtml = [
-        ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
-        multi ? `<span class="tag tag--outline">${formatsCount} formatos</span>` : '',
-        hasVideo ? `<span class="tag tag--outline">🎬 Vídeo</span>` : '',
-        p.collab ? `<span class="tag tag--collab">Collab</span>` : ''
-      ].filter(Boolean).join('');
+      const eyebrowText = eds.length ? joinPt(eds) : 'Sem editoria';
+      const eyebrowColor = eds.length ? editoriaColor(eds[0]) : 'var(--text-faint)';
+      const netsIconsHtml = entries.map(c=>`<span class="event-net-icon">${networkIcon(c.channel)}</span>`).join('');
+      const typeLabel = entries.some(c=>(c.types||[]).some(t=>(t||'').toLowerCase()==='video')) ? 'Vídeo' : 'Estático';
       const prods = getPostProducts(p);
       const productNames = prods.map(x=>x.name).filter(Boolean).join(', ');
-      div.title = multi ? [p.status, postChannelsDetailText(p), productNames].filter(Boolean).join(' · ') : [p.status, placeText, productNames].filter(Boolean).join(' · ');
-      div.innerHTML = `<div class="event-bar" style="background:${stColor}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${channelLabel}</span></div>${tagsHtml?`<div class="event-tags">${tagsHtml}</div>`:''}</div>`;
+      div.title = [p.status, postChannelsDetailText(p), productNames].filter(Boolean).join(' · ');
+      div.innerHTML = `<div class="event-bar" style="background:${eyebrowColor}"></div><div class="event-body"><div class="event-nets">${netsIconsHtml}</div><div class="event-eyebrow" style="color:${eyebrowColor}">${escapeHtml(eyebrowText)}</div><div class="event-title">${escapeHtml(p.title)}</div><div class="event-subtitle">${typeLabel}</div></div>`;
       div.addEventListener('dragstart', (ev)=>{ ev.dataTransfer.setData('text/plain', p.id); div.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; });
       div.addEventListener('dragend', ()=>{ div.classList.remove('dragging'); });
       // soltar sobre um card específico reordena/insere a postagem arrastada antes ou depois dele
@@ -888,22 +1264,14 @@
     // cria a linha de postagem usada na visão em lista
     function createListRow(p){
       const row = document.createElement('div'); row.className='list-row'; row.dataset.id = p.id; row.setAttribute('draggable','true');
-      const stColor = statusColor(p.status);
       const entries = postChannelEntries(p);
-      const multi = entries.length>1;
-      const formatsCount = entries.reduce((n,c)=> n+(c.places||[]).length, 0);
-      const hasVideo = entries.some(c=>(c.types||[]).some(t=>(t||'').toLowerCase()==='video'));
-      const icon = multi ? entries.map(c=>networkIcon(c.channel)).join('') : networkIcon(p.channel);
-      const channelLabel = multi ? `${entries.length} redes` : escapeHtml(networkShortName(p.channel));
-      const channelTitle = multi ? postChannelsDetailText(p) : (p.channel||'');
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
-      const tagsHtml = [
-        ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
-        multi ? `<span class="tag tag--outline">${formatsCount} formatos</span>` : '',
-        p.collab ? `<span class="tag tag--collab">Collab</span>` : '',
-        hasVideo ? `<span class="tag tag--outline">🎬 Vídeo</span>` : ''
-      ].filter(Boolean).join('');
-      row.innerHTML = `<span class="drag-handle" title="Arraste para reordenar">⠿</span><span class="list-row-bar" style="background:${stColor}"></span><span class="list-row-title">${escapeHtml(p.title)}</span><span class="list-row-channel" title="${escapeHtml(channelTitle)}">${icon}${channelLabel}</span><span class="list-row-tags">${tagsHtml}</span><span class="tag" style="${tagStyle(stColor)}">${escapeHtml(p.status||'')}</span>`;
+      const eyebrowText = eds.length ? joinPt(eds) : 'Sem editoria';
+      const eyebrowColor = eds.length ? editoriaColor(eds[0]) : 'var(--text-faint)';
+      const netsIconsHtml = entries.map(c=>`<span class="event-net-icon">${networkIcon(c.channel)}</span>`).join('');
+      const typeLabel = entries.some(c=>(c.types||[]).some(t=>(t||'').toLowerCase()==='video')) ? 'Vídeo' : 'Estático';
+      row.title = [p.status, postChannelsDetailText(p)].filter(Boolean).join(' · ');
+      row.innerHTML = `<span class="drag-handle" title="Arraste para reordenar">${UI_ICONS.grip(14)}</span><span class="list-row-bar" style="background:${eyebrowColor}"></span><div class="list-row-body"><div class="list-row-nets">${netsIconsHtml}</div><div class="list-row-eyebrow" style="color:${eyebrowColor}">${escapeHtml(eyebrowText)}</div><div class="list-row-title">${escapeHtml(p.title)}</div><div class="list-row-subtitle">${typeLabel}</div></div>`;
       const { btn: menuBtn } = buildCardMenu(p, 'list-row-menu-btn');
       row.appendChild(menuBtn);
       row.addEventListener('click', ()=> openEditModal(p.id));
@@ -1003,48 +1371,61 @@
         else { if(mb) mb.remove(); }
       });
 
-      // badges de meta diária por dia + resumo semanal de vídeos (sugestão da IA)
-      // calcula os vídeos da semana que contém viewDate (domingo a sábado)
-      const weekStart = new Date(viewDate); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-      let weekVideos = 0;
-      let monthTotal = 0;
+      // badges de meta diária por dia
       const YEAR = viewDate.getFullYear(), MONTH = viewDate.getMonth();
       document.querySelectorAll('.day[data-date]').forEach(cell=>{
         const date = cell.dataset.date;
         if(!date) return;
         const postsAll = state.posts.filter(p=>p.date===date && !p.collab);
         const total = postsAll.length;
-        monthTotal += total;
-        const videoCount = postsAll.filter(p=> postChannelEntries(p).some(c=>(c.types||[]).some(t=>(t||'').toLowerCase()==='video'))).length;
-        // soma ao total da semana, se a data cair dentro dela
-        const d = new Date(date);
-        if(d >= weekStart && d <= weekEnd) weekVideos += videoCount;
 
         const badge = cell.querySelector('.day-count');
         if(badge){
           badge.className = `day-count ${total < TARGET ? 'low':'ok'}`;
           badge.textContent = `${total}/${TARGET}`;
-          badge.title = total < TARGET ? `Sugestão: meta ${TARGET} posts/dia. Atualmente ${total}. Collab não conta.` : 'Meta diária atingida';
+          badge.title = (total < TARGET ? `Sugestão: meta ${TARGET} posts/dia. Atualmente ${total}. Collab não conta.` : 'Meta diária atingida') + ' — clique para ver todas as postagens do dia';
         }
       });
 
-      // resumo rápido no topo da toolbar
+      // contagem no topo da toolbar — só o total de postagens do mês (inclui collab, ao
+      // contrário do badge por dia acima, que é uma métrica de meta diária). Clicar nela
+      // abre o resumo do mês (renderMonthSummary), quebrado por Tipo/Editoria/Redes sociais
       const summaryEl = $('aiSummary');
-      if(summaryEl){ summaryEl.textContent = `${monthTotal} postagens neste mês · ${weekVideos}/${WEEK_VIDEO_TARGET} vídeos nesta semana`; }
-
-      // card de sugestão semanal, exibido abaixo do calendário
-      const suggestion = $('suggestionCard');
-      if(suggestion){
-        suggestion.style.display = 'block';
-        const weekStatus = weekVideos >= WEEK_VIDEO_TARGET ? `<strong style="color:var(--success)">${weekVideos}/${WEEK_VIDEO_TARGET} vídeos</strong>` : `<strong style="color:var(--danger)">${weekVideos}/${WEEK_VIDEO_TARGET} vídeos</strong>`;
-        suggestion.innerHTML = `<strong>Sugestão IA</strong><div style="margin-top:6px;color:var(--text)">Meta diária: <strong>${TARGET}</strong> posts por dia. Collabs não entram na contagem. Vídeos: ideal ${WEEK_VIDEO_TARGET} por semana — recomendação atual: ${weekStatus}. Dica: se estiver abaixo, considere transformar 1 dos posts do dia em vídeo ou aumentar a frequência esta semana.</div>`;
+      if(summaryEl){
+        const prefix = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-`;
+        const monthPostsCount = state.posts.filter(p=> (p.date||'').startsWith(prefix)).length;
+        summaryEl.textContent = `${monthPostsCount} postage${monthPostsCount===1?'m':'ns'} neste mês`;
       }
-
       if(currentView==='list') renderListView();
-      // mantém o popup de "postagens do dia" em dia com qualquer mudança (edição, exclusão,
-      // duplicação, arrastar...), já que praticamente toda ação de estado passa por aqui
+      // mantém os popups de "postagens do dia" e "resumo do mês" em dia com qualquer mudança
+      // (edição, exclusão, duplicação, arrastar...), já que praticamente toda ação de estado
+      // passa por aqui — cada função só faz algo se o respectivo modal estiver aberto
       renderDayPostsList();
+      renderMonthSummary();
+
+      // se buildCalendar() capturou alturas antes de reconstruir o grid, anima a troca (FLIP):
+      // fixa a célula na altura antiga, força reflow, e solta pra altura nova já com a transição
+      // de "height" definida em .day — assim a linha da semana cresce/encolhe suavemente em vez
+      // de saltar direto pro tamanho final quando um card muda de dia
+      if(pendingRowHeights){
+        const old = pendingRowHeights; pendingRowHeights = null;
+        document.querySelectorAll('.day[data-date]').forEach(cell=>{
+          const oldH = old.get(cell.dataset.date);
+          if(oldH==null) return;
+          const newH = cell.getBoundingClientRect().height;
+          if(Math.abs(newH-oldH)<1) return;
+          cell.style.height = oldH+'px';
+          void cell.offsetHeight; // força reflow com a altura antiga antes de animar
+          requestAnimationFrame(()=>{
+            cell.style.height = newH+'px';
+            cell.addEventListener('transitionend', function te(ev){
+              if(ev.propertyName && ev.propertyName!=='height') return;
+              cell.style.height = '';
+              cell.removeEventListener('transitionend', te);
+            });
+          });
+        });
+      }
     }
 
     // ============================================================
@@ -1062,16 +1443,71 @@
       if(!openDayPostsDate) return;
       const container = $('dayPostsList'); if(!container) return;
       const list = sortByOrder(getFilteredPosts().filter(p=>p.date===openDayPostsDate));
-      if(list.length===0){ closeDayPosts(); return; } // a última postagem do dia foi removida/filtrada — fecha sozinho
-      container.innerHTML = '';
+      // dia sem postagens (ou que ficou sem nenhuma, filtrada/apagada, enquanto o modal estava
+      // aberto) mostra uma mensagem em vez de fechar sozinho — o modal abre pra qualquer
+      // quantidade de postagens, incluindo zero
+      container.innerHTML = list.length>0
+        ? ''
+        : `<div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px">Nenhuma postagem neste dia.</div>`;
       list.forEach(p=> container.appendChild(createListRow(p)));
       const [y,m,d] = openDayPostsDate.split('-').map(Number);
       const label = new Date(y, m-1, d).toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
       $('dayPostsTitle').textContent = `Postagens de ${label}`;
     }
 
-    function addPostFromForm(){
-      // função legada mantida sem efeito, por segurança (nada mais a chama)
+    // ============================================================
+    // RESUMO DO MÊS — dropdown pequeno, ancorado logo abaixo do botão
+    // de contagem de postagens da toolbar, quebrando o total do mês
+    // por Tipo, Editoria ou Redes sociais, conforme o botão selecionado
+    // ============================================================
+    let monthSummaryOpen = false;
+    let monthSummaryGroupBy = 'type'; // 'type' | 'editoria' | 'rede' — persiste entre aberturas
+    function openMonthSummary(){
+      monthSummaryOpen = true;
+      renderMonthSummary();
+      $('monthSummaryDropdown').classList.add('open');
+      $('aiSummary').setAttribute('aria-expanded','true');
+    }
+    function closeMonthSummary(){
+      monthSummaryOpen = false;
+      $('monthSummaryDropdown').classList.remove('open');
+      $('aiSummary').setAttribute('aria-expanded','false');
+    }
+    function toggleMonthSummary(){ monthSummaryOpen ? closeMonthSummary() : openMonthSummary(); }
+    // agrupa as postagens do mês atualmente visível (viewDate) por Tipo (Estático/Vídeo),
+    // Editoria ou Rede social, contando 1 por rede quando a postagem tem várias (uma
+    // postagem com Instagram+Facebook soma 1 em cada uma dessas redes no agrupamento "rede")
+    function computeMonthSummaryData(groupBy){
+      const YEAR = viewDate.getFullYear(), MONTH = viewDate.getMonth();
+      const prefix = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-`;
+      const posts = state.posts.filter(p=> (p.date||'').startsWith(prefix));
+      const counts = {};
+      const bump = (key, color)=>{ counts[key] = counts[key] || { count:0, color }; counts[key].count++; };
+      posts.forEach(p=>{
+        if(groupBy==='type'){
+          const isVideo = postChannelEntries(p).some(c=>(c.types||[]).some(t=>(t||'').toLowerCase()==='video'));
+          bump(isVideo?'Vídeo':'Estático', isVideo?'var(--accent-ink)':'var(--muted)');
+        } else if(groupBy==='editoria'){
+          const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
+          if(eds.length===0) bump('Sem editoria','var(--text-faint)');
+          else eds.forEach(ed=> bump(ed, editoriaColor(ed)));
+        } else {
+          postChannelEntries(p).forEach(c=> bump(c.channel, networkColor(c.channel)));
+        }
+      });
+      const rows = Object.entries(counts).map(([name,v])=>({ name, count:v.count, color:v.color })).sort((a,b)=> b.count-a.count);
+      return { total: posts.length, rows };
+    }
+    function renderMonthSummary(){
+      if(!monthSummaryOpen) return;
+      const list = $('monthSummaryList'); if(!list) return;
+      const data = computeMonthSummaryData(monthSummaryGroupBy);
+      const monthLabel = viewDate.toLocaleString('pt-BR', { month:'long', year:'numeric' });
+      $('monthSummaryTitle').textContent = `${data.total} postage${data.total===1?'m':'ns'} em ${monthLabel}`;
+      if(data.rows.length===0){ list.innerHTML = `<div style="padding:16px 4px;text-align:center;color:var(--muted);font-size:12.5px">Nenhuma postagem neste mês.</div>`; return; }
+      list.innerHTML = data.rows.map(r=>
+        `<div class="ms-row"><span class="ms-row-label"><span class="dot" style="background:${r.color}"></span>${escapeHtml(r.name)}</span><span class="ms-row-count">${r.count}</span></div>`
+      ).join('');
     }
 
     // ============================================================
@@ -1099,11 +1535,11 @@
       // limpa os campos do formulário
       $('mTitle').value=''; $('mNotes').value=''; $('mProductName').value='';
       $('mBriefingLink').value=''; $('mReferencesLink').value=''; $('mArtsLink').value='';
+      $('mImageLink').value=''; $('mImageNotes').value='';
       document.querySelectorAll('.mNet').forEach(n=>n.checked=false); document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false);
       // formato depende da(s) rede(s) escolhida(s) — sem rede marcada, não há formato para pré-selecionar
       renderModalFormatsUI();
       document.querySelector('input[name="mType"][value="Static"]').checked = true;
-      document.querySelectorAll('input[name="mStatus"]').forEach((el,i)=> el.checked = i===0);
       selectedProducts = [];
       renderSelectedProducts();
       hideProductSuggestions();
@@ -1121,14 +1557,18 @@
       const title = $('mTitle').value.trim() || 'Untitled';
       const date = $('mDate').value;
       if(!date){ alert('Escolha uma data'); return; }
-      const place = Array.from(document.querySelectorAll('input[name="mPlace"]:checked')).map(n=>n.value);
+      const place = [...new Set(Array.from(document.querySelectorAll('input[name="mPlace"]:checked')).map(n=>n.value))];
       const type = document.querySelector('input[name="mType"]:checked').value;
-      const statusEl = document.querySelector('input[name="mStatus"]:checked');
-      const status = statusEl ? statusEl.value : ((APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho');
+      // o status e o collab não têm mais controle próprio neste modal (mudança de status/collab
+      // agora é feita pela edição em lote, com várias postagens selecionadas) — postagem nova
+      // recebe o primeiro status configurado e collab desligado; ao editar, ambos são preservados
+      const defaultStatus = (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho';
       const notes = $('mNotes').value.trim();
       const briefingLink = $('mBriefingLink').value.trim();
       const referencesLink = $('mReferencesLink').value.trim();
       const artsLink = $('mArtsLink').value.trim();
+      const imageLink = $('mImageLink').value.trim();
+      const imageNotes = $('mImageNotes').value.trim();
       const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
       const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
       const products = selectedProducts.slice();
@@ -1141,8 +1581,9 @@
         if(!post) return;
         const before = Object.assign({}, post);
         const dateChanged = post.date !== date;
-        post.title = title; post.date = date; post.status = status; post.notes = notes; post.collab = $('mCollab').checked;
+        post.title = title; post.date = date; post.notes = notes;
         post.briefingLink = briefingLink; post.referencesLink = referencesLink; post.artsLink = artsLink;
+        post.imageLink = imageLink; post.imageNotes = imageNotes;
         post.editoria = editorias; post.products = products; delete post.productCode; delete post.productName;
         // redes, formato e tipo são sempre reconstruídos a partir do que está marcado no modal —
         // mesmo numa postagem vinda do agendamento de uma editoria (que por padrão pode ter uma
@@ -1164,7 +1605,7 @@
       const p = {
         id: generateId(), title, date, channel: nets[0], place: place.slice(), type,
         channels: nets.map(net=>({ channel: net, types: [type], places: place.slice() })),
-        status, notes, briefingLink, referencesLink, artsLink, collab: $('mCollab').checked, color: null, editoria: editorias, products: products.slice(), order: nextOrderForDate(date)
+        status: defaultStatus, notes, briefingLink, referencesLink, artsLink, imageLink, imageNotes, collab: false, color: null, editoria: editorias, products: products.slice(), order: nextOrderForDate(date)
       };
       state.posts.push(p);
       saveState();
@@ -1176,18 +1617,18 @@
       redoStack = [];
       // limpa o modal para a próxima criação
       $('mTitle').value=''; $('mNotes').value=''; $('mBriefingLink').value=''; $('mReferencesLink').value=''; $('mArtsLink').value='';
-      document.querySelectorAll('.mNet').forEach(n=>n.checked=false); $('mCollab').checked = false;
+      $('mImageLink').value=''; $('mImageNotes').value='';
+      document.querySelectorAll('.mNet').forEach(n=>n.checked=false);
       document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false); $('mProductName').value=''; selectedProducts=[]; renderSelectedProducts();
       renderModalFormatsUI();
     }
-
-    function clearForm(){ }
 
     // ============================================================
     // PERSISTÊNCIA DAS POSTAGENS (localStorage)
     // ============================================================
     function saveState(){
       localStorage.setItem('calendar_posts_v1', JSON.stringify(state.posts));
+      scheduleSyncPush('posts', ()=> state.posts);
     }
 
     function loadState(){
@@ -1204,8 +1645,8 @@
     // CONFIGURAÇÕES DA APLICAÇÃO — redes, editorias, formatos,
     // status, catálogo de produtos e metas (persistidas no localStorage)
     // ============================================================
-    const BRAND_COLORS = { Instagram:'#7c3aed', Twitter:'#1DA1F2', LinkedIn:'#0A66C2', Blog:'#ef4444', Email:'#374151' };
-    const BRAND_SHORT_NAMES = { Instagram:'IG', Twitter:'TW', LinkedIn:'LI', Blog:'BL', Email:'EM' };
+    const BRAND_COLORS = { Instagram:'#E4405F', Facebook:'#1877F2', Twitter:'#1DA1F2', LinkedIn:'#0A66C2', TikTok:'#010101', Blog:'#ef4444', Email:'#374151' };
+    const BRAND_SHORT_NAMES = { Instagram:'IG', Twitter:'TW', LinkedIn:'LI', TikTok:'TT', Blog:'BL', Email:'EM' };
     // formatos padrão por rede — cada rede tem seu próprio conjunto (ex: Reels só existe no Instagram),
     // cada formato com as dimensões (px) e extensões de arquivo aceitas
     const NETWORK_DEFAULT_FORMATS = {
@@ -1214,19 +1655,26 @@
         { name:'Stories', width:1080, height:1920, extensions:['JPG','PNG','MP4'] },
         { name:'Reels', width:1080, height:1920, extensions:['MP4'] }
       ],
+      Facebook: [
+        { name:'Feed', width:1200, height:630, extensions:['JPG','PNG','MP4'] },
+        { name:'Stories', width:1080, height:1920, extensions:['JPG','PNG','MP4'] },
+        { name:'Reels', width:1080, height:1920, extensions:['MP4'] }
+      ],
       Twitter: [{ name:'Post', width:1200, height:675, extensions:['JPG','PNG','MP4'] }],
       LinkedIn: [
         { name:'Post', width:1200, height:627, extensions:['JPG','PNG','MP4'] },
         { name:'Artigo', width:1200, height:644, extensions:['JPG','PNG'] }
       ],
+      TikTok: [{ name:'Vídeo', width:1080, height:1920, extensions:['MP4'] }],
       Blog: [{ name:'Post', width:1200, height:630, extensions:['JPG','PNG'] }],
       Email: [{ name:'Email', width:600, height:800, extensions:['JPG','PNG'] }]
     };
     const DEFAULT_SETTINGS = {
       TARGET: 3,
-      WEEK_VIDEO_TARGET: 3,
       networks: [
-        { name:'Instagram', shortName:'IG', color:'#7c3aed', formats: NETWORK_DEFAULT_FORMATS.Instagram.map(f=>Object.assign({},f)) },
+        { name:'Instagram', shortName:'IG', color:'#E4405F', formats: NETWORK_DEFAULT_FORMATS.Instagram.map(f=>Object.assign({},f)) },
+        { name:'Facebook', shortName:'FB', color:'#1877F2', formats: NETWORK_DEFAULT_FORMATS.Facebook.map(f=>Object.assign({},f)) },
+        { name:'TikTok', shortName:'TT', color:'#010101', formats: NETWORK_DEFAULT_FORMATS.TikTok.map(f=>Object.assign({},f)) },
         { name:'Twitter', shortName:'TW', color:'#1DA1F2', formats: NETWORK_DEFAULT_FORMATS.Twitter.map(f=>Object.assign({},f)) },
         { name:'LinkedIn', shortName:'LI', color:'#0A66C2', formats: NETWORK_DEFAULT_FORMATS.LinkedIn.map(f=>Object.assign({},f)) },
         { name:'Blog', shortName:'BL', color:'#ef4444', formats: NETWORK_DEFAULT_FORMATS.Blog.map(f=>Object.assign({},f)) },
@@ -1236,7 +1684,9 @@
         { name:'Informativo', color:'#7c3aed' },
         { name:'Destaques', color:'#0284c7' },
         { name:'Lançamentos', color:'#16a34a' },
-        { name:'Dica VONDER', color:'#b45309' }
+        { name:'Dica VONDER', color:'#b45309' },
+        { name:'Trend', color:'#db2777' },
+        { name:'Personalizado', color:'#64748b' }
       ],
       statuses: [
         { name:'Rascunho', color:'#94a3b8' },
@@ -1249,15 +1699,32 @@
     let APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
 
     function saveSettings(){
-      // grava as configurações e as metas principais
+      // grava as configurações e a meta principal
       APP_SETTINGS.TARGET = TARGET;
-      APP_SETTINGS.WEEK_VIDEO_TARGET = WEEK_VIDEO_TARGET;
       localStorage.setItem('calendar_settings_v1', JSON.stringify(APP_SETTINGS));
+      scheduleSyncPush('settings', ()=> APP_SETTINGS);
     }
 
     function loadSettings(){
       const raw = localStorage.getItem('calendar_settings_v1');
-      if(raw){ try{ const s = JSON.parse(raw); APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS, s||{}); if(!APP_SETTINGS.statuses || !APP_SETTINGS.statuses.length) APP_SETTINGS.statuses = DEFAULT_SETTINGS.statuses.slice(); TARGET = APP_SETTINGS.TARGET || TARGET; WEEK_VIDEO_TARGET = APP_SETTINGS.WEEK_VIDEO_TARGET || WEEK_VIDEO_TARGET; }catch(e){ APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS); } }
+      if(raw){ try{ const s = JSON.parse(raw); APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS, s||{}); if(!APP_SETTINGS.statuses || !APP_SETTINGS.statuses.length) APP_SETTINGS.statuses = DEFAULT_SETTINGS.statuses.slice();
+        // acrescenta às editorias já salvas as categorizações default que ainda não existem
+        // (por nome), sem mexer nas que o usuário já tinha customizado
+        if(!APP_SETTINGS.editorias) APP_SETTINGS.editorias = [];
+        DEFAULT_SETTINGS.editorias.forEach(def=>{ if(!APP_SETTINGS.editorias.some(e=>e.name===def.name)) APP_SETTINGS.editorias.push(Object.assign({},def)); });
+        // mesma lógica pras redes padrão (ex: Facebook) — acrescenta as que faltam por nome,
+        // sem mexer nas redes que o usuário já tinha configurado
+        if(!APP_SETTINGS.networks) APP_SETTINGS.networks = [];
+        DEFAULT_SETTINGS.networks.forEach(def=>{ if(!APP_SETTINGS.networks.some(n=> (typeof n==='string'?n:n.name)===def.name)) APP_SETTINGS.networks.push(Object.assign({}, def, { formats: def.formats.map(f=>Object.assign({},f)) })); });
+        // reordena pela ordem canônica das redes padrão (ex: TikTok logo após Facebook), mantendo
+        // redes customizadas pelo usuário na posição relativa em que já estavam, ao final
+        { const order = new Map(DEFAULT_SETTINGS.networks.map((n,i)=>[n.name,i]));
+          APP_SETTINGS.networks = APP_SETTINGS.networks.map((n,i)=>({ n, i })).sort((a,b)=>{
+            const ra = order.has(a.n.name) ? order.get(a.n.name) : Infinity;
+            const rb = order.has(b.n.name) ? order.get(b.n.name) : Infinity;
+            return ra===rb ? a.i-b.i : ra-rb;
+          }).map(x=>x.n); }
+        TARGET = APP_SETTINGS.TARGET || TARGET; }catch(e){ APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS); } }
       // migra o formato antigo de redes (string simples) para {name,color}
       APP_SETTINGS.networks = (APP_SETTINGS.networks||[]).map((n,i)=> typeof n === 'string' ? { name:n, color: BRAND_COLORS[n] || TAG_PALETTE[i % TAG_PALETTE.length] } : n);
       // migra redes sem "formats" (config antiga, quando Formato era uma lista global única):
@@ -1293,6 +1760,103 @@
         }
       });
     }
+
+    // ============================================================
+    // SINCRONIZAÇÃO COM O SERVIDOR (api.php + banco SQLite) — o localStorage
+    // continua sendo gravado normalmente (cache local/offline), mas quando a página
+    // é servida por HTTP (não aberta como arquivo local) o servidor passa a ser a
+    // fonte da verdade: ao abrir, busca posts/settings do banco; a cada save, envia
+    // a versão mais nova pro servidor; e a cada X segundos busca de novo, pra pegar
+    // alterações feitas por outras pessoas da equipe. Se o servidor não responder
+    // (api.php ausente, sem PHP configurado, offline...), o app degrada de volta pro
+    // comportamento antigo, só com localStorage — nada quebra.
+    // ============================================================
+    const SYNC_ENABLED = location.protocol !== 'file:';
+    // updated_at (timestamp do servidor) da última versão de posts/settings que este
+    // navegador conhece — enviado a cada save como "expected_updated_at": se alguém
+    // salvou por cima nesse meio tempo, o servidor recusa (409) em vez de aceitar
+    // e sobrescrever silenciosamente o trabalho da outra pessoa
+    const syncVersions = { posts: 0, settings: 0 };
+    const syncPushTimers = {};
+    function setSyncStatus(text, kind){
+      const el = $('syncStatus'); if(!el) return;
+      el.textContent = text;
+      el.className = 'sync-status' + (kind ? ' '+kind : '');
+    }
+    // true se algum modal estiver aberto — usado pra não recarregar dados do servidor
+    // (e redesenhar a tela) enquanto a pessoa está no meio de uma edição
+    function anyModalOpen(){
+      return ['modalBackdrop','settingsBackdrop','bulkEditBackdrop','filtersBackdrop'].some(id=>{
+        const el = $(id); return el && el.style.display === 'flex';
+      });
+    }
+    async function syncFetch(key){
+      const res = await fetch(`api.php?k=${key}`, { cache:'no-store' });
+      if(!res.ok) throw new Error('sync fetch '+res.status);
+      return res.json();
+    }
+    async function syncPush(key, value){
+      const res = await fetch(`api.php?k=${key}`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ v:value, expected_updated_at: syncVersions[key] })
+      });
+      const data = await res.json().catch(()=>({}));
+      if(res.status===409) return { conflict:true, server:data };
+      if(!res.ok) throw new Error('sync push '+res.status);
+      syncVersions[key] = data.updated_at;
+      return { conflict:false };
+    }
+    // agenda o envio pro servidor com um pequeno atraso, pra juntar várias chamadas
+    // de saveState()/saveSettings() em sequência (ex: durante um drag) numa só requisição
+    function scheduleSyncPush(key, getValue){
+      if(!SYNC_ENABLED) return;
+      clearTimeout(syncPushTimers[key]);
+      syncPushTimers[key] = setTimeout(async ()=>{
+        setSyncStatus('Salvando no servidor…');
+        try{
+          const result = await syncPush(key, getValue());
+          if(result.conflict){
+            // outra pessoa salvou primeiro: adota a versão do servidor em vez de sobrescrever
+            const storageKey = key==='posts' ? 'calendar_posts_v1' : 'calendar_settings_v1';
+            localStorage.setItem(storageKey, JSON.stringify(result.server.v));
+            if(key==='posts') loadState(); else loadSettings();
+            syncVersions[key] = result.server.updated_at;
+            if(!anyModalOpen()){ renderAllDynamicUI(); buildCalendar(); render(); }
+            setSyncStatus('Atualizado com mudanças de outra pessoa', 'warn');
+            alert('Outra pessoa salvou uma alteração enquanto você editava. Os dados foram atualizados com a versão mais recente do servidor — se sua última ação não aparecer, refaça-a.');
+          } else {
+            setSyncStatus('Sincronizado com o servidor', 'ok');
+          }
+        }catch(e){
+          setSyncStatus('Falha ao salvar no servidor (ficou salvo só neste navegador)', 'warn');
+        }
+      }, 700);
+    }
+    // busca a versão mais recente do servidor e aplica localmente, reaproveitando
+    // loadState()/loadSettings() (grava no localStorage e roda as mesmas migrações de sempre)
+    async function syncPull(showIdleStatus){
+      if(!SYNC_ENABLED) return;
+      try{
+        const [postsRes, settingsRes] = await Promise.all([syncFetch('posts'), syncFetch('settings')]);
+        let changed = false;
+        if(settingsRes.v!==null && settingsRes.updated_at!==syncVersions.settings){
+          localStorage.setItem('calendar_settings_v1', JSON.stringify(settingsRes.v));
+          loadSettings(); changed = true;
+        }
+        syncVersions.settings = settingsRes.updated_at;
+        if(postsRes.v!==null && postsRes.updated_at!==syncVersions.posts){
+          localStorage.setItem('calendar_posts_v1', JSON.stringify(postsRes.v));
+          loadState(); changed = true;
+        }
+        syncVersions.posts = postsRes.updated_at;
+        if(changed && !anyModalOpen()){ renderAllDynamicUI(); buildCalendar(); render(); }
+        if(changed || showIdleStatus) setSyncStatus('Sincronizado com o servidor', 'ok');
+      }catch(e){
+        setSyncStatus('Sem conexão com o servidor — usando cópia local', 'warn');
+      }
+    }
+
     // nomes das editorias como lista de strings — usado onde é preciso comparar/colorir por nome
     function editoriaNames(){ return APP_SETTINGS.editorias.map(e=>e.name); }
     // cor da editoria pelo nome; para nomes fora do cadastro (ex: posts antigos de uma
@@ -1332,17 +1896,18 @@
     function renderTabs(){
       const tabs = $('tabs'); tabs.innerHTML = '';
       const allBtn = document.createElement('button'); allBtn.className='btn ghost'; allBtn.dataset.tab='All'; allBtn.id='tabAll'; allBtn.textContent='Todas'; tabs.appendChild(allBtn);
-      APP_SETTINGS.networks.forEach(n=>{ const b = document.createElement('button'); b.className='btn ghost'; b.dataset.tab = n.name; b.textContent = n.name; tabs.appendChild(b); });
+      APP_SETTINGS.networks.forEach(n=>{ const b = document.createElement('button'); b.className='btn ghost icon-only'; b.dataset.tab = n.name; b.title = n.name; b.setAttribute('aria-label', n.name); b.innerHTML = networkIcon(n.name); tabs.appendChild(b); });
       // liga o clique de cada aba
-      tabs.querySelectorAll('button').forEach(b=>{ b.addEventListener('click', ()=>{ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); b.classList.remove('ghost'); activeTab = b.dataset.tab; render(); }); });
+      tabs.querySelectorAll('button').forEach(b=>{ b.addEventListener('click', ()=>{ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); b.classList.remove('ghost'); tabs.classList.toggle('all-active', b.dataset.tab==='All'); activeTab = b.dataset.tab; render(); }); });
       // garante que a aba ativa esteja com a classe correta após reconstruir a lista
       const active = Array.from(tabs.children).find(x=>x.dataset.tab===activeTab) || tabs.children[0]; if(active){ tabs.querySelectorAll('button').forEach(x=>x.classList.add('ghost')); active.classList.remove('ghost'); }
+      tabs.classList.toggle('all-active', activeTab==='All');
     }
 
     // nome da rede cujo sub-dropdown de formatos está aberto em Configurações (persiste entre
     // re-renders, já que qualquer alteração nas configurações reconstrói a lista inteira)
     let openNetworkFormats = null;
-    // nome da rede cujos campos (nome/nome curto/cor) estão em modo de edição — mesma lógica de persistência
+    // nome da rede cujos campos (nome/nome curto/ícone) estão em modo de edição — mesma lógica de persistência
     let editingNetworkName = null;
     // nome da editoria atualmente em modo de edição inline na tela de Configurações (ou null)
     let editingEditoriaName = null;
@@ -1354,7 +1919,7 @@
     function renderNetsUI(){
       // checkboxes de rede dentro do modal de criar/editar postagem — mudar a rede também
       // atualiza as opções de Formato disponíveis (cada rede tem seu próprio conjunto)
-      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n.name)}" /> <span class="net-icon">${networkIcon(n.name)}</span>${escapeHtml(n.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', ()=>{ renderModalFormatsUI(); refreshModalDynamic(); }); }); }
+      const c = $('netsContainer'); if(c){ c.innerHTML = ''; APP_SETTINGS.networks.forEach(n=>{ const lbl = document.createElement('label'); lbl.className = 'chip-net'; lbl.title = n.name; lbl.innerHTML = `<input type="checkbox" class="mNet" value="${escapeHtml(n.name)}" aria-label="${escapeHtml(n.name)}" />${networkIcon(n.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', ()=>{ renderModalFormatsUI(); refreshModalDynamic(); }); }); }
       renderModalFormatsUI();
 
       // lista de redes cadastradas na tela de Configurações — cada uma com um sub-dropdown
@@ -1374,14 +1939,13 @@
                 ${n.shortName?`<span class="net-view-short">(${escapeHtml(n.shortName)})</span>`:''}
               </span>
               <div class="net-edit-fields">
-                <input type="color" class="net-edit-color" value="${n.color||'#7c3aed'}" title="Cor da rede" style="flex-shrink:0" />
+                <div class="net-edit-icon-picker"></div>
                 <input type="text" class="net-edit-name" value="${escapeHtml(n.name)}" title="Nome da rede" style="flex:2;min-width:110px" />
                 <input type="text" class="net-edit-short" value="${escapeHtml(n.shortName||'')}" maxlength="4" title="Nome curto" placeholder="Curto" style="flex:0 0 64px" />
-                <div class="net-edit-icon-picker icon-picker"></div>
               </div>
-              <button type="button" class="net-row-formats-toggle">Formatos: ${escapeHtml(formatsSummary)} <span class="settings-caret">▾</span></button>
-              <button type="button" class="btn ghost small net-edit-toggle" aria-label="Editar rede" title="Editar nome/nome curto/cor">✏️</button>
-              <button type="button" class="btn ghost small net-remove-btn" aria-label="Remover rede">✕</button>
+              <button type="button" class="net-row-formats-toggle">Formatos: ${escapeHtml(formatsSummary)} <span class="settings-caret">${UI_ICONS.chevronDown(11)}</span></button>
+              <button type="button" class="btn ghost small net-edit-toggle" aria-label="Editar rede" title="Editar nome/nome curto/cor">${UI_ICONS.edit(13)}</button>
+              <button type="button" class="btn ghost small net-remove-btn" aria-label="Remover rede">${UI_ICONS.x(13)}</button>
             </div>
             <div class="net-row-formats">
               <div class="net-row-formats-list" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -1405,7 +1969,7 @@
             const meta = [dims, exts].filter(Boolean).join(' · ');
             const item = document.createElement('div');
             item.className = 'format-row';
-            item.innerHTML = `<span class="format-row-name">${escapeHtml(f.name)}</span>${meta?`<span class="format-row-meta">${escapeHtml(meta)}</span>`:''}<button type="button" class="btn ghost small net-remove-format-btn" aria-label="Remover formato">✕</button>`;
+            item.innerHTML = `<span class="format-row-name">${escapeHtml(f.name)}</span>${meta?`<span class="format-row-meta">${escapeHtml(meta)}</span>`:''}<button type="button" class="btn ghost small net-remove-format-btn" aria-label="Remover formato">${UI_ICONS.x(13)}</button>`;
             item.querySelector('.net-remove-format-btn').addEventListener('click', (ev)=>{
               ev.stopPropagation();
               n.formats = (n.formats||[]).filter(x=>x.name!==f.name);
@@ -1454,8 +2018,6 @@
           });
           shortInput.addEventListener('keydown', ev=>{ if(ev.key==='Enter') shortInput.blur(); });
 
-          // edita a cor da rede
-          row.querySelector('.net-edit-color').addEventListener('change', (ev)=>{ n.color = ev.target.value; saveSettings(); renderAllDynamicUI(); render(); });
           // ícone da rede: preset colorido ou SVG customizado enviado pelo usuário — quando não há
           // ícone explícito mas o nome bate com um preset (ex: "Instagram"), mostra esse preset já
           // selecionado no seletor, já que é o que de fato aparece na linha (via networkIcon)
@@ -1611,13 +2173,13 @@
                 <span class="net-view-name">${escapeHtml(e.name)}</span>
               </span>
               <div class="net-edit-fields">
-                <input type="color" class="ed-edit-color" value="${e.color||'#7c3aed'}" title="Cor da editoria" style="flex-shrink:0" />
+                <input type="color" class="ed-edit-color" value="${e.color||'#F6BE00'}" title="Cor da editoria" style="flex-shrink:0" />
                 <input type="text" class="ed-edit-name" value="${escapeHtml(e.name)}" title="Nome da editoria" style="flex:2;min-width:110px" />
               </div>` +
-            (hasSchedule ? `<span class="chip" style="font-size:11px" title="Repete em dias fixos">📅 ${escapeHtml(scheduleLabel)} · ${escapeHtml(channelsLabel)}</span><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}">Aplicar ao mês visível</button>` : '') +
-            `<button type="button" class="net-row-formats-toggle ed-schedule-toggle">${hasSchedule?'Editar datas/formatos':'+ Datas e formatos'} <span class="settings-caret">▾</span></button>
-              <button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome/cor">✏️</button>
-              <button type="button" class="btn ghost small" data-editoria="${escapeHtml(e.name)}" aria-label="Remover editoria">✕</button>
+            (hasSchedule ? `<span class="chip" style="font-size:11px" title="Repete em dias fixos">${UI_ICONS.calendar(12)} ${escapeHtml(scheduleLabel)} · ${escapeHtml(channelsLabel)}</span><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}">Aplicar ao mês visível</button>` : '') +
+            `<button type="button" class="net-row-formats-toggle ed-schedule-toggle">${hasSchedule?'Editar datas/formatos':'+ Datas e formatos'} <span class="settings-caret">${UI_ICONS.chevronDown(11)}</span></button>
+              <button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome/cor">${UI_ICONS.edit(13)}</button>
+              <button type="button" class="btn ghost small" data-editoria="${escapeHtml(e.name)}" aria-label="Remover editoria">${UI_ICONS.x(13)}</button>
             </div>
             <div class="net-row-formats">
               <div class="ed-schedule-editor" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -1745,36 +2307,68 @@
       const bp = $('bPlaceContainer'); if(bp){ bp.innerHTML = `<label class="chip"><input type="radio" name="bPlace" value="" checked /> Manter</label>` + allFormatNames().map(p=>`<label class="chip"><input type="radio" name="bPlace" value="${escapeHtml(p)}" /> ${escapeHtml(p)}</label>`).join(''); }
     }
 
-    // preenche o Formato do modal de criar/editar postagem, com base na(s) rede(s) marcada(s)
-    // (cada rede tem seu próprio conjunto — ex: Reels só aparece se Instagram estiver marcado)
+    // preenche o Formato do modal de criar/editar postagem, com base na(s) rede(s) marcada(s) —
+    // separado num grupo por rede social (cada rede tem seu próprio conjunto — ex: Reels só
+    // aparece se Instagram estiver marcado — e a mesma rede pode ter um formato de mesmo nome
+    // que outra com dimensões diferentes, então cada grupo mostra os formatos da SUA rede, sem
+    // deduplicar entre grupos como formatsForNetworks faz para outros usos). Cada chip de formato
+    // exibe as dimensões em pixels como subtexto abaixo do nome.
     function renderModalFormatsUI(){
       const container = $('mPlacesContainer'); if(!container) return;
       const selectedNets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
-      const formats = formatsForNetworks(selectedNets);
       const prevChecked = Array.from(container.querySelectorAll('input:checked')).map(el=>el.value);
       container.innerHTML = '';
-      if(formats.length===0){
+      const orderedNets = APP_SETTINGS.networks.filter(n=> selectedNets.includes(n.name) && (n.formats||[]).length>0);
+      if(orderedNets.length===0){
         container.innerHTML = `<span style="font-size:12px;color:var(--text-faint)">Selecione uma rede para ver os formatos disponíveis</span>`;
       } else {
-        formats.forEach(f=>{
-          const lbl = document.createElement('label'); lbl.className='chip';
-          const dims = (f.width && f.height) ? `${f.width}×${f.height}px` : '';
-          const exts = (f.extensions||[]).join(', ');
-          const meta = [dims, exts].filter(Boolean).join(' · ');
-          lbl.title = meta;
-          lbl.innerHTML = `<input type="checkbox" name="mPlace" value="${escapeHtml(f.name)}" ${prevChecked.includes(f.name)?'checked':''} /> ${FORMAT_ICONS[f.name]||''} ${escapeHtml(f.name)}`;
-          lbl.querySelector('input').addEventListener('change', refreshModalDynamic);
-          container.appendChild(lbl);
+        orderedNets.forEach(net=>{
+          const group = document.createElement('div'); group.className = 'format-net-group';
+          group.innerHTML = `<div class="format-net-group-label">${networkIcon(net.name)}<span>${escapeHtml(net.name)}</span></div>`;
+          const chips = document.createElement('div'); chips.className = 'format-net-group-chips';
+          (net.formats||[]).forEach(f=>{
+            const lbl = document.createElement('label'); lbl.className = 'format-chip';
+            const dims = (f.width && f.height) ? `${f.width}×${f.height}px` : '';
+            const exts = (f.extensions||[]).join(', ');
+            if(exts) lbl.title = exts;
+            lbl.innerHTML = `<input type="checkbox" name="mPlace" value="${escapeHtml(f.name)}" ${prevChecked.includes(f.name)?'checked':''} />${FORMAT_ICONS[f.name]?`<span class="format-chip-icon">${FORMAT_ICONS[f.name]}</span>`:''}<span class="format-chip-body"><span class="format-chip-name">${escapeHtml(f.name)}</span>${dims?`<span class="format-chip-dims">${dims}</span>`:''}</span>`;
+            lbl.querySelector('input').addEventListener('change', refreshModalDynamic);
+            chips.appendChild(lbl);
+          });
+          group.appendChild(chips);
+          container.appendChild(group);
         });
       }
       refreshModalDynamic();
     }
 
     function renderStatusUI(){
-      const m = $('mStatusContainer'); if(m){ m.innerHTML=''; APP_SETTINGS.statuses.forEach((s,i)=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="radio" name="mStatus" value="${escapeHtml(s.name)}" ${i===0?'checked':''} /> <span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)}`; m.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
-      const fc = $('filterStatusContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fStatus" value="${escapeHtml(s.name)}" /> <span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)}`; fc.appendChild(lbl); }); }
+      renderQuickStatusFilter();
       const bs = $('bStatusSelect'); if(bs){ bs.innerHTML = '<option value="">Manter</option>' + APP_SETTINGS.statuses.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join(''); }
-      const list = $('statusesList'); if(list){ list.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)} <button class="btn ghost small" data-status="${escapeHtml(s.name)}" style="margin-left:8px" aria-label="Remover status">✕</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-status]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.status; APP_SETTINGS.statuses = APP_SETTINGS.statuses.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
+      const list = $('statusesList'); if(list){ list.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)} <button class="btn ghost small" data-status="${escapeHtml(s.name)}" style="margin-left:8px" aria-label="Remover status">${UI_ICONS.x(13)}</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-status]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.status; APP_SETTINGS.statuses = APP_SETTINGS.statuses.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
+    }
+
+    // Filtro rápido de status (toolbar): um chip por status, com a cor e um ícone que resume o
+    // sentido do nome (heurística em statusIconFor) — clique alterna dentro/fora de filters.statuses
+    // e já refaz o calendário na hora, sem precisar abrir o modal de Filtros (estilo mLabs)
+    function renderQuickStatusFilter(){
+      const row = $('quickStatusFilter'); if(!row) return;
+      row.innerHTML = '';
+      APP_SETTINGS.statuses.forEach(s=>{
+        const chip = document.createElement('button');
+        const active = filters.statuses.includes(s.name);
+        chip.type = 'button';
+        chip.className = 'status-filter-chip' + (active ? ' active' : '');
+        chip.style.setProperty('--st-color', s.color);
+        chip.style.setProperty('--st-weak', hexToRgba(s.color, 0.14));
+        chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${statusIconFor(s.name)(13)}<span>${escapeHtml(s.name)}</span>`;
+        chip.addEventListener('click', ()=>{
+          const idx = filters.statuses.indexOf(s.name);
+          if(idx>=0) filters.statuses.splice(idx,1); else filters.statuses.push(s.name);
+          buildCalendar(); render(); renderQuickStatusFilter();
+        });
+        row.appendChild(chip);
+      });
     }
 
     function renderCatalogUI(){
@@ -1783,7 +2377,7 @@
       (APP_SETTINGS.catalog||[]).forEach(item=>{
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px;border:1px solid var(--border);border-radius:8px;font-size:12px';
-        row.innerHTML = `<img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" style="width:24px;height:24px;object-fit:contain;border-radius:4px;background:#fff;border:1px solid var(--border);flex-shrink:0" onerror="this.style.visibility='hidden'" /><span style="color:var(--muted);flex-shrink:0;min-width:110px">${escapeHtml(item.code)}</span><span style="flex:1">${escapeHtml(item.name)}</span><button class="btn ghost small" data-catalog="${escapeHtml(item.code)}" aria-label="Remover produto">✕</button>`;
+        row.innerHTML = `<img src="${productImageUrl(item.code)}" alt="" referrerpolicy="no-referrer" style="width:24px;height:24px;object-fit:contain;border-radius:4px;background:#fff;border:1px solid var(--border);flex-shrink:0" onerror="this.style.visibility='hidden'" /><span style="color:var(--muted);flex-shrink:0;min-width:110px">${escapeHtml(item.code)}</span><span style="flex:1">${escapeHtml(item.name)}</span><button class="btn ghost small" data-catalog="${escapeHtml(item.code)}" aria-label="Remover produto">${UI_ICONS.x(13)}</button>`;
         list.appendChild(row);
       });
       list.querySelectorAll('button[data-catalog]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.catalog; APP_SETTINGS.catalog = (APP_SETTINGS.catalog||[]).filter(x=>x.code!==v); saveSettings(); renderCatalogUI(); }));
@@ -1793,20 +2387,17 @@
     function renderAllDynamicUI(){ renderTabs(); renderNetsUI(); renderEditoriasUI(); renderPlacesUI(); renderStatusUI(); renderCatalogUI(); }
 
     // ============================================================
-    // MODAL DE CONFIGURAÇÕES — abrir, fechar e salvar as metas
+    // MODAL DE CONFIGURAÇÕES — abrir, fechar e salvar a meta
     // ============================================================
     function openSettings(){
       $('sTarget').value = TARGET;
-      $('sWeekVideos').value = WEEK_VIDEO_TARGET;
       $('settingsBackdrop').style.display = 'flex';
     }
 
     function closeSettings(){ $('settingsBackdrop').style.display = 'none'; }
 
     function saveSettingsHandler(){
-      const t = parseInt($('sTarget').value,10) || TARGET;
-      const w = parseInt($('sWeekVideos').value,10) || WEEK_VIDEO_TARGET;
-      TARGET = t; WEEK_VIDEO_TARGET = w;
+      TARGET = parseInt($('sTarget').value,10) || TARGET;
       saveSettings(); buildCalendar(); render(); closeSettings();
     }
 
@@ -1820,11 +2411,12 @@
       // preenche os campos do modal com os dados da postagem
       $('mTitle').value = post.title || '';
       $('mDate').value = post.date || '';
-      document.querySelectorAll('input[name="mStatus"]').forEach(el=>{ el.checked = (el.value === (post.status || (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name))); });
       $('mNotes').value = post.notes || '';
       $('mBriefingLink').value = post.briefingLink || '';
       $('mReferencesLink').value = post.referencesLink || '';
       $('mArtsLink').value = post.artsLink || '';
+      $('mImageLink').value = post.imageLink || '';
+      $('mImageNotes').value = post.imageNotes || '';
       const entries = postChannelEntries(post);
       const heterogeneous = isHeterogeneousChannels(entries);
       const entryChannels = entries.map(c=>c.channel);
@@ -1840,7 +2432,6 @@
       const typeVal = unionTypes[0] || post.type || 'Static';
       const typeRadio = document.querySelector(`input[name="mType"][value="${typeVal}"]`); if(typeRadio) typeRadio.checked = true;
       setModalMultiChannelState(heterogeneous, post);
-      $('mCollab').checked = !!post.collab;
       // marca as editorias da postagem
       document.querySelectorAll('.mEditoria').forEach(e=>{ e.checked = false; });
       if(post.editoria){ const arr = Array.isArray(post.editoria)?post.editoria:[post.editoria]; arr.forEach(ed=>{ const el = Array.from(document.querySelectorAll('.mEditoria')).find(x=>x.value===ed); if(el) el.checked = true; }); }
@@ -1863,7 +2454,6 @@
       isEditing = false; editingId = null; document.querySelector('#modalBackdrop .modal h2').textContent = 'Criar postagem';
       if($('modalMenuBtn')) $('modalMenuBtn').style.display = 'none';
       document.querySelectorAll('.mNet').forEach(n=>{ n.disabled = false; n.checked = false; });
-      $('mCollab').checked = false;
       renderModalFormatsUI();
     }
 
@@ -1877,40 +2467,6 @@
     let redoStack = [];
 
     function pushUndo(action){ undoStack.push(action); if(undoStack.length>200) undoStack.shift(); }
-
-    // aplica uma ação e retorna a ação inversa correspondente (não usada atualmente pelo fluxo principal, mantida como utilitária)
-    function doAction(action, pushingInverse=true){
-      if(action.type==='move'){
-        const post = state.posts.find(p=>p.id===action.id);
-        if(!post) return null;
-        const from = post.date;
-        post.date = action.to;
-        saveState();
-        buildCalendar(); render();
-        return { type:'move', id:action.id, from:action.to, to:from };
-      }
-      if(action.type==='create'){
-        // action.posts pode conter objetos completos de post ou apenas ids (dependendo
-        // de quem empilhou a ação); aqui só tratamos o caso de objetos completos
-        if(action.posts && action.posts.length && typeof action.posts[0] === 'object'){
-          action.posts.forEach(p=> state.posts.push(p));
-          saveState(); buildCalendar(); render();
-          return { type:'delete', ids: action.posts.map(p=>p.id), posts: action.posts };
-        }
-        return null;
-      }
-      if(action.type==='delete'){
-        // remove as postagens pelos ids informados
-        const removed = [];
-        action.ids.forEach(id=>{
-          const idx = state.posts.findIndex(p=>p.id===id);
-          if(idx>-1) removed.push(state.posts.splice(idx,1)[0]);
-        });
-        saveState(); buildCalendar(); render();
-        return { type:'create', posts: removed };
-      }
-      return null;
-    }
 
     function undo(){
       if(undoStack.length===0) { alert('Nada para desfazer'); return; }
@@ -2069,7 +2625,17 @@
     document.addEventListener('click', ()=> closeMonthYearPicker());
     document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') closeMonthYearPicker(); });
     document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('click', ()=> setView(b.dataset.view)));
-    if($('addStatusBtn')) $('addStatusBtn').addEventListener('click', ()=>{ const v=$('newStatusInput').value.trim(); if(!v) return; const c = $('newStatusColor') ? $('newStatusColor').value : '#7c3aed'; APP_SETTINGS.statuses.push({name:v, color:c}); $('newStatusInput').value=''; saveSettings(); renderAllDynamicUI(); });
+    // dropdown do resumo do mês, ancorado no botão de contagem da toolbar
+    if($('aiSummary')) $('aiSummary').addEventListener('click', (ev)=>{ ev.stopPropagation(); toggleMonthSummary(); });
+    if($('monthSummaryDropdown')) $('monthSummaryDropdown').addEventListener('click', ev=> ev.stopPropagation());
+    document.addEventListener('click', ()=> closeMonthSummary());
+    document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') closeMonthSummary(); });
+    document.querySelectorAll('#monthSummaryToggle button').forEach(b=> b.addEventListener('click', ()=>{
+      monthSummaryGroupBy = b.dataset.group;
+      document.querySelectorAll('#monthSummaryToggle button').forEach(x=> x.classList.toggle('active', x===b));
+      renderMonthSummary();
+    }));
+    if($('addStatusBtn')) $('addStatusBtn').addEventListener('click', ()=>{ const v=$('newStatusInput').value.trim(); if(!v) return; const c = $('newStatusColor') ? $('newStatusColor').value : '#F6BE00'; APP_SETTINGS.statuses.push({name:v, color:c}); $('newStatusInput').value=''; saveSettings(); renderAllDynamicUI(); });
     if($('addCatalogBtn')) $('addCatalogBtn').addEventListener('click', ()=>{
       const code = $('newCatalogCode').value.trim();
       const name = $('newCatalogName').value.trim();
@@ -2081,21 +2647,24 @@
       saveSettings(); renderCatalogUI();
     });
     if($('mTitle')) $('mTitle').addEventListener('input', refreshModalDynamic);
+    if($('mDate')) $('mDate').addEventListener('input', refreshModalDynamic);
     if($('mArtsLink')) $('mArtsLink').addEventListener('input', refreshModalDynamic);
     if($('mReferencesLink')) $('mReferencesLink').addEventListener('input', refreshModalDynamic);
+    if($('mImageLink')) $('mImageLink').addEventListener('input', refreshModalDynamic);
+    if($('mImageNotes')) $('mImageNotes').addEventListener('input', refreshModalDynamic);
+    if($('mNotes')) $('mNotes').addEventListener('input', refreshModalDynamic);
     // botão de copiar o texto da pré-visualização do briefing — feedback visual rápido (✓) no
     // próprio ícone, sem precisar de alert/toast
     if($('mCopyBriefingBtn')) $('mCopyBriefingBtn').addEventListener('click', ()=>{
       const btn = $('mCopyBriefingBtn');
       if(!currentBriefingText){ return; }
       copyTextToClipboard(currentBriefingText).then(()=>{
-        const original = btn.textContent;
-        btn.textContent = '✓';
-        setTimeout(()=>{ btn.textContent = original; }, 1200);
+        const original = btn.innerHTML;
+        btn.innerHTML = UI_ICONS.check(14);
+        setTimeout(()=>{ btn.innerHTML = original; }, 1200);
       });
     });
     document.querySelectorAll('input[name="mType"]').forEach(el=> el.addEventListener('change', refreshModalDynamic));
-    if($('mCollab')) $('mCollab').addEventListener('change', refreshModalDynamic);
     if($('mProductName')){
       $('mProductName').addEventListener('input', (ev)=> showProductSuggestions(ev.target.value));
       $('mProductName').addEventListener('focus', (ev)=>{ if(ev.target.value.trim().length>=2) showProductSuggestions(ev.target.value); });
@@ -2116,124 +2685,32 @@
 
 
     // ============================================================
-    // IMPORTAÇÃO DE BRIEFING — aceita arquivos .csv, .json ou .docx
-    // (tabela) e cria uma postagem para cada combinação de rede/formato
+    // EXPORTAÇÃO DE BRIEFING — junta o briefing de todas as postagens
+    // num único arquivo de texto, agrupado por data (ordem cronológica)
+    // e, dentro de cada data, na mesma ordem manual do calendário
     // ============================================================
-    $('importBriefingBtn').addEventListener('click', ()=>{
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx';
-      input.onchange = e => {
-        const f = e.target.files[0]; if(!f) return;
-        // arquivos .docx têm um fluxo de leitura próprio (via mammoth)
-        if(f.name.toLowerCase().endsWith('.docx')){ handleDocxFile(f); return; }
-        const r = new FileReader();
-        r.onload = ev => {
-          try{
-            const txt = ev.target.result;
-            if(f.name.toLowerCase().endsWith('.csv')) parseBriefingCSV(txt);
-            else if(f.name.toLowerCase().endsWith('.json')){ const rows = JSON.parse(txt); importBriefingRows(rows); }
-            else { alert('Formato não reconhecido. Para .docx selecione o arquivo .docx diretamente — o import irá processá-lo.'); }
-          }catch(err){ alert('Arquivo de briefing inválido'); console.error(err); }
-        };
-        r.readAsText(f);
-      };
-      input.click();
-    });
-
-    // carrega um script externo uma única vez (usado para a biblioteca mammoth via CDN)
-    function loadScriptOnce(url){
-      return new Promise((resolve,reject)=>{
-        if(document.querySelector(`script[src="${url}"]`)) return resolve();
-        const s = document.createElement('script'); s.src = url; s.onload = ()=>resolve(); s.onerror = ()=>reject(new Error('Failed to load '+url)); document.head.appendChild(s);
+    // linha bem mais grossa que o BRIEFING_SEPARATOR (usado dentro do briefing de uma única
+    // postagem), pra marcar claramente a troca de data quando várias postagens são concatenadas
+    const BRIEFING_DATE_SEPARATOR = '═'.repeat(40);
+    function exportBriefing(){
+      if(!state.posts || state.posts.length===0){ alert('Nenhuma postagem para exportar'); return; }
+      const byDate = {};
+      state.posts.forEach(p=>{ if(p.date) (byDate[p.date] = byDate[p.date] || []).push(p); });
+      const dateKeys = Object.keys(byDate).sort();
+      const sections = dateKeys.map(dateStr=>{
+        const [y,m,d] = dateStr.split('-').map(Number);
+        const dateLabel = new Date(y, m-1, d).toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+        const postsTexts = sortByOrder(byDate[dateStr]).map(p=> buildPostBriefingText(p));
+        return [BRIEFING_DATE_SEPARATOR, dateLabel.toUpperCase(), BRIEFING_DATE_SEPARATOR, ...postsTexts].join('\n\n');
       });
-    }
-
-    // converte um .docx de briefing (com uma tabela) em linhas importáveis
-    async function handleDocxFile(file){
-      try{
-        // carrega a mammoth via CDN (faz o unzip/processamento do .docx)
-        await loadScriptOnce('https://cdn.jsdelivr.net/npm/mammoth/mammoth.browser.min.js');
-        const arr = await file.arrayBuffer();
-        const result = await mammoth.convertToHtml({arrayBuffer: arr});
-        const html = result.value;
-        // interpreta o HTML resultante e extrai a primeira tabela encontrada
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html,'text/html');
-        const table = doc.querySelector('table');
-        if(!table){ alert('Arquivo .docx processado, mas não foi encontrada tabela no documento. Coloque os briefings em tabela no Word.'); return; }
-        const rows = [];
-        const trs = Array.from(table.querySelectorAll('tr'));
-        if(trs.length<2){ alert('Tabela do briefing não contém linhas suficientes (cabeçalho + dados).'); return; }
-        const headers = Array.from(trs[0].querySelectorAll('td,th')).map(h=>h.textContent.trim());
-        trs.slice(1).forEach(tr=>{
-          const cols = Array.from(tr.querySelectorAll('td,th')).map(td=>td.textContent.trim());
-          const obj = {};
-          headers.forEach((h,i)=> obj[h] = cols[i] || '');
-          rows.push(obj);
-        });
-        importBriefingRows(rows);
-      }catch(err){ console.error(err); alert('Erro ao processar .docx: '+err.message); }
-    }
-
-    // listener vazio, reservado para um futuro tratamento de "colar" arquivo .docx
-    document.addEventListener('paste', ()=>{});
-
-    // divide uma linha CSV em colunas, respeitando vírgulas dentro de aspas
-    function splitCsvLine(line){
-      const parts = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/);
-      return parts.map(p=>{ p = p.trim(); if(p.startsWith('"') && p.endsWith('"')) p = p.slice(1,-1).replace(/""/g,'"'); return p; });
-    }
-
-    // faz o parse de um arquivo CSV de briefing e importa suas linhas
-    function parseBriefingCSV(text){
-      const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
-      if(lines.length<2){ alert('CSV vazio ou inválido'); return; }
-      const headers = splitCsvLine(lines[0]).map(h=>h.trim());
-      const rows = lines.slice(1).map(l=>{
-        const cols = splitCsvLine(l);
-        const obj = {};
-        headers.forEach((h,i)=> obj[h] = cols[i] || '');
-        return obj;
-      });
-      importBriefingRows(rows);
-    }
-
-    // cria postagens a partir das linhas do briefing (uma por combinação de rede x formato)
-    function importBriefingRows(rows){
-      // rows: array de objetos com chaves como Date,Title,Channel,Place,Editoria,ProductCode,ProductName,Type,Status,Collab,Notes
-      const created = [];
-      // mantém a ordem de leitura do arquivo dentro de cada dia (soma-se ao que já existir no calendário)
-      const orderCounters = {};
-      function nextImportOrder(date){ if(!(date in orderCounters)) orderCounters[date] = nextOrderForDate(date); return orderCounters[date]++; }
-      rows.forEach(r=>{
-        const date = r.Date || r.date || r.DATA || '';
-        if(!date) return;
-        const title = r.Title || r.title || r.Titulo || r.Título || '';
-        const channels = (r.Channel||r.channel||r.Channeles||r.Channels||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean) || ['Instagram'];
-        const places = (r.Place||r.place||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean);
-        const editorias = (r.Editoria||r.editoria||r.Category||'').split(/[|,;]+/).map(s=>s.trim()).filter(Boolean);
-        const productCodes = (r.ProductCode||r.productCode||r.Codigo||r.Código||'').split('|').map(s=>s.trim()).filter(Boolean);
-        const productNames = (r.ProductName||r.productName||r.Produto||r.Product||'').split('|').map(s=>s.trim()).filter(Boolean);
-        const products = [];
-        for(let i=0;i<Math.max(productCodes.length, productNames.length);i++){ products.push({ code: productCodes[i]||'', name: productNames[i]||'' }); }
-        const type = r.Type||r.type||'Static';
-        const status = r.Status||r.status||((APP_SETTINGS.statuses[0]&&APP_SETTINGS.statuses[0].name)||'Rascunho');
-        const collab = (String(r.Collab||r.collab||'').toLowerCase()==='true');
-        const notes = r.Notes||r.notes||r.Observacoes||'';
-        channels.forEach(ch=>{
-          if(places.length>0){ places.forEach(pl=>{ const p = { id: generateId(), title, date, channel: ch, place: pl, type, status, notes, collab, color:null, editoria: editorias, products: products.slice(), order: nextImportOrder(date) }; state.posts.push(p); created.push(p); }); }
-          else { const p = { id: generateId(), title, date, channel: ch, place: 'Feed', type, status, notes, collab, color:null, editoria: editorias, products: products.slice(), order: nextImportOrder(date) }; state.posts.push(p); created.push(p); }
-        });
-      });
-      if(created.length>0){ saveState(); buildCalendar(); render(); pushUndo({ type:'create', posts: created.map(p=>p.id) }); redoStack = []; alert(`Importados ${created.length} posts do briefing.`); }
-      else alert('Nenhum post importado do briefing.');
+      download(`briefing-${todayStr()}.txt`, sections.join('\n\n\n'));
     }
     // ============================================================
     // LIGAÇÃO DOS DEMAIS BOTÕES DA TOOLBAR (exportar, seleção,
     // lote, filtros) E FECHAMENTO DOS MODAIS
     // ============================================================
     const _exportCsvBtn = $('exportCsvBtn'); if(_exportCsvBtn) _exportCsvBtn.addEventListener('click', exportCSV);
+    if($('exportBriefingBtn')) $('exportBriefingBtn').addEventListener('click', exportBriefing);
     const _resetMonthBtn = $('resetMonthBtn'); if(_resetMonthBtn) _resetMonthBtn.addEventListener('click', resetMonth);
     const _toggleSelectBtn = $('toggleSelect'); if(_toggleSelectBtn) _toggleSelectBtn.addEventListener('click', toggleSelectMode);
     const _bulkEditBtn = $('bulkEditBtn'); if(_bulkEditBtn) _bulkEditBtn.addEventListener('click', openBulkEdit);
@@ -2246,7 +2723,6 @@
       filters.editorias = Array.from(document.querySelectorAll('.fEditoria:checked')).map(x=>x.value);
       filters.places = Array.from(document.querySelectorAll('.fPlace:checked')).map(x=>x.value);
       filters.types = Array.from(document.querySelectorAll('.fType:checked')).map(x=>x.value);
-      filters.statuses = Array.from(document.querySelectorAll('.fStatus:checked')).map(x=>x.value);
       const coll = document.querySelector('input[name="fCollab"]:checked'); filters.collab = coll?coll.value:'any';
       $('filtersBackdrop').style.display='none'; buildCalendar(); render();
     });
@@ -2254,9 +2730,8 @@
       document.querySelectorAll('.fEditoria').forEach(x=>x.checked=false);
       document.querySelectorAll('.fPlace').forEach(x=>x.checked=false);
       document.querySelectorAll('.fType').forEach(x=>x.checked=false);
-      document.querySelectorAll('.fStatus').forEach(x=>x.checked=false);
       const any = document.querySelector('input[name="fCollab"][value="any"]'); if(any) any.checked = true;
-      filters.editorias = []; filters.places = []; filters.types = []; filters.statuses = []; filters.collab='any'; $('filtersBackdrop').style.display='none'; buildCalendar(); render();
+      filters.editorias = []; filters.places = []; filters.types = []; filters.statuses = []; filters.collab='any'; $('filtersBackdrop').style.display='none'; buildCalendar(); render(); renderQuickStatusFilter();
     });
     function closeFilters(){ $('filtersBackdrop').style.display = 'none'; }
 
@@ -2304,9 +2779,8 @@
     // liga os botões de "Adicionar" das listas de configurações
     if($('addNetBtn')) $('addNetBtn').addEventListener('click', ()=>{
       const v=$('newNetInput').value.trim(); if(!v) return;
-      const c = $('newNetColor') ? $('newNetColor').value : '#7c3aed';
       const shortV = $('newNetShort') ? $('newNetShort').value.trim() : '';
-      APP_SETTINGS.networks.push({ name:v, shortName: shortV || v.slice(0,2).toUpperCase(), color:c, formats:[], icon: newNetIconValue });
+      APP_SETTINGS.networks.push({ name:v, shortName: shortV || v.slice(0,2).toUpperCase(), formats:[], icon: newNetIconValue });
       $('newNetInput').value=''; if($('newNetShort')) $('newNetShort').value='';
       newNetIconValue = null; refreshNewNetIconPicker();
       saveSettings(); renderAllDynamicUI();
@@ -2327,7 +2801,7 @@
     if($('addEditoriaBtn')) $('addEditoriaBtn').addEventListener('click', ()=>{
       const v=$('newEditoriaInput').value.trim(); if(!v){ alert('Digite o nome da editoria.'); return; }
       if(APP_SETTINGS.editorias.some(x=>x.name===v)){ alert('Já existe uma editoria com esse nome.'); return; }
-      const entry = { name: v, color: $('newEditoriaColor') ? $('newEditoriaColor').value : '#7c3aed' };
+      const entry = { name: v, color: $('newEditoriaColor') ? $('newEditoriaColor').value : '#F6BE00' };
       const scheduleValue = newEditoriaScheduleEditor ? newEditoriaScheduleEditor.getValue() : null;
       if(scheduleValue) entry.schedule = scheduleValue;
       APP_SETTINGS.editorias.push(entry);
@@ -2336,9 +2810,11 @@
     });
     loadState();
     // monta o calendário e, se ainda não houver nenhuma postagem, cria exemplos de demonstração
+    // (só no modo local/offline — num calendário sincronizado com o servidor não faz sentido
+    // criar posts de exemplo pra toda a equipe; espera o syncPull() trazer os dados reais)
     buildCalendar();
-    if(state.posts.length===0){
-      state.posts.push({ id: generateId(), title: 'Campanha: Lançamento Comunidade', date: '2026-08-18', channel: 'Instagram', color:'#7c3aed', status:'Aprovado', editoria:['Lançamentos'], place:'Feed', type:'Static' });
+    if(!SYNC_ENABLED && state.posts.length===0){
+      state.posts.push({ id: generateId(), title: 'Campanha: Lançamento Comunidade', date: '2026-08-18', channel: 'Instagram', color:'#E4405F', status:'Aprovado', editoria:['Lançamentos'], place:'Feed', type:'Static' });
       state.posts.push({ id: generateId(), title: 'Blog: Anúncio oficial', date: '2026-08-20', channel: 'Blog', color:'#06b6d4', status:'Em produção', editoria:['Informativo'], place:'Feed', type:'Static' });
       state.posts.push({ id: generateId(), title: 'Postagem de teste — Social', date: '2026-08-19', channel: 'Twitter', color:'#f97316', status:'Rascunho', editoria:['Destaques'], place:'Feed', type:'Video' });
       saveState();
@@ -2349,3 +2825,12 @@
     $('redoBtn').addEventListener('click', redo);
     // primeira renderização da tela
     render();
+
+    // busca a versão do servidor (se disponível) e passa a checar por mudanças de outras
+    // pessoas a cada 20s — ver bloco "SINCRONIZAÇÃO COM O SERVIDOR" mais acima
+    if(SYNC_ENABLED){
+      syncPull();
+      setInterval(()=> syncPull(), 20000);
+    } else {
+      setSyncStatus('Salvando só neste navegador (abra pelo endereço do servidor pra sincronizar)', 'warn');
+    }

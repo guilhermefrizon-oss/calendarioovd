@@ -1,15 +1,14 @@
     /* Tokens de design: cores, raios e sombras reutilizados por todos os componentes abaixo */
     :root{
-      --bg:#f6f7fb;--card:#ffffff;--muted:#6b7280;--accent:#7c3aed;--accent-2:#06b6d4;--text:#0f172a;
-      --border:#e5e7eb;--border-strong:#d7dae1;--surface-muted:#f8f9fc;--accent-weak:#f1ecff;--text-faint:#9aa1ac;
-      --white:#ffffff;--accent-hover:#6d28d9;--on-accent:#ffffff;
+      --bg:#f7f7f6;--card:#ffffff;--muted:#68686a;--accent:#F6BE00;--accent-ink:#1a1a1a;--text:#17171a;
+      --border:#e5e5e3;--border-strong:#d3d3d0;--surface-muted:#f7f7f5;--accent-weak:rgba(246,190,0,.16);--text-faint:#9a9a98;
+      --white:#ffffff;--accent-hover:#d9a600;--on-accent:#1a1a1a;
       --danger:#dc2626;--danger-bg:#fef2f2;--danger-bg-strong:#fee2e2;--danger-border:#fecaca;
       --success:#16a34a;--success-bg:#f0fdf4;--success-border:#bbf7d0;
-      --collab:#db2777;--collab-bg:#fce7f3;--collab-border:#fbcfe8;
-      --backdrop:rgba(15,20,35,.45);--suggestion-gradient-start:#fbfaff;
+      --backdrop:rgba(15,15,13,.5);
       --radius-sm:8px;--radius-md:12px;--radius-lg:16px;
-      --shadow-sm:0 1px 2px rgba(15,23,42,.05);--shadow-md:0 6px 16px rgba(15,23,42,.07);--shadow-lg:0 20px 40px rgba(15,23,42,.14);
-      --base-font-family: 'Poppins',Inter,Segoe UI,Arial,sans-serif;
+      --shadow-sm:0 1px 2px rgba(15,15,13,.06);--shadow-md:0 6px 16px rgba(15,15,13,.08);--shadow-lg:0 20px 40px rgba(15,15,13,.16);
+      --base-font-family:'Lato',Segoe UI,Arial,sans-serif;
       /* altura padrão compartilhada por inputs de texto/data/número, selects, o seletor de cor e
          botões (tamanho normal) — garante que fiquem alinhados quando aparecem lado a lado, como
          em "Nova rede" (campo + cor + Adicionar) */
@@ -19,13 +18,12 @@
        e o roxo de acento trocado por amarelo (base #F6BE00). Ativado via [data-theme="dark"]
        na tag <html>, alternado pelo botão de tema e persistido pelo JS. */
     :root[data-theme="dark"]{
-      --bg:#121214;--card:#1c1d22;--muted:#9aa1ac;--accent:#F6BE00;--accent-2:#22d3ee;--text:#f1f2f4;
+      --bg:#121214;--card:#1c1d22;--muted:#9aa1ac;--accent:#F6BE00;--accent-ink:#F6BE00;--text:#f1f2f4;
       --border:#2c2d33;--border-strong:#3d3e46;--surface-muted:#202126;--accent-weak:rgba(246,190,0,.16);--text-faint:#6b7280;
       --accent-hover:#d9a600;--on-accent:#1a1a1a;
       --danger:#f87171;--danger-bg:#3a1518;--danger-bg-strong:#4a1a1e;--danger-border:#5c2328;
       --success:#4ade80;--success-bg:#142a1c;--success-border:#1f4b2c;
-      --collab:#f472b6;--collab-bg:#35182a;--collab-border:#4a2138;
-      --backdrop:rgba(0,0,0,.65);--suggestion-gradient-start:#201c10;
+      --backdrop:rgba(0,0,0,.65);
       --shadow-sm:0 1px 2px rgba(0,0,0,.25);--shadow-md:0 6px 16px rgba(0,0,0,.35);--shadow-lg:0 20px 40px rgba(0,0,0,.5);
     }
     /* Reset global e layout base da página */
@@ -33,9 +31,23 @@
     body{font-family:var(--base-font-family);background:var(--bg);margin:0;padding:28px;color:var(--text);-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
     .container{max-width:1600px;margin:0 auto}
 
+    /* Escala tipográfica do site — sempre usar a tag semântica correspondente ao nível:
+       H1 · título da página (só existe um, no topo) — 23px/900
+       H2 · título de modal (Filtros, Configurações, Editar postagem...) — 17px/900
+       H3 · título de seção dentro de um modal (ex: "Publicação", "Redes sociais" no
+            formulário de postagem) — discreto e em caixa alta, mas com peso suficiente
+            pra se destacar dos labels de campo comuns
+       H4 · reservado para um 4º nível (subtítulo dentro de uma seção), ainda sem uso hoje —
+            definido aqui pra já nascer consistente quando alguma tela precisar dele */
+    h1,h2,h3,h4{margin:0;font-family:'Lato',sans-serif;color:var(--text)}
+    h1{font-size:23px;font-weight:900;letter-spacing:-.01em}
+    h2{font-size:17px;font-weight:900;letter-spacing:-.005em}
+    h3{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-ink)}
+    h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint)}
+
     /* Cabeçalho da página: título + ações "Configurações"/"Nova postagem" */
     .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
-    .page-header h1{font-family:'Poppins',sans-serif;font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+    .page-header h1{margin:0 0 4px}
     .page-subtitle{margin:0;font-size:13px;color:var(--muted)}
     .page-header-actions{display:flex;gap:10px;align-items:center;flex-shrink:0}
 
@@ -50,19 +62,19 @@
     /* controles de uma linha só (não o textarea, que precisa crescer em altura) ficam todos com a mesma altura */
     input[type=text],input:not([type]),input[type=date],input[type=number],select{height:var(--control-h);padding:0 10px}
     input[type=color]{border:1px solid var(--border);border-radius:var(--radius-sm);height:var(--control-h);padding:2px;width:44px;cursor:pointer;flex-shrink:0}
-    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent-ink);box-shadow:0 0 0 3px var(--accent-weak)}
 
     /* Botões — altura igual à dos campos de texto/select/cor, para ficarem alinhados quando lado a lado */
-    .btn{height:var(--control-h);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--accent);color:var(--on-accent);padding:0 14px;border-radius:999px;border:0;cursor:pointer;font-weight:600;font-size:13px;transition:background .12s,transform .06s,box-shadow .12s;font-family:inherit}
+    .btn{height:var(--control-h);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--accent);color:var(--on-accent);padding:0 14px;border-radius:var(--radius-sm);border:0;cursor:pointer;font-weight:700;font-size:13px;transition:background .12s,transform .06s,box-shadow .12s;font-family:inherit}
     .btn:hover{background:var(--accent-hover);box-shadow:var(--shadow-sm)}
     .btn:active{transform:translateY(1px)}
-    .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border);font-weight:600}
+    .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border);font-weight:700}
     .btn.ghost:hover{background:var(--surface-muted);border-color:var(--border-strong)}
     /* variante "small", usada tanto para botões compactos com texto (Cancelar, Aplicar) quanto para
        ícones soltos (✕ de remover) — ambas as classes .btn.small e .btn.ghost.small compartilham a
        mesma altura reduzida, para não desalinhar quando aparecem juntas numa mesma linha */
     .btn.ghost.small,.btn.small{height:28px;padding:0 10px;font-size:12px}
-    .btn.ghost.btn--active{background:var(--accent-weak);color:var(--accent);border-color:var(--accent)}
+    .btn.ghost.btn--active{background:var(--accent-weak);color:var(--accent-ink);border-color:var(--accent-ink)}
     .btn.ghost.danger{color:var(--danger);border-color:var(--danger-border)}
     .btn.ghost.danger:hover{background:var(--danger-bg);border-color:var(--danger)}
     .btn-icon{width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s,border-color .12s}
@@ -79,55 +91,143 @@
     .month-label:hover{background:var(--surface-muted)}
     /* enquanto o popover de mês está aberto, o rótulo (agora mostrando só o ano) fica com uma caixa ativa,
        como um campo em foco — sinaliza que as setas ‹ › do cabeçalho agora navegam por ano */
-    .month-label[aria-expanded="true"]{border-color:var(--accent);background:var(--card)}
+    .month-label[aria-expanded="true"]{border-color:var(--accent-ink);background:var(--card)}
     .month-label-caret{font-size:10px;color:var(--muted);transition:transform .15s}
     .month-label[aria-expanded="true"] .month-label-caret{transform:rotate(180deg)}
-    .ai-info{font-size:12.5px;color:var(--muted);background:var(--surface-muted);border:1px solid var(--border);padding:6px 12px;border-radius:999px}
+    .ai-info{font-size:12.5px;color:var(--muted);background:var(--surface-muted);border:1px solid var(--border);padding:6px 12px;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;transition:background .12s,border-color .12s}
+    .ai-info:hover{background:var(--card);border-color:var(--border-strong);color:var(--text)}
+
+    /* Dropdown do resumo do mês: ancorado logo abaixo do botão de contagem da toolbar, com um
+       alternador (Tipo/Editoria/Rede) e uma lista simples de nome + contagem por categoria */
+    .ai-summary-wrap{position:relative}
+    .month-summary-dropdown{position:absolute;top:calc(100% + 6px);right:0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:14px;width:260px;z-index:40;display:none}
+    .month-summary-dropdown.open{display:block}
+    .month-summary-dropdown-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px}
+    .ms-list{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+    .ms-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px}
+    .ms-row-label{display:flex;align-items:center;gap:7px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+    .ms-row-count{flex:0 0 auto;font-weight:700;color:var(--muted)}
 
     /* Popover de seleção rápida de mês dentro do ano, ancorado abaixo do rótulo (que mostra o ano
        enquanto o popover está aberto). Não tem navegação de ano própria — reaproveita as setas ‹ › do cabeçalho. */
     .month-year-picker{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:12px;width:240px;z-index:40;display:none}
     .month-year-picker.open{display:block}
     .myp-months{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-    .myp-month{border:0;background:transparent;color:var(--text);font-size:12.5px;font-weight:600;padding:9px 4px;border-radius:999px;cursor:pointer;text-align:center;transition:background .12s,color .12s}
+    .myp-month{border:0;background:transparent;color:var(--text);font-size:12.5px;font-weight:700;padding:9px 4px;border-radius:var(--radius-sm);cursor:pointer;text-align:center;transition:background .12s,color .12s}
     .myp-month:hover{background:var(--surface-muted)}
-    .myp-month.past{color:var(--text-faint);font-weight:500}
+    .myp-month.past{color:var(--text-faint);font-weight:400}
     .myp-month.current{outline:1px solid var(--accent);outline-offset:-1px}
     .myp-month.selected{background:var(--accent);color:var(--on-accent)}
 
+    /* Indicador de sincronização com o servidor (api.php) — texto discreto que só some
+       quando vazio; "ok" e "warn" mudam a cor pro estado atual */
+    .sync-status{font-size:11px;color:var(--text-faint);white-space:nowrap}
+    .sync-status:empty{display:none}
+    .sync-status.ok{color:var(--success)}
+    .sync-status.warn{color:var(--danger)}
+
     /* Alternador de visão (Mês / Lista) */
     .view-toggle{display:flex;background:var(--surface-muted);border:1px solid var(--border);border-radius:10px;padding:3px;gap:2px}
-    .view-toggle button{border:0;background:transparent;padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;transition:background .12s,color .12s}
-    .view-toggle button.active{background:var(--card);color:var(--accent);box-shadow:var(--shadow-sm)}
+    .view-toggle button{border:0;background:transparent;padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;transition:background .12s,color .12s}
+    .view-toggle button.active{background:var(--card);color:var(--accent-ink);box-shadow:var(--shadow-sm)}
 
-    /* Abas de canal (Todas, Instagram, Twitter...), geradas dinamicamente pelo JS */
-    .tabs{display:flex;gap:6px;flex-wrap:wrap}
-    #tabs button{border-radius:999px;padding:6px 13px;font-size:12.5px}
+    /* Abas de canal (Todas, Instagram, Twitter...), geradas dinamicamente pelo JS.
+       "Todas" fica como pill de texto; as redes viram círculos só com o ícone, do mesmo
+       tamanho/altura da pill pra alinhar. Rede não selecionada fica em P&B (grayscale);
+       ao selecionar "Todas" (classe .all-active no container), todas ficam coloridas. */
+    .tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    #tabs button{border-radius:var(--radius-sm);padding:6px 13px;font-size:12.5px;height:30px}
+    #tabs button.icon-only{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:transparent;border:0}
+    #tabs button.icon-only:hover{box-shadow:0 0 0 2px var(--surface-muted)}
+    #tabs button.icon-only:not(.ghost){box-shadow:0 0 0 2px var(--accent-ink)}
+    #tabs button.icon-only .net-icon-img,
+    #tabs button.icon-only svg{width:30px;height:30px;border-radius:50%}
+    #tabs button.icon-only .dot{width:30px;height:30px;border-radius:50%}
+    #tabs button.icon-only.ghost .net-icon-img,
+    #tabs button.icon-only.ghost svg{filter:grayscale(1);opacity:.5;transition:filter .15s,opacity .15s}
+    #tabs button.icon-only.ghost:hover .net-icon-img,
+    #tabs button.icon-only.ghost:hover svg{opacity:.8}
+    #tabs.all-active button.icon-only.ghost .net-icon-img,
+    #tabs.all-active button.icon-only.ghost svg{filter:none;opacity:1}
+
+    /* Filtro rápido de status na toolbar (ícone + cor + nome, clique alterna) — permite escanear
+       o mês por etapa sem abrir o modal de Filtros, na mesma linha em que os cards já aparecem */
+    .status-filter-label{font-size:11px;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
+    .status-filter-row{display:flex;gap:6px;flex-wrap:wrap}
+    .status-filter-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px 5px 9px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card);font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s}
+    .status-filter-chip:hover{border-color:var(--border-strong);color:var(--text)}
+    .status-filter-chip svg{width:13px;height:13px;flex-shrink:0}
+    .status-filter-chip.active{background:var(--st-weak,var(--accent-weak));border-color:var(--st-color,var(--accent-ink));color:var(--st-color,var(--accent-ink))}
 
     /* Chips (pílulas de rádio/checkbox usadas em vários modais) */
-    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:var(--card);font-size:12.5px;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s;color:var(--text)}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card);font-size:12.5px;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s;color:var(--text)}
     .chip:hover{border-color:var(--border-strong)}
     .chip input{margin:0}
-    .chip:has(input:checked){background:var(--accent-weak);border-color:var(--accent);color:var(--accent);font-weight:600}
+    .chip:has(input:checked){background:var(--accent-weak);border-color:var(--accent-ink);color:var(--accent-ink);font-weight:700}
     .chip button{margin-left:2px;padding:3px 6px;font-size:11px;border-radius:8px}
     .dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+    /* Seleção de redes sociais no modal de postagem: mesmo padrão de círculo só-ícone das
+       abas de canal no topo (ver #tabs button.icon-only acima) — sem borda, sem texto. Rede
+       não marcada fica em P&B (grayscale); ao marcar, ganha cor cheia + anel de destaque. */
+    .chip-net{position:relative;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;user-select:none}
+    .chip-net input{position:absolute;inset:0;margin:0;opacity:0;cursor:pointer}
+    .chip-net .net-icon-img,.chip-net svg{width:32px;height:32px;border-radius:50%;filter:grayscale(1);opacity:.5;transition:filter .15s,opacity .15s,box-shadow .15s}
+    .chip-net .dot{width:32px;height:32px;opacity:.5;transition:opacity .15s,box-shadow .15s}
+    .chip-net:hover .net-icon-img,.chip-net:hover svg,.chip-net:hover .dot{opacity:.8}
+    .chip-net:has(input:checked) .net-icon-img,.chip-net:has(input:checked) svg{filter:none;opacity:1;box-shadow:0 0 0 2px var(--accent-ink)}
+    .chip-net:has(input:checked) .dot{opacity:1;box-shadow:0 0 0 2px var(--accent-ink)}
+
+    /* Formato do modal de criar/editar postagem: um grupo por rede social selecionada, cada
+       formato com o nome e, como subtexto, as dimensões em pixels */
+    .format-net-group{display:flex;flex-direction:column;gap:6px}
+    .format-net-group + .format-net-group{margin-top:12px}
+    .format-net-group-label{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em}
+    /* largura fixa baseada em 3 colunas por linha (não usa 1fr) — se não, um grupo com só
+       1 ou 2 formatos esticaria o(s) chip(s) pra preencher a linha toda */
+    .format-net-group-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(0,calc((100% - 16px)/3)));gap:8px}
+    .format-chip{display:flex;align-items:flex-start;gap:7px;padding:7px 11px;border-radius:12px;border:1px solid var(--border);background:var(--card);cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s}
+    .format-chip:hover{border-color:var(--border-strong)}
+    .format-chip:has(input:checked){background:var(--accent-weak);border-color:var(--accent-ink);color:var(--accent-ink)}
+    .format-chip input{margin:2px 0 0}
+    .format-chip-icon{display:inline-flex;align-items:center;margin-top:1px}
+    .format-chip-body{display:flex;flex-direction:column;gap:1px;line-height:1.25}
+    .format-chip-name{font-size:12.5px;font-weight:700;color:var(--text)}
+    .format-chip:has(input:checked) .format-chip-name{color:var(--accent-ink)}
+    .format-chip-dims{font-size:10.5px;font-weight:400;color:var(--muted)}
+    .format-chip:has(input:checked) .format-chip-dims{color:var(--accent-ink);opacity:.75}
 
     /* Cabeçalho de dias da semana + grade do calendário mensal */
     .weekday-header{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:16px}
     .weekday-header div{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);padding-left:6px}
-    .grid-month{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:8px;grid-auto-rows:250px}
-    .day{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px;position:relative;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s}
+    /* cada linha (semana) cresce com o conteúdo: uma semana vazia fica baixa (só o mínimo de
+       110px), uma semana com cards cresce pra caber — em vez de toda semana ter a mesma altura
+       fixa, o que deixava muito espaço vazio nas semanas sem postagem */
+    .grid-month{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:8px;grid-auto-rows:minmax(110px,auto)}
+    /* min-height:0 permite que o item de grid encolha até o mínimo da linha (110px) mesmo sem
+       conteúdo; overflow:hidden continua como rede de segurança para o raro caso de um card
+       individual ultrapassar a altura da célula (o badge "+N" já cuida do excesso de cards) */
+    /* a transição de "height" só entra em ação quando o JS anima a troca de altura (ao mover um
+       card pra outro dia, ver render() em app.js) — em uso normal a célula segue esticada pela
+       grade (height:auto), sem valor inline, então nada dispara a transição à toa */
+    .day{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px;position:relative;display:flex;flex-direction:column;min-height:0;overflow:hidden;transition:border-color .15s,box-shadow .15s,height .32s cubic-bezier(.2,.9,.2,1)}
     .day:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
     .day.empty{background:transparent;border:1px dashed var(--border);box-shadow:none}
-    .day.today{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+    /* dia de hoje: contorno na cor de destaque em vez de --accent-ink (que rendia um marrom
+       escuro esquisito ao lado do halo amarelo) — agora borda e halo usam o mesmo amarelo,
+       ficando coerentes com a bolinha da data logo abaixo */
+    .day.today{border:2px solid var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
     .day-head{display:flex;align-items:center;justify-content:space-between;gap:6px}
-    .day .date{font-size:13px;font-weight:700;color:var(--text);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    /* data em destaque — maior e mais peso, pra ser a primeira coisa que o olho pega na célula */
+    .day .date{box-sizing:border-box;font-size:16px;line-height:1;font-weight:900;color:var(--text);width:27px;height:27px;min-width:27px;min-height:27px;max-width:27px;max-height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
     .day.today .date{background:var(--accent);color:var(--on-accent)}
-    .day-count{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-muted);color:var(--muted);border:1px solid var(--border);white-space:nowrap}
+    /* contador "x/y" fica discreto (opacidade reduzida) pra não competir com a data */
+    .day-count{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:var(--radius-sm);background:var(--surface-muted);color:var(--muted);border:1px solid var(--border);white-space:nowrap;opacity:.55;transition:opacity .12s}
+    .day:hover .day-count{opacity:.85}
     .day-count.low{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)}
     .day-count.ok{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
     .posts{margin-top:8px;flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}
-    .more-badge{position:absolute;right:8px;bottom:8px;background:var(--card);border-radius:999px;padding:3px 9px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--accent);box-shadow:var(--shadow-sm);cursor:pointer}
+    .more-badge{position:absolute;right:8px;bottom:8px;background:var(--card);border-radius:var(--radius-sm);padding:3px 9px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--accent-ink);box-shadow:var(--shadow-sm);cursor:pointer}
     .more-badge:hover{background:var(--accent-weak)}
 
     /* Cartão de postagem (evento) dentro de uma célula do calendário */
@@ -138,18 +238,17 @@
     .event.moving{transition:transform .36s cubic-bezier(.2,.9,.2,1)}
     .event-bar{position:absolute;left:0;top:0;bottom:0;width:3px}
     .event-body{flex:1;min-width:0;padding-left:3px}
-    .event-title{font-weight:600;font-size:12.5px;color:var(--text);line-height:1.25;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;text-overflow:ellipsis}
-    .event-sub{font-size:10.5px;color:var(--muted);display:flex;gap:5px;margin-top:3px;align-items:center}
-    .event-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
-    .tag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;line-height:1.5;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
-    .tag--outline{background:var(--surface-muted);color:var(--muted);border:1px solid var(--border)}
-    .tag--collab{background:var(--collab-bg);color:var(--collab);border:1px solid var(--collab-border)}
+    .event-eyebrow{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;line-height:1.2;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .event-title{font-weight:700;font-size:12.5px;color:var(--text);line-height:1.3;margin-bottom:5px}
+    .event-subtitle{font-size:10.5px;color:var(--muted)}
+    .event-nets{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:8px}
+    .event-net-icon{display:inline-flex;align-items:center}
     .select-checkbox{position:absolute;top:6px;right:6px;width:16px;height:16px;margin:0;z-index:5}
 
     /* Menu "⋮" de ações do card (duplicar/excluir), no card do calendário e na linha da lista */
     .event-menu-btn{position:absolute;top:2px;right:2px;width:20px;height:20px;border:none;background:transparent;color:var(--text-faint);cursor:pointer;border-radius:6px;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;z-index:6;font-family:inherit}
     .event-menu-btn:hover{background:var(--surface-muted);color:var(--text)}
-    .list-row-menu-btn{border:none;background:transparent;color:var(--text-faint);cursor:pointer;border-radius:6px;width:24px;height:24px;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:inherit}
+    .list-row-menu-btn{align-self:center;border:none;background:transparent;color:var(--text-faint);cursor:pointer;border-radius:6px;width:24px;height:24px;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:inherit}
     .list-row-menu-btn:hover{background:var(--card);color:var(--text)}
     /* position:fixed e reposicionado via JS a cada abertura — se nascesse dentro do card
        (que tem overflow:hidden para arredondar cantos), o menu seria cortado */
@@ -169,58 +268,83 @@
     /* Layout responsivo: grade de 7 colunas vira 2 colunas em telas estreitas */
     @media (max-width:1000px){.grid-month,.weekday-header{grid-template-columns:repeat(2,1fr)}}
 
-    /* Card de sugestão da IA (metas de posts/vídeos), exibido abaixo do calendário */
-    .suggestion-card{margin-top:14px;border-color:var(--accent-weak);background:linear-gradient(180deg,var(--suggestion-gradient-start),var(--card))}
-
     /* Visão em lista (alternativa ao calendário mensal), agrupada por dia */
     .list-view{margin-top:10px;display:flex;flex-direction:column;gap:16px}
     .list-group{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
     .list-date{display:flex;align-items:baseline;gap:8px;padding:10px 14px;background:var(--surface-muted);border-bottom:1px solid var(--border)}
     .list-date-num{font-weight:700;font-size:14px;color:var(--text)}
     .list-date-dow{font-size:12px;color:var(--muted);text-transform:capitalize}
-    .list-date.today .list-date-num{color:var(--accent)}
-    .today-badge{margin-left:auto;background:var(--accent);color:var(--on-accent);font-size:10px;font-weight:700;padding:2px 9px;border-radius:999px}
-    .list-row{position:relative;display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+    .list-date.today .list-date-num{color:var(--accent-ink)}
+    .today-badge{margin-left:auto;background:var(--accent);color:var(--on-accent);font-size:10px;font-weight:700;padding:2px 9px;border-radius:var(--radius-sm)}
+    .list-row{position:relative;display:flex;align-items:flex-start;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
     .list-row:last-child{border-bottom:none}
     .list-row:hover{background:var(--surface-muted)}
     .list-row.dragging{opacity:0.5}
     .list-row-bar{width:4px;align-self:stretch;border-radius:4px;flex-shrink:0}
-    .drag-handle{cursor:grab;color:var(--text-faint);font-size:14px;flex-shrink:0;line-height:1}
-    .list-row-title{font-weight:600;font-size:13px;color:var(--text);flex:1 1 220px;min-width:160px}
-    .list-row-channel{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:110px;flex-shrink:0}
-    .list-row-tags{display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0}
+    .drag-handle{cursor:grab;color:var(--text-faint);font-size:14px;flex-shrink:0;line-height:1;display:inline-flex;align-items:center;margin-top:2px}
+    .list-row-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+    .list-row-eyebrow{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+    .list-row-title{font-weight:700;font-size:13px;color:var(--text)}
+    .list-row-subtitle{font-size:11px;color:var(--muted)}
+    .list-row-nets{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
     .list-empty{padding:44px 20px;text-align:center;color:var(--muted);background:var(--card);border-radius:var(--radius-md);border:1px dashed var(--border);font-size:13px}
 
     .net-icon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:6px}
     .net-icon-img{width:16px;height:16px;display:inline-block;vertical-align:middle;border-radius:50%}
     .net-view-icon{display:inline-flex;align-items:center;justify-content:center}
 
-    /* seletor de ícone de rede (presets + upload de SVG), usado em "Adicionar rede" e na edição de cada rede */
-    .icon-picker{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
-    .icon-picker-opt{width:26px;height:26px;padding:0;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--border);border-radius:50%;background:var(--card);cursor:pointer;flex-shrink:0}
-    .icon-picker-opt:hover{border-color:var(--border-strong)}
-    .icon-picker-opt.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset,0 0 0 1px var(--accent)}
-    .icon-picker-opt img{width:18px;height:18px;border-radius:50%}
+    /* seletor de ícone de rede (presets + upload de SVG), usado em "Adicionar rede" e na edição de
+       cada rede: um botão-gatilho circular que mostra o ícone atual e abre um popover ancorado
+       embaixo dele — evita jogar presets + upload numa fileira inline que quebrava torto ao lado
+       dos outros campos da linha. */
+    .icon-picker-wrap{position:relative;flex-shrink:0}
+    .icon-picker-trigger{width:30px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--border);border-radius:50%;background:var(--card);cursor:pointer;flex-shrink:0;transition:border-color .12s}
+    .icon-picker-trigger:hover{border-color:var(--border-strong)}
+    .icon-picker-trigger.open{border-color:var(--accent-ink);box-shadow:0 0 0 2px var(--accent-ink) inset,0 0 0 1px var(--accent-ink)}
+    .icon-picker-trigger img{width:20px;height:20px;border-radius:50%}
     .icon-picker-none{font-size:14px;line-height:1;color:var(--muted)}
-    .icon-picker-upload{font-size:0}
-    .icon-picker-upload-label{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.02em}
+    /* posicionado via JS (position:fixed + top/left calculados do gatilho) porque é anexado
+       direto ao <body> — foge de qualquer ancestral com overflow:hidden/auto que o cortaria */
+    .icon-picker-popover{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:10px;width:190px;z-index:200}
+    .icon-picker-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+    .icon-picker-opt{width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--border);border-radius:50%;background:var(--card);cursor:pointer}
+    .icon-picker-opt:hover{border-color:var(--border-strong)}
+    .icon-picker-opt.selected{border-color:var(--accent-ink);box-shadow:0 0 0 2px var(--accent-ink) inset,0 0 0 1px var(--accent-ink)}
+    .icon-picker-opt img{width:20px;height:20px;border-radius:50%}
+    .icon-picker-upload-btn{display:flex;align-items:center;gap:7px;width:100%;margin-top:9px;padding:7px 9px;border:1px dashed var(--border-strong);border-radius:var(--radius-sm);background:var(--surface-muted);color:var(--muted);font-size:11.5px;font-weight:700;cursor:pointer;transition:background .12s,border-color .12s,color .12s;box-sizing:border-box}
+    .icon-picker-upload-btn:hover{background:var(--accent-weak);border-color:var(--accent-ink);color:var(--accent-ink)}
+    .icon-picker-upload-btn.selected{border-style:solid;border-color:var(--accent-ink);color:var(--accent-ink)}
+    .icon-picker-upload-btn svg{flex-shrink:0}
+    .icon-picker-upload-preview{width:18px;height:18px;border-radius:50%;flex-shrink:0}
 
-    /* Modal genérico: fundo escurecido (backdrop) + caixa central, usado por todos os 4 modais */
+    /* Modal genérico: fundo escurecido (backdrop) + caixa central, usado por todos os modais.
+       Estrutura em 3 partes empilhadas (header/body/footer) numa coluna flex — o header (título +
+       ações) e o footer (botões) ficam fixos, só o body rola. O "overflow:hidden" no .modal (em
+       vez de overflow-y:auto direto nele) é o que garante os 4 cantos igualmente arredondados:
+       como a caixa toda vira a "moldura" e cada parte é só uma faixa retangular dentro dela, o
+       clique do border-radius nunca fica cortado no meio de uma faixa, só nos cantos reais da caixa. */
     .modal-backdrop{position:fixed;inset:0;background:var(--backdrop);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
-    .modal{position:relative;background:var(--card);border-radius:var(--radius-lg);padding:18px;max-width:820px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+    .modal{position:relative;background:var(--card);border-radius:var(--radius-lg);max-width:820px;width:100%;max-height:90vh;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;overflow:hidden}
     /* modal de Configurações: mais largo, para caber o menu lateral + o conteúdo da seção */
     .modal.modal--wide{max-width:900px}
-    .modal h2{margin:0 0 14px;padding-right:30px;font-size:16px;font-family:'Poppins',sans-serif}
-    /* Botão "X" de fechar, fixado no canto superior direito do modal */
-    .modal-close{position:absolute;top:14px;right:14px;width:28px;height:28px;border:0;background:transparent;color:var(--muted);font-size:15px;line-height:1;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
+    .modal-header{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px;border-bottom:1px solid var(--border)}
+    .modal-header h2{margin:0}
+    .modal-header-actions{display:flex;align-items:center;gap:2px;flex-shrink:0}
+    .modal-body{flex:1 1 auto;overflow-y:auto;padding:16px 18px}
+    .modal-footer{flex:0 0 auto;display:flex;gap:8px;justify-content:flex-end;padding:14px 18px;border-top:1px solid var(--border)}
+    /* modal sem rodapé de botões (ex: "Postagens do dia") — o body já encosta no canto de baixo */
+    .modal-body:last-child{padding-bottom:18px}
+    /* Botão "X" (e o "⋮" de mais ações) — agora um item normal na linha do header, não mais
+       posicionado sobre o texto do título */
+    .modal-close{position:static;width:28px;height:28px;border:0;background:transparent;color:var(--muted);font-size:15px;line-height:1;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
     .modal-close:hover{background:var(--surface-muted);color:var(--text)}
 
     /* Menu lateral de Configurações: categorias à esquerda, conteúdo da seção selecionada à direita */
     .settings-layout{display:flex;gap:18px;min-height:380px}
     .settings-sidebar{display:flex;flex-direction:column;gap:2px;flex:0 0 170px;border-right:1px solid var(--border);padding-right:14px}
-    .settings-nav-btn{width:100%;text-align:left;padding:9px 11px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;transition:background .12s,color .12s}
+    .settings-nav-btn{width:100%;text-align:left;padding:9px 11px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;transition:background .12s,color .12s}
     .settings-nav-btn:hover{background:var(--surface-muted);color:var(--text)}
-    .settings-nav-btn.active{background:var(--accent-weak);color:var(--accent)}
+    .settings-nav-btn.active{background:var(--accent-weak);color:var(--accent-ink)}
     .settings-content{flex:1;min-width:0;overflow-y:auto;max-height:64vh}
     .settings-panel{display:none;flex-direction:column;gap:8px}
     .settings-panel.active{display:flex}
@@ -228,24 +352,34 @@
     /* seta giratória, reaproveitada em qualquer botão que abre/fecha algo (ex: sub-dropdown de formatos) */
     .settings-caret{font-size:10px;color:var(--muted);transition:transform .15s;flex-shrink:0}
 
+    /* Seletor de cor do tema (Configurações > Aparência): cada bolinha mostra a cor de
+       destaque no modo escuro (metade superior) e no modo claro (metade inferior). */
+    .color-theme-grid{display:grid;grid-template-columns:repeat(4,44px);gap:12px}
+    .color-swatch{position:relative;width:44px;height:44px;border-radius:50%;padding:0;border:0;cursor:pointer;background:linear-gradient(135deg, var(--sw-dark) 50%, var(--sw-light) 50%);box-shadow:0 0 0 1px var(--border);transition:transform .12s,box-shadow .12s}
+    .color-swatch:hover{transform:scale(1.06)}
+    .color-swatch.selected{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--sw-dark)}
+    .color-swatch-check{position:absolute;top:-3px;left:-3px;width:18px;height:18px;border-radius:50%;background:var(--card);color:var(--sw-dark);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px var(--border)}
+    .color-swatch-custom{background:var(--surface-muted);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+    .color-swatch-custom input[type=color]{position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;opacity:0;cursor:pointer}
+
     /* Linha de rede social (dentro de Configurações > Redes), com seus formatos em um sub-dropdown */
     .net-row{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
     .net-row-head{display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--card);flex-wrap:wrap}
     /* exibição normal (somente leitura) vs. campos editáveis — só um dos dois aparece por vez */
     .net-view{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
-    .net-view-name{font-weight:600;color:var(--text)}
+    .net-view-name{font-weight:700;color:var(--text)}
     .net-view-short{color:var(--text-faint)}
     .net-edit-fields{display:none;align-items:center;gap:6px;flex:1;min-width:0}
     .net-row.editing .net-view{display:none}
     .net-row.editing .net-edit-fields{display:flex}
-    .net-row-formats-toggle{flex-shrink:0;background:transparent;border:1px solid var(--border);border-radius:999px;padding:4px 9px;font-size:11.5px;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap}
+    .net-row-formats-toggle{flex-shrink:0;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 9px;font-size:11.5px;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
     .net-row-formats-toggle:hover{color:var(--text);border-color:var(--border-strong)}
     .net-row-formats{display:none;flex-direction:column;gap:8px;padding:10px;border-top:1px solid var(--border);background:var(--surface-muted)}
     .net-row.open .net-row-formats{display:flex}
     .net-row.open .net-row-formats-toggle .settings-caret{transform:rotate(180deg)}
     /* Linha de um formato cadastrado (nome + largura×altura + extensões), dentro do sub-dropdown de uma rede */
     .format-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-size:12px}
-    .format-row-name{font-weight:600;color:var(--text)}
+    .format-row-name{font-weight:700;color:var(--text)}
     .format-row-meta{color:var(--muted);flex:1}
     /* modal de criar/editar postagem: blocos empilhados numa coluna só, um abaixo do outro */
     .grid-2{display:grid;grid-template-columns:1fr;gap:16px}
@@ -266,39 +400,61 @@
     .autocomplete-item img{width:28px;height:28px;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:var(--white);flex-shrink:0}
     .autocomplete-item .ac-name{flex:1;line-height:1.25;font-size:12.5px;color:var(--text)}
     .autocomplete-item .ac-code{font-size:10.5px;color:var(--muted);flex-shrink:0}
-    .autocomplete-empty{padding:10px 8px;font-size:12px;color:var(--muted)}
-    .autocomplete-item.ac-manual .ac-name{color:var(--accent);font-weight:600}
+    .autocomplete-item.ac-manual .ac-name{color:var(--accent-ink);font-weight:700}
     .selected-products{display:flex;flex-direction:column;gap:8px;margin-top:8px}
     .product-chip{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);box-shadow:var(--shadow-sm);transition:box-shadow .15s,border-color .15s}
     .product-chip:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong)}
     .product-chip img{width:44px;height:44px;object-fit:contain;border-radius:9px;background:var(--surface-muted);border:1px solid var(--border);flex-shrink:0;padding:3px}
     .product-chip .pc-body{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
-    .product-chip .pc-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
-    .product-chip .pc-code{font-size:10.5px;color:var(--muted);font-weight:500}
-    .product-chip .pc-remove{border:0;background:var(--surface-muted);color:var(--muted);cursor:pointer;font-size:13px;padding:4px 8px;border-radius:8px;flex-shrink:0;font-family:inherit}
+    .product-chip .pc-name{font-size:13px;font-weight:700;color:var(--text);line-height:1.3}
+    .product-chip .pc-code{font-size:10.5px;color:var(--muted);font-weight:400}
+    .product-chip .pc-remove{border:0;background:var(--surface-muted);color:var(--muted);cursor:pointer;font-size:13px;padding:4px 8px;border-radius:8px;flex-shrink:0;font-family:inherit;display:inline-flex;align-items:center;justify-content:center}
     .product-chip .pc-remove:hover{background:var(--danger-bg-strong);color:var(--danger)}
 
     /* Seções agrupadas dentro dos formulários dos modais (ex: "Conteúdo", "Categorização") */
     .form-group{background:var(--surface-muted);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px}
     .form-group:last-child{margin-bottom:0}
-    .form-group .fg-label{font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+    /* título de seção (H3) — linha fina embaixo pra ancorar visualmente o bloco, já que o fundo
+       cinza-claro do .form-group sozinho não destacava o suficiente onde uma seção termina e a
+       próxima começa */
+    .form-group .fg-label{font-size:12px;padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--border)}
     .form-group label:not(.chip){color:var(--muted)}
 
-    /* Pré-visualização ao vivo da postagem, no topo do modal de criar/editar */
-    .modal-preview{display:flex;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:var(--card);box-shadow:var(--shadow-sm)}
-    .modal-preview .mp-bar{width:5px;flex-shrink:0;background:var(--border-strong);transition:background .15s}
-    .modal-preview .mp-body{flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
-    .modal-preview .mp-title{font-size:14.5px;font-weight:700;color:var(--text);line-height:1.3}
-    .modal-preview .mp-title.placeholder{color:var(--text-faint);font-weight:500;font-style:italic}
-    .modal-preview .mp-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-    .modal-preview .mp-prod-thumb{width:26px;height:26px;object-fit:contain;border-radius:6px;background:var(--surface-muted);border:1px solid var(--border)}
 
     /* Caixa de sugestões de título (gerada a partir do(s) produto(s) selecionado(s)) */
     .title-suggestion{display:none;flex-direction:column;gap:6px;margin-top:6px;padding:8px 10px;border:1px dashed var(--accent);border-radius:var(--radius-sm);background:var(--accent-weak)}
-    .title-suggestion .ts-header{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.03em}
-    .title-suggestion .ts-shuffle{margin-left:auto;border:0;background:transparent;cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;line-height:1}
+    .title-suggestion .ts-header{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--accent-ink);text-transform:uppercase;letter-spacing:.03em}
+    .title-suggestion .ts-header .ts-icon{display:inline-flex;align-items:center}
+    .title-suggestion .ts-shuffle{margin-left:auto;border:0;background:transparent;cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
     .title-suggestion .ts-shuffle:hover{background:var(--card)}
     .title-suggestion .ts-option{display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--card);border-radius:8px;border:1px solid var(--border)}
     .title-suggestion .ts-text{flex:1;font-size:12.5px;font-style:italic;color:var(--text)}
-    .title-suggestion .ts-use{border:0;background:var(--accent);color:var(--on-accent);font-weight:600;font-size:11px;padding:3px 9px;border-radius:999px;cursor:pointer;flex-shrink:0;font-family:inherit}
+    .title-suggestion .ts-use{border:0;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:11.5px;height:24px;padding:0 10px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0;font-family:inherit}
     .title-suggestion .ts-use:hover{background:var(--accent-hover)}
+
+    /* Bloco de sugestões de conteúdo (pauta + estrutura) de acordo com a editoria selecionada */
+    .cs-list{display:flex;flex-direction:column;gap:8px}
+    .cs-empty{font-size:12.5px;color:var(--text-faint);padding:8px 2px}
+    .cs-card{padding:9px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)}
+    .cs-editoria{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--accent-ink);margin-bottom:4px}
+    .cs-subject{font-size:12.5px;font-weight:700;color:var(--text);line-height:1.4}
+    .cs-structure{font-size:11.5px;line-height:1.55;color:var(--muted);margin-top:4px}
+    .cs-structure b{color:var(--text)}
+    .cs-actions{display:flex;justify-content:flex-end;margin-top:7px}
+    .cs-use{border:0;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:11.5px;height:24px;padding:0 10px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0;font-family:inherit}
+    .cs-use:hover{background:var(--accent-hover)}
+
+    /* Pré-visualização do briefing: título como cabeçalho, campos em linhas rotuladas
+       (label + valor) em vez de um parágrafo corrido, e o conteúdo isolado num bloco à parte */
+    .bp-title{font-weight:800;font-size:14px;color:var(--text);margin-bottom:8px;line-height:1.3}
+    .bp-meta{display:flex;flex-direction:column;gap:5px}
+    .bp-row{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;line-height:1.5}
+    .bp-row-label{flex:0 0 auto;font-weight:700;color:var(--accent-ink);white-space:nowrap;padding-top:1px}
+    .bp-row-value{color:var(--text);min-width:0;overflow-wrap:anywhere}
+    .bp-row-value--clip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bp-row-list{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:2px;min-width:0;color:var(--text)}
+    .bp-row-list li{overflow-wrap:anywhere}
+    .bp-separator{color:var(--border-strong);font-size:11px;letter-spacing:1px;line-height:1;white-space:nowrap;overflow:hidden;margin:10px 0}
+    .bp-content{margin-top:2px}
+    .bp-content-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-ink);margin-bottom:5px}
+    .bp-content-text{font-size:13px;line-height:1.6;color:var(--text)}
