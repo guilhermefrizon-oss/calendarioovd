@@ -74,6 +74,34 @@
       const n = (APP_SETTINGS.networks||[]).find(x=>x.name===name);
       return (n && n.shortName) || name || '';
     }
+
+    // normaliza rede(s)/tipo(s)/formato(s) de uma postagem numa lista de { channel, types, places }.
+    // Usa post.channels quando presente — postagens geradas a partir do agendamento de uma
+    // editoria cobrem várias redes de uma vez, cada uma com seus próprios tipos e formatos — e
+    // cai para uma lista de um item só a partir dos campos legados (channel/place/type) usados
+    // pelas postagens criadas manualmente pelo modal (uma rede por postagem).
+    function postChannelEntries(p){
+      if(Array.isArray(p.channels) && p.channels.length>0) return p.channels;
+      if(!p.channel) return [];
+      return [{ channel: p.channel, types: [p.type||'Static'], places: Array.isArray(p.place)?p.place.slice():[p.place].filter(Boolean) }];
+    }
+    // texto legível com o detalhe completo de redes/formatos/tipos de uma postagem — usado em tooltips
+    function postChannelsDetailText(p){
+      return postChannelEntries(p).map(c=>{
+        const typesLabel = (c.types||[]).map(t=> t==='Video'?'Vídeo':'Estático').join('/');
+        return `${networkShortName(c.channel)}: ${(c.places||[]).join(', ')}${typesLabel?` (${typesLabel})`:''}`;
+      }).join(' · ');
+    }
+    // true se as redes da postagem têm tipos/formatos diferentes entre si — só acontece em cards
+    // vindos do agendamento de uma editoria (cada rede pode ter sua própria combinação). Nesse
+    // caso o modal simples (um Tipo + um conjunto de Formatos para a postagem toda) não consegue
+    // representar a distribuição, então Formato/Tipo/Redes ficam travados na edição.
+    function isHeterogeneousChannels(entries){
+      if(entries.length<=1) return false;
+      const sig = e=> JSON.stringify([(e.types||[]).slice().sort(), (e.places||[]).slice().sort()]);
+      const first = sig(entries[0]);
+      return entries.some(e=> sig(e)!==first);
+    }
     function normalizeStr(s){
       return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
     }
@@ -229,9 +257,69 @@
       wrap.querySelector('.mp-meta').innerHTML = tags.join('');
     }
 
+    // junta uma lista em português natural: "A", "A e B", "A, B e C"
+    function joinPt(items){
+      if(items.length===0) return '';
+      if(items.length===1) return items[0];
+      return `${items.slice(0,-1).join(', ')} e ${items[items.length-1]}`;
+    }
+
+    // texto puro (sem HTML) da pré-visualização atual do briefing — atualizado a cada
+    // renderBriefingPreview(), é o que o botão de copiar manda pra área de transferência
+    let currentBriefingText = '';
+
+    // pré-visualização do texto do briefing, abaixo de Notas — consolida título, formatos (com
+    // dimensões) e os links de onde salvar arte/referências, na ordem: Título, Formatos,
+    // Dimensões, Salvar em, Referências salvas em. Não inclui "Briefing salvo em" porque esse
+    // campo indica onde o PRÓPRIO briefing fica, não é conteúdo do briefing em si.
+    function renderBriefingPreview(){
+      const el = $('mBriefingPreview'); if(!el) return;
+      const title = $('mTitle').value.trim();
+      const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
+      const checkedPlaces = Array.from(document.querySelectorAll('input[name="mPlace"]:checked')).map(n=>n.value);
+      const formats = formatsForNetworks(nets).filter(f=> checkedPlaces.includes(f.name));
+      const dims = formats.filter(f=> f.width && f.height).map(f=> `${f.width}x${f.height}px`);
+      const artsLink = $('mArtsLink').value.trim();
+      const referencesLink = $('mReferencesLink').value.trim();
+
+      // cada linha guarda a versão em texto puro (pro botão de copiar) e em HTML (pra exibição,
+      // só o título em negrito) lado a lado, pra nunca ficarem dessincronizadas — por exemplo,
+      // se o Título ainda estiver vazio mas outros campos já preenchidos
+      const rows = [];
+      if(title) rows.push({ plain: title, html: `<strong>${escapeHtml(title)}</strong>` });
+      if(checkedPlaces.length) rows.push({ plain: `Formatos: ${joinPt(checkedPlaces)}` });
+      if(dims.length) rows.push({ plain: `Dimensões: ${joinPt(dims)}` });
+      if(artsLink) rows.push({ plain: `Salvar em: ${artsLink}` });
+      if(referencesLink) rows.push({ plain: `Referências salvas em: ${referencesLink}` });
+
+      currentBriefingText = rows.map(r=>r.plain).join('\n');
+      el.innerHTML = rows.length>0
+        ? rows.map(r=>`<div>${r.html || escapeHtml(r.plain)}</div>`).join('')
+        : `<span style="color:var(--text-faint)">Preencha os campos acima para ver o texto do briefing aqui.</span>`;
+    }
+
+    // copia texto para a área de transferência — tenta a Clipboard API moderna e cai para o
+    // truque do textarea temporário + execCommand quando ela não está disponível (comum em
+    // páginas abertas como arquivo local, fora de um contexto seguro/https)
+    function copyTextToClipboard(text){
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        return navigator.clipboard.writeText(text).catch(()=> legacyCopyToClipboard(text));
+      }
+      legacyCopyToClipboard(text);
+      return Promise.resolve();
+    }
+    function legacyCopyToClipboard(text){
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try{ document.execCommand('copy'); } catch(e){}
+      document.body.removeChild(ta);
+    }
+
     function refreshModalDynamic(){
       renderTitleSuggestion();
       renderModalPreview();
+      renderBriefingPreview();
     }
 
     // ============================================================
@@ -539,20 +627,23 @@
     // de Filtros sobre a lista completa de postagens
     // ============================================================
     function getFilteredPosts(){
-      const items = state.posts.filter(p => activeTab==='All' || p.channel===activeTab);
+      const items = state.posts.filter(p => activeTab==='All' || postChannelEntries(p).some(c=>c.channel===activeTab));
       return items.filter(p=>{
         // editorias
         if(filters.editorias && filters.editorias.length>0){
           const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
           if(!eds.some(e=> filters.editorias.includes(e))) return false;
         }
-        // formatos (Feed/Story)
+        // formatos (Feed/Story) — considera os formatos de todas as redes da postagem
         if(filters.places && filters.places.length>0){
-          const pls = Array.isArray(p.place)?p.place:[p.place].filter(Boolean);
+          const pls = postChannelEntries(p).flatMap(c=>c.places||[]);
           if(!pls.some(z=> filters.places.includes(z))) return false;
         }
-        // tipo (Estático/Vídeo)
-        if(filters.types && filters.types.length>0){ if(!filters.types.includes(p.type||'Static')) return false; }
+        // tipo (Estático/Vídeo) — considera os tipos de todas as redes da postagem
+        if(filters.types && filters.types.length>0){
+          const tys = postChannelEntries(p).flatMap(c=>c.types||['Static']);
+          if(!tys.some(t=> filters.types.includes(t))) return false;
+        }
         // status
         if(filters.statuses && filters.statuses.length>0){ if(!filters.statuses.includes(p.status)) return false; }
         // collab
@@ -563,6 +654,104 @@
     }
 
     // ============================================================
+    // AÇÕES RÁPIDAS DO CARD — duplicar e excluir uma postagem,
+    // acessadas pelo menu "⋮" de cada card
+    // ============================================================
+    // menu "⋮" flutuante único, reaproveitado por todos os cards — se cada card criasse o seu
+    // próprio menu como filho, o "overflow:hidden" do card (usado para arredondar os cantos)
+    // cortaria o menu (foi o que causava só "Duplicar" aparecer e "Excluir" ficar cortado fora
+    // da área visível). Por isso ele fica fixo em document.body e é reposicionado a cada abertura.
+    let cardMenuEl = null;
+    function getCardMenuEl(){
+      if(cardMenuEl) return cardMenuEl;
+      cardMenuEl = document.createElement('div');
+      cardMenuEl.className = 'event-menu';
+      cardMenuEl.innerHTML = `<button type="button" class="menu-duplicate">Duplicar</button><button type="button" class="menu-delete danger">Excluir</button>`;
+      cardMenuEl.addEventListener('click', ev=> ev.stopPropagation());
+      document.body.appendChild(cardMenuEl);
+      return cardMenuEl;
+    }
+    // fecha o menu "⋮" aberto — chamado ao abrir outro menu, ao clicar fora ou ao rolar a página
+    function closeAllCardMenus(){ if(cardMenuEl) cardMenuEl.classList.remove('open'); }
+    document.addEventListener('click', closeAllCardMenus);
+    window.addEventListener('scroll', closeAllCardMenus, true);
+
+    // liga o clique de um botão "⋮" já existente à postagem de id `idSource` — string fixa (cards,
+    // recriados a cada render, então o listener nunca é reaproveitado) ou função que devolve o id
+    // atual (botão fixo do modal de edição, ligado uma única vez no início e reaproveitado a cada
+    // postagem editada, então precisa ler `editingId` no momento do clique, não travar num valor)
+    function wireCardMenuButton(btn, idSource){
+      btn.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const id = typeof idSource === 'function' ? idSource() : idSource;
+        if(!id) return;
+        const menu = getCardMenuEl();
+        const wasOpenForThisCard = menu.classList.contains('open') && menu.dataset.forId===id;
+        closeAllCardMenus();
+        if(wasOpenForThisCard) return;
+        menu.dataset.forId = id;
+        menu.querySelector('.menu-duplicate').onclick = (e)=>{ e.stopPropagation(); closeAllCardMenus(); duplicatePost(id); };
+        menu.querySelector('.menu-delete').onclick = (e)=>{ e.stopPropagation(); closeAllCardMenus(); deletePost(id); };
+        const rect = btn.getBoundingClientRect();
+        menu.style.top = `${rect.bottom + 4}px`;
+        menu.style.left = `${Math.max(4, rect.right - 136)}px`;
+        menu.classList.add('open');
+      });
+    }
+
+    // monta o botão "⋮" de um card — usado tanto na grade do calendário quanto na lista, onde
+    // cada card é recriado do zero a cada render (então religar o clique não acumula listeners)
+    function buildCardMenu(p, btnClass){
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = btnClass; btn.setAttribute('aria-label','Mais ações'); btn.title = 'Mais ações'; btn.textContent = '⋮';
+      wireCardMenuButton(btn, p.id);
+      return { btn };
+    }
+
+    // duplica uma postagem — cópia idêntica, com nova id, inserida logo após a original no mesmo dia
+    function duplicatePost(id){
+      const post = state.posts.find(p=>p.id===id); if(!post) return;
+      const copy = Object.assign({}, post, { id: generateId(), order: nextOrderForDate(post.date) });
+      if(Array.isArray(post.channels)) copy.channels = post.channels.map(c=>({ channel:c.channel, types:(c.types||[]).slice(), places:(c.places||[]).slice() }));
+      if(Array.isArray(post.place)) copy.place = post.place.slice();
+      if(Array.isArray(post.editoria)) copy.editoria = post.editoria.slice();
+      if(Array.isArray(post.products)) copy.products = post.products.map(x=>Object.assign({},x));
+      state.posts.push(copy);
+      saveState(); buildCalendar(); render();
+      pushUndo({ type:'create', posts:[copy.id] }); redoStack = [];
+    }
+
+    // exclui uma única postagem, com confirmação e possibilidade de desfazer (Ctrl+Z)
+    function deletePost(id){
+      const idx = state.posts.findIndex(p=>p.id===id); if(idx===-1) return;
+      if(!confirm('Excluir esta postagem?')) return;
+      const [removed] = state.posts.splice(idx,1);
+      saveState(); buildCalendar(); render();
+      pushUndo({ type:'delete', posts:[removed] }); redoStack = [];
+      // se a postagem excluída era a que estava aberta no modal de edição, fecha o modal
+      if(isEditing && editingId===id){ closeModal(); closeEditState(); }
+    }
+
+    // apaga de uma vez todas as postagens do mês atualmente visível no calendário — "resetar o
+    // mês do zero". Ignora os filtros ativos (apaga tudo do mês, filtrado ou não, pra realmente
+    // começar do zero) e pode ser desfeito com Ctrl+Z logo em seguida, como qualquer exclusão
+    function resetMonth(){
+      const YEAR = viewDate.getFullYear(), MONTH = viewDate.getMonth();
+      const prefix = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-`;
+      const toRemove = state.posts.filter(p=> (p.date||'').startsWith(prefix));
+      if(toRemove.length===0){ alert('Não há postagens neste mês para apagar.'); return; }
+      const monthLabel = $('monthLabelText') ? $('monthLabelText').textContent : `${MONTH+1}/${YEAR}`;
+      if(!confirm(`Isso vai apagar ${toRemove.length} postagem(ns) de ${monthLabel}. Dá pra desfazer com Ctrl+Z logo em seguida. Continuar?`)) return;
+      const removedIds = new Set(toRemove.map(p=>p.id));
+      state.posts = state.posts.filter(p=> !removedIds.has(p.id));
+      saveState(); buildCalendar(); render();
+      pushUndo({ type:'delete', posts: toRemove }); redoStack = [];
+      closeAllCardMenus();
+      // se a postagem aberta no modal de edição era uma das apagadas, fecha o modal
+      if(isEditing && editingId && removedIds.has(editingId)){ closeModal(); closeEditState(); }
+    }
+
+    // ============================================================
     // RENDERIZAÇÃO DE CARDS — cria os elementos visuais de uma
     // postagem, tanto na grade mensal quanto na visão em lista
     // ============================================================
@@ -570,18 +759,24 @@
     function createEventElement(p){
       const div = document.createElement('div'); div.className='event'; div.setAttribute('draggable','true'); div.dataset.id = p.id;
       const stColor = statusColor(p.status);
-      const icon = networkIcon(p.channel);
+      const entries = postChannelEntries(p);
+      const multi = entries.length>1;
+      const formatsCount = entries.reduce((n,c)=> n+(c.places||[]).length, 0);
+      const hasVideo = entries.some(c=>(c.types||[]).some(t=>(t||'').toLowerCase()==='video'));
+      const icon = multi ? entries.map(c=>networkIcon(c.channel)).join('') : networkIcon(p.channel);
+      const channelLabel = multi ? `${entries.length} redes` : escapeHtml(networkShortName(p.channel));
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
-      const placeText = Array.isArray(p.place)?p.place.join('/'):(p.place||'');
+      const placeText = multi ? `${formatsCount} formatos` : (Array.isArray(p.place)?p.place.join('/'):(p.place||''));
       const tagsHtml = [
         ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
-        (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : '',
+        multi ? `<span class="tag tag--outline">${formatsCount} formatos</span>` : '',
+        hasVideo ? `<span class="tag tag--outline">🎬 Vídeo</span>` : '',
         p.collab ? `<span class="tag tag--collab">Collab</span>` : ''
       ].filter(Boolean).join('');
       const prods = getPostProducts(p);
       const productNames = prods.map(x=>x.name).filter(Boolean).join(', ');
-      div.title = [p.status, placeText, productNames].filter(Boolean).join(' · ');
-      div.innerHTML = `<div class="event-bar" style="background:${stColor}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${escapeHtml(networkShortName(p.channel))}</span></div>${tagsHtml?`<div class="event-tags">${tagsHtml}</div>`:''}</div>`;
+      div.title = multi ? [p.status, postChannelsDetailText(p), productNames].filter(Boolean).join(' · ') : [p.status, placeText, productNames].filter(Boolean).join(' · ');
+      div.innerHTML = `<div class="event-bar" style="background:${stColor}"></div><div class="event-body"><div class="event-title">${escapeHtml(p.title)}</div><div class="event-sub"><span class="icon">${icon}</span><span>${channelLabel}</span></div>${tagsHtml?`<div class="event-tags">${tagsHtml}</div>`:''}</div>`;
       div.addEventListener('dragstart', (ev)=>{ ev.dataTransfer.setData('text/plain', p.id); div.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; });
       div.addEventListener('dragend', ()=>{ div.classList.remove('dragging'); });
       // soltar sobre um card específico reordena/insere a postagem arrastada antes ou depois dele
@@ -605,6 +800,7 @@
       });
       div.addEventListener('click', (ev)=>{ if(selectMode){ ev.stopPropagation(); const cb = div.querySelector('.select-checkbox'); if(cb){ cb.checked = !cb.checked; if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); } return; } openEditModal(p.id); });
       if(selectMode){ const cb = document.createElement('input'); cb.type='checkbox'; cb.className='select-checkbox'; cb.checked = selectedIds.has(p.id); cb.addEventListener('click', (ev)=>{ ev.stopPropagation(); if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); }); div.appendChild(cb); }
+      else { const { btn } = buildCardMenu(p, 'event-menu-btn'); div.appendChild(btn); }
       return div;
     }
 
@@ -612,14 +808,23 @@
     function createListRow(p){
       const row = document.createElement('div'); row.className='list-row'; row.dataset.id = p.id; row.setAttribute('draggable','true');
       const stColor = statusColor(p.status);
-      const icon = networkIcon(p.channel);
+      const entries = postChannelEntries(p);
+      const multi = entries.length>1;
+      const formatsCount = entries.reduce((n,c)=> n+(c.places||[]).length, 0);
+      const hasVideo = entries.some(c=>(c.types||[]).some(t=>(t||'').toLowerCase()==='video'));
+      const icon = multi ? entries.map(c=>networkIcon(c.channel)).join('') : networkIcon(p.channel);
+      const channelLabel = multi ? `${entries.length} redes` : escapeHtml(networkShortName(p.channel));
+      const channelTitle = multi ? postChannelsDetailText(p) : (p.channel||'');
       const eds = Array.isArray(p.editoria)?p.editoria:[p.editoria].filter(Boolean);
       const tagsHtml = [
         ...eds.map(e=>`<span class="tag" style="${tagStyle(editoriaColor(e))}">${escapeHtml(e)}</span>`),
+        multi ? `<span class="tag tag--outline">${formatsCount} formatos</span>` : '',
         p.collab ? `<span class="tag tag--collab">Collab</span>` : '',
-        (p.type||'').toLowerCase()==='video' ? `<span class="tag tag--outline">🎬 Vídeo</span>` : ''
+        hasVideo ? `<span class="tag tag--outline">🎬 Vídeo</span>` : ''
       ].filter(Boolean).join('');
-      row.innerHTML = `<span class="drag-handle" title="Arraste para reordenar">⠿</span><span class="list-row-bar" style="background:${stColor}"></span><span class="list-row-title">${escapeHtml(p.title)}</span><span class="list-row-channel" title="${escapeHtml(p.channel||'')}">${icon}${escapeHtml(networkShortName(p.channel))}</span><span class="list-row-tags">${tagsHtml}</span><span class="tag" style="${tagStyle(stColor)}">${escapeHtml(p.status||'')}</span>`;
+      row.innerHTML = `<span class="drag-handle" title="Arraste para reordenar">⠿</span><span class="list-row-bar" style="background:${stColor}"></span><span class="list-row-title">${escapeHtml(p.title)}</span><span class="list-row-channel" title="${escapeHtml(channelTitle)}">${icon}${channelLabel}</span><span class="list-row-tags">${tagsHtml}</span><span class="tag" style="${tagStyle(stColor)}">${escapeHtml(p.status||'')}</span>`;
+      const { btn: menuBtn } = buildCardMenu(p, 'list-row-menu-btn');
+      row.appendChild(menuBtn);
       row.addEventListener('click', ()=> openEditModal(p.id));
       // arrastar uma linha e soltar sobre outra reordena as postagens dentro do mesmo dia
       // (soltar em um dia diferente move a postagem para lá, ao fim daquele dia)
@@ -708,7 +913,12 @@
         // badge indicando quantas postagens ficaram escondidas
         const more = list.length>maxVisible ? list.length-maxVisible : 0;
         let mb = cell.querySelector('.more-badge');
-        if(more>0){ if(!mb){ mb = document.createElement('div'); mb.className='more-badge'; cell.appendChild(mb); } mb.textContent = `+${more}`; }
+        if(more>0){
+          // o badge é criado uma vez por célula e reaproveitado entre renders — o clique
+          // abre o popup com todas as postagens do dia (a grade só mostra até `maxVisible`)
+          if(!mb){ mb = document.createElement('div'); mb.className='more-badge'; mb.title='Ver todas as postagens deste dia'; mb.addEventListener('click', (ev)=>{ ev.stopPropagation(); openDayPosts(date); }); cell.appendChild(mb); }
+          mb.textContent = `+${more}`;
+        }
         else { if(mb) mb.remove(); }
       });
 
@@ -725,7 +935,7 @@
         const postsAll = state.posts.filter(p=>p.date===date && !p.collab);
         const total = postsAll.length;
         monthTotal += total;
-        const videoCount = postsAll.filter(p=> (p.type||'').toLowerCase()==='video').length;
+        const videoCount = postsAll.filter(p=> postChannelEntries(p).some(c=>(c.types||[]).some(t=>(t||'').toLowerCase()==='video'))).length;
         // soma ao total da semana, se a data cair dentro dela
         const d = new Date(date);
         if(d >= weekStart && d <= weekEnd) weekVideos += videoCount;
@@ -751,6 +961,32 @@
       }
 
       if(currentView==='list') renderListView();
+      // mantém o popup de "postagens do dia" em dia com qualquer mudança (edição, exclusão,
+      // duplicação, arrastar...), já que praticamente toda ação de estado passa por aqui
+      renderDayPostsList();
+    }
+
+    // ============================================================
+    // POPUP "POSTAGENS DO DIA" — abre ao clicar no badge "+N" da célula,
+    // quando o dia tem mais cards do que cabem nela (grade mostra só 3)
+    // ============================================================
+    let openDayPostsDate = null; // data (YYYY-MM-DD) do popup aberto, ou null se fechado
+    function openDayPosts(dateStr){
+      openDayPostsDate = dateStr;
+      renderDayPostsList();
+      $('dayPostsBackdrop').style.display = 'flex';
+    }
+    function closeDayPosts(){ openDayPostsDate = null; $('dayPostsBackdrop').style.display = 'none'; }
+    function renderDayPostsList(){
+      if(!openDayPostsDate) return;
+      const container = $('dayPostsList'); if(!container) return;
+      const list = sortByOrder(getFilteredPosts().filter(p=>p.date===openDayPostsDate));
+      if(list.length===0){ closeDayPosts(); return; } // a última postagem do dia foi removida/filtrada — fecha sozinho
+      container.innerHTML = '';
+      list.forEach(p=> container.appendChild(createListRow(p)));
+      const [y,m,d] = openDayPostsDate.split('-').map(Number);
+      const label = new Date(y, m-1, d).toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
+      $('dayPostsTitle').textContent = `Postagens de ${label}`;
     }
 
     function addPostFromForm(){
@@ -761,6 +997,19 @@
     // MODAL DE CRIAR/EDITAR POSTAGEM — abrir, fechar e salvar
     // (uma postagem por rede selecionada é criada ao salvar)
     // ============================================================
+    // mostra/esconde o aviso sobre a distribuição atual da postagem — Redes, Formato e Tipo
+    // continuam sempre editáveis (mesmo numa postagem vinda do agendamento de uma editoria, que
+    // por padrão pode ter uma combinação diferente de tipo/formato por rede); o aviso só avisa
+    // que, ao salvar, o Formato/Tipo escolhidos abaixo passam a valer para todas as redes
+    // marcadas, substituindo a combinação por rede que o agendamento tinha configurado
+    function setModalMultiChannelState(heterogeneous, post){
+      const note = $('mMultiChannelNote');
+      if(note){
+        note.style.display = heterogeneous ? 'block' : 'none';
+        if(heterogeneous) note.textContent = `Esta postagem tem formato/tipo diferentes por rede (definidos pelo agendamento da editoria): ${postChannelsDetailText(post)}. Ao salvar aqui, o Formato e o Tipo escolhidos abaixo passam a valer para todas as redes marcadas.`;
+      }
+    }
+
     function openModal(){
       $('modalBackdrop').style.display = 'flex';
       // pré-preenche a data com o mês/dia atualmente visível no calendário
@@ -768,6 +1017,7 @@
       $('mDate').value = defaultDate;
       // limpa os campos do formulário
       $('mTitle').value=''; $('mNotes').value=''; $('mProductName').value='';
+      $('mBriefingLink').value=''; $('mReferencesLink').value=''; $('mArtsLink').value='';
       document.querySelectorAll('.mNet').forEach(n=>n.checked=false); document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false);
       // formato depende da(s) rede(s) escolhida(s) — sem rede marcada, não há formato para pré-selecionar
       renderModalFormatsUI();
@@ -776,6 +1026,9 @@
       selectedProducts = [];
       renderSelectedProducts();
       hideProductSuggestions();
+      setModalMultiChannelState(false, null);
+      // postagem nova ainda não existe — não há o que duplicar/excluir
+      if($('modalMenuBtn')) $('modalMenuBtn').style.display = 'none';
       $('mTitle').focus();
     }
 
@@ -792,6 +1045,9 @@
       const statusEl = document.querySelector('input[name="mStatus"]:checked');
       const status = statusEl ? statusEl.value : ((APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho');
       const notes = $('mNotes').value.trim();
+      const briefingLink = $('mBriefingLink').value.trim();
+      const referencesLink = $('mReferencesLink').value.trim();
+      const artsLink = $('mArtsLink').value.trim();
       const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
       const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
       const products = selectedProducts.slice();
@@ -803,11 +1059,16 @@
         const post = state.posts.find(p=>p.id===pid);
         if(!post) return;
         const before = Object.assign({}, post);
-        // atualiza os campos — na edição só uma rede fica habilitada por vez
-        const ch = nets[0];
         const dateChanged = post.date !== date;
-        post.title = title; post.date = date; post.place = place.length===1?place[0]:place; post.type = type; post.status = status; post.notes = notes; post.channel = ch; post.collab = $('mCollab').checked;
+        post.title = title; post.date = date; post.status = status; post.notes = notes; post.collab = $('mCollab').checked;
+        post.briefingLink = briefingLink; post.referencesLink = referencesLink; post.artsLink = artsLink;
         post.editoria = editorias; post.products = products; delete post.productCode; delete post.productName;
+        // redes, formato e tipo são sempre reconstruídos a partir do que está marcado no modal —
+        // mesmo numa postagem vinda do agendamento de uma editoria (que por padrão pode ter uma
+        // combinação diferente de tipo/formato por rede), o Formato/Tipo escolhidos aqui passam
+        // a valer para todas as redes marcadas, sobrescrevendo essa combinação por rede
+        post.channel = nets[0]; post.place = place.slice(); post.type = type;
+        post.channels = nets.map(net=>({ channel: net, types: [type], places: place.slice() }));
         // se a data mudou, a postagem vai para o fim do novo dia
         if(dateChanged) post.order = nextOrderForDate(date, post.id);
         saveState(); render(); closeModal();
@@ -817,22 +1078,24 @@
         return;
       }
 
-      const created = [];
-      nets.forEach(net=>{
-        const order = nextOrderForDate(date) + created.length;
-        const p = { id: generateId(), title, date, channel: net, place: place.length===1?place[0]:place, type, status, notes, collab: $('mCollab').checked, color: null, editoria: editorias, products: products.slice(), order };
-        state.posts.push(p);
-        created.push(p);
-      });
+      // uma postagem só, mesmo com várias redes marcadas — a distribuição fica em post.channels
+      // e aparece resumida no card ("N redes", "N formatos")
+      const p = {
+        id: generateId(), title, date, channel: nets[0], place: place.slice(), type,
+        channels: nets.map(net=>({ channel: net, types: [type], places: place.slice() })),
+        status, notes, briefingLink, referencesLink, artsLink, collab: $('mCollab').checked, color: null, editoria: editorias, products: products.slice(), order: nextOrderForDate(date)
+      };
+      state.posts.push(p);
       saveState();
       render();
       closeModal();
-      // registra a ação no histórico (desfazer = apagar as postagens criadas)
-      pushUndo({ type:'create', posts: created.map(p=>p.id) });
+      // registra a ação no histórico (desfazer = apagar a postagem criada)
+      pushUndo({ type:'create', posts: [p.id] });
       // uma nova ação invalida o histórico de refazer
       redoStack = [];
       // limpa o modal para a próxima criação
-      $('mTitle').value=''; $('mNotes').value=''; document.querySelectorAll('.mNet').forEach(n=>n.checked=false); $('mCollab').checked = false;
+      $('mTitle').value=''; $('mNotes').value=''; $('mBriefingLink').value=''; $('mReferencesLink').value=''; $('mArtsLink').value='';
+      document.querySelectorAll('.mNet').forEach(n=>n.checked=false); $('mCollab').checked = false;
       document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false); $('mProductName').value=''; selectedProducts=[]; renderSelectedProducts();
       renderModalFormatsUI();
     }
@@ -900,770 +1163,7 @@
         { name:'Aprovado', color:'#10b981' },
         { name:'Agendado', color:'#6366f1' }
       ],
-      catalog: [
-        { code:'16.62.075.001', name:'Adesivo instantâneo cianoacrilato, 7,5 g, blister, VONDER' },
-        { code:'35.99.110.105', name:'Jogo de ferramentas com 110 peças, VONDER' },
-        { code:'35.99.110.104', name:'Jogo de ferramentas com 110 peças, para mecânico, VONDER' },
-        { code:'35.99.000.110', name:'Jogo de ferramentas com 110 peças, embalagem fechada, VONDER' },
-        { code:'35.99.059.000', name:'Jogo de ferramentas com 59 peças, VONDER' },
-        { code:'35.99.040.040', name:'Jogo de ferramentas com 40 peças, VONDER' },
-        { code:'30.72.038.000', name:'Jogo de ferramentas com 38 peças, VONDER' },
-        { code:'35.99.100.700', name:'Fixador de porta FP 700, cromado, VONDER' },
-        { code:'35.99.100.808', name:'Fixador de porta FP 808, cromado, VONDER' },
-        { code:'70.55.510.000', name:'Óculos de segurança Boxer incolor, VONDER' },
-        { code:'70.55.540.000', name:'Óculos de segurança Boxer fumê, VONDER' },
-        { code:'70.55.520.000', name:'Óculos de segurança Boxer âmbar, VONDER' },
-        { code:'70.55.140.000', name:'Óculos de segurança Foxter fumê, VONDER' },
-        { code:'60.01.100.120', name:'Parafusadeira/furadeira a bateria, 12 V, PFV 120, VONDER' },
-        { code:'68.78.156.000', name:'Inversor para solda com eletrodo e TIG, 150 A, RIV 156, VONDER' },
-        { code:'11.37.192.013', name:'Fita isolante, 19 mm x 20 m, preta, VONDER' },
-        { code:'11.37.191.013', name:'Fita isolante, 19 mm x 10 m, preta, VONDER' },
-        { code:'11.37.190.513', name:'Fita isolante, 19 mm x 5 m, preta, VONDER' },
-        { code:'11.37.191.023', name:'Fita isolante, 19 mm x 10 m, branca, VONDER' },
-        { code:'11.37.191.033', name:'Fita isolante, 19 mm x 10 m, azul, VONDER' },
-        { code:'38.68.500.005', name:'Trena de aço 5 m x 19 mm, VONDER' },
-        { code:'38.68.300.003', name:'Trena de aço 3 m x 12,5 mm, VONDER' },
-        { code:'38.68.750.075', name:'Trena de aço 7,5 m x 25 mm, VONDER' },
-        { code:'35.25.300.300', name:'Paquímetro digital, 300 mm, PD 300, VONDER' },
-        { code:'35.25.200.200', name:'Paquímetro digital, 200 mm, PD 200, VONDER' },
-        { code:'35.25.150.150', name:'Paquímetro digital, 150 mm, PD 150, VONDER' },
-        { code:'35.25.150.153', name:'Paquímetro digital, plástico, 150 mm, PD 153, VONDER' },
-        { code:'10.78.001.000', name:'Organizador de cabos, preto, VONDER' },
-        { code:'10.78.100.000', name:'Organizador de cabos, branco, VONDER' },
-        { code:'11.39.503.000', name:'Fita adesiva de alumínio 50 mm x 30 m VONDER' },
-        { code:'12.40.000.115', name:'Disco de corte diamantado, contínuo, para metais, metal super, 115 mm, VONDER' },
-        { code:'12.40.000.125', name:'Disco de corte diamantado, contínuo, para metais, metal super, 125 mm, VONDER' },
-        { code:'12.40.000.180', name:'Disco de corte diamantado, contínuo, para metais, metal super, 180 mm, VONDER' },
-        { code:'12.40.115.000', name:'Disco de corte diamantado, segmentado, para metais, metal super, 115 mm, VONDER' },
-        { code:'12.40.125.000', name:'Disco de corte diamantado, segmentado, para metais, metal super, 125 mm, VONDER' },
-        { code:'12.40.180.000', name:'Disco de corte diamantado, segmentado, para metais, metal super, 180 mm, VONDER' },
-        { code:'12.69.005.000', name:'Roda expansiva para motoesmeril, jogo com 5 peças, VONDER' },
-        { code:'15.57.000.900', name:'Pedestal plástico para corrente 90 cm, VONDER' },
-        { code:'16.39.073.000', name:'Adesivo veda-juntas 73 g VONDER' },
-        { code:'16.39.073.001', name:'Adesivo veda-juntas 73 g VONDER' },
-        { code:'16.72.000.090', name:'Cola madeira, 90 g, VONDER' },
-        { code:'16.72.000.501', name:'Cola branca extra, 500 g, VONDER' },
-        { code:'16.72.001.001', name:'Cola branca extra, 1 kg, VONDER' },
-        { code:'20.07.291.300', name:'Parafuso autoatarraxante, cabeça panela, 2,9 mm x 13,0 mm, VONDER' },
-        { code:'20.07.351.900', name:'Parafuso autoatarraxante, cabeça panela, 3,5 mm x 19,0 mm, VONDER' },
-        { code:'20.07.352.500', name:'Parafuso autoatarraxante, cabeça panela, 3,5 mm x 25,0 mm, VONDER' },
-        { code:'20.07.393.202', name:'Parafuso autoatarraxante, cabeça panela, 3,9 mm x 32,0 mm, com bucha 6 mm, VONDER' },
-        { code:'20.07.423.800', name:'Parafuso autoatarraxante, cabeça panela, 4,2 mm x 38,0 mm, VONDER' },
-        { code:'20.07.483.800', name:'Parafuso autoatarraxante, cabeça panela, 4,8 mm x 38,0 mm, VONDER' },
-        { code:'20.07.485.000', name:'Parafuso autoatarraxante, cabeça panela, 4,8 mm x 50,0 mm, VONDER' },
-        { code:'20.07.635.000', name:'Parafuso autoatarraxante, cabeça panela, 6,3 mm x 50,0 mm, VONDER' },
-        { code:'20.63.316.100', name:'Parafuso sextavado zincado, 3/16" x 1", UNC, rosca total, VONDER' },
-        { code:'20.63.316.112', name:'Parafuso sextavado zincado, 3/16" x 1.1/2", UNC, rosca total, VONDER' },
-        { code:'20.63.316.114', name:'Parafuso sextavado zincado, 3/16" x 1.1/4", UNC, rosca total, VONDER' },
-        { code:'20.63.316.200', name:'Parafuso sextavado zincado, 3/16" x 2", UNC, rosca total, VONDER' },
-        { code:'20.63.316.340', name:'Parafuso sextavado zincado, 3/16" x 3/4", UNC, rosca total, VONDER' },
-        { code:'28.08.010.017', name:'Fita de aço perfurada 17 mm x 0,40 mm x 10 m VONDER' },
-        { code:'28.08.010.019', name:'Fita de aço perfurada 19 mm x 0,40 mm x 10 m VONDER' },
-        { code:'28.08.017.010', name:'Fita de aço perfurada 17 mm x 0,40 mm x 10 m VONDER' },
-        { code:'28.08.019.010', name:'Fita de aço perfurada 19 mm x 0,40 mm x 10 m VONDER' },
-        { code:'28.08.019.030', name:'Fita de aço perfurada 19 mm x 0,40 mm x 30 m VONDER' },
-        { code:'28.08.030.017', name:'Fita de aço perfurada 17 mm x 0,40 mm x 30 m VONDER' },
-        { code:'28.08.030.019', name:'Fita de aço perfurada 19 mm x 0,40 mm x 30 m VONDER' },
-        { code:'28.48.146.500', name:'Chumbador CBV com prisioneiro, 1/4" x 65 mm, VONDER' },
-        { code:'28.48.388.000', name:'Chumbador CBV com prisioneiro, 3/8" x 80 mm, VONDER' },
-        { code:'28.48.516.750', name:'Chumbador CBV com prisioneiro, 5/16" x 75 mm, VONDER' },
-        { code:'28.51.101.001', name:'Porca sextavada polida, rosca MB, 10,0 mm, DIN 934 VONDER' },
-        { code:'28.51.101.201', name:'Porca sextavada polida, rosca MB, 12,0 mm, DIN 934 VONDER' },
-        { code:'28.51.101.401', name:'Porca sextavada polida, rosca MB, 14,0 mm, DIN 934 VONDER' },
-        { code:'28.51.101.601', name:'Porca sextavada polida, rosca MB, 16,0 mm, DIN 934 VONDER' },
-        { code:'28.94.004.960', name:'Escápula 4,9 mm x 70 mm, com bucha plástica de 10 mm, VONDER' },
-        { code:'28.94.234.600', name:'Escápula 3,3 mm x 42 mm, com bucha plástica de 6 mm, VONDER' },
-        { code:'28.94.249.700', name:'Escápula 4,8 mm x 60 mm, com bucha plástica de 10 mm, VONDER' },
-        { code:'28.94.334.600', name:'Pitão 3,3 mm x 53,0 mm, com 6 peças, VONDER' },
-        { code:'28.94.344.700', name:'Pitão 4,4 mm x 67,0 mm, com 6 peças, VONDER' },
-        { code:'28.94.349.700', name:'Pitão 4,8 mm x 67,0 mm, com 6 peças, VONDER' },
-        { code:'28.94.449.700', name:'Pitão 4,8 mm x 67,0 mm, com 4 peças e 4 buchas 10,0 mm, VONDER' },
-        { code:'28.98.100.000', name:'Grampeador manual, VONDER' },
-        { code:'28.98.200.000', name:'Grampeador/pinador manual, VONDER PLUS' },
-        { code:'28.98.210.010', name:'Protetor de cabos espiral, 10 mm, preto, VONDER' },
-        { code:'28.98.210.012', name:'Protetor de cabos espiral, 12 mm, preto, VONDER' },
-        { code:'28.98.210.014', name:'Protetor de cabos espiral, 14 mm, preto, VONDER' },
-        { code:'28.98.210.016', name:'Protetor de cabos espiral, 16 mm, preto, VONDER' },
-        { code:'28.98.210.018', name:'Protetor de cabos espiral, 18 mm, preto, VONDER' },
-        { code:'28.98.210.020', name:'Protetor de cabos espiral, 20 mm, preto, VONDER' },
-        { code:'28.98.210.025', name:'Protetor de cabos espiral, 25 mm, preto, VONDER' },
-        { code:'28.98.300.000', name:'Grampeador manual, VONDER CONSTRUTOR' },
-        { code:'28.98.500.000', name:'Grampeador manual, para escritório, VONDER' },
-        { code:'28.99.300.030', name:'Protetor de cabos, com aplicador, 30 mm, PA 030, VONDER' },
-        { code:'29.12.008.000', name:'Jogo de abraçadeiras rosca sem fim, 3/8" a 7/8", com 8 peças, VONDER' },
-        { code:'29.21.129.500', name:'Chumbador CBV com prisioneiro, 1/2" x 95 mm, VONDER' },
-        { code:'29.21.146.500', name:'Chumbador CBV com prisioneiro, 1/4" x 65 mm, VONDER' },
-        { code:'29.21.149.000', name:'Chumbador CBV com prisioneiro e prolongador, 1/4" x 90 mm, VONDER' },
-        { code:'29.21.381.100', name:'Chumbador CBV com prisioneiro e prolongador, 3/8" x 110 mm, VONDER' },
-        { code:'29.21.388.000', name:'Chumbador CBV com prisioneiro, 3/8" x 80 mm, VONDER' },
-        { code:'29.21.516.100', name:'Chumbador CBV com prisioneiro e prolongador, 5/16" x 100 mm, VONDER' },
-        { code:'29.21.516.750', name:'Chumbador CBV com prisioneiro, 5/16" x 75 mm, VONDER' },
-        { code:'29.26.393.200', name:'Parafuso autoatarraxante, cabeça panela, 3,9 mm x 32,0 mm, VONDER' },
-        { code:'29.26.423.200', name:'Parafuso autoatarraxante, cabeça panela, 4,2 mm x 32,0 mm, VONDER' },
-        { code:'29.26.423.800', name:'Parafuso autoatarraxante, cabeça panela, 4,2 mm x 38,0 mm, VONDER' },
-        { code:'29.26.482.500', name:'Parafuso autoatarraxante, cabeça panela, 4,8 mm x 25,0 mm, VONDER' },
-        { code:'29.26.483.200', name:'Parafuso autoatarraxante, cabeça panela, 4,8 mm x 32,0 mm, VONDER' },
-        { code:'29.26.483.800', name:'Parafuso autoatarraxante, cabeça panela, 4,8 mm x 38,0 mm, VONDER' },
-        { code:'29.26.484.500', name:'Parafuso autoatarraxante, cabeça panela, 4,8 mm x 45,0 mm, VONDER' },
-        { code:'29.26.485.000', name:'Parafuso autoatarraxante, cabeça panela, 4,8 mm x 50,0 mm, VONDER' },
-        { code:'29.26.553.800', name:'Parafuso autoatarraxante, cabeça panela, 5,5 mm x 38,0 mm, VONDER' },
-        { code:'29.26.554.500', name:'Parafuso autoatarraxante, cabeça panela, 5,5 mm x 45,0 mm, VONDER' },
-        { code:'29.26.555.000', name:'Parafuso autoatarraxante, cabeça panela, 5,5 mm x 50,0 mm, VONDER' },
-        { code:'29.26.635.000', name:'Parafuso autoatarraxante, cabeça panela, 6,3 mm x 50,0 mm, VONDER' },
-        { code:'29.35.000.206', name:'Pitão 3,3 mm x 60 mm, P-6, VONDER' },
-        { code:'29.35.000.208', name:'Pitão 4,2 mm x 70 mm, P-8, VONDER' },
-        { code:'29.35.000.210', name:'Pitão 4,8 mm x 70 mm, P-10, VONDER' },
-        { code:'29.35.206.000', name:'Pitão 3,3 mm x 60 mm, com bucha de nylon 6 mm, P-6, VONDER' },
-        { code:'29.35.208.000', name:'Pitão 4,2 mm x 70 mm, com bucha de nylon 8 mm, P-8, VONDER' },
-        { code:'29.35.210.000', name:'Pitão 4,8 mm x 70 mm, com bucha de nylon 10 mm, P-10, VONDER' },
-        { code:'29.35.308.000', name:'Escápula 5,5 mm x 70 mm, com bucha de nylon E-8, VONDER' },
-        { code:'29.35.310.000', name:'Escápula 6,3 mm x 70 mm, com bucha de nylon E-10, VONDER' },
-        { code:'29.41.000.206', name:'Pitão 3,3 mm x 60 mm, P-6 VONDER' },
-        { code:'29.41.000.208', name:'Pitão 4,2 mm x 70 mm, P-8 VONDER' },
-        { code:'29.41.000.210', name:'Pitão 4,8 mm x 70 mm, P-10 VONDER' },
-        { code:'29.41.206.000', name:'Pitão 3,3 mm x 60 mm, com bucha de nylon 6 mm, P-6, VONDER' },
-        { code:'29.41.208.000', name:'Pitão 4,2 mm x 70 mm, com bucha de nylon 8 mm, P-8, VONDER' },
-        { code:'29.41.210.000', name:'Pitão 4,8 mm x 70 mm, com bucha de nylon 10 mm, P-10, VONDER' },
-        { code:'29.41.310.000', name:'Escápula 4,8 mm x 70 mm, com bucha de nylon E-10, VONDER' },
-        { code:'30.85.012.001', name:'Lâmina para tesoura corta vergalhão TCV 12", VONDER' },
-        { code:'30.85.012.101', name:'Lâmina para tesoura corta vergalhão TCV 12", VONDER PLUS' },
-        { code:'30.85.014.001', name:'Lâmina para tesoura corta vergalhão TCV 14", VONDER' },
-        { code:'30.85.014.101', name:'Lâmina para tesoura corta vergalhão TCV 14", VONDER PLUS' },
-        { code:'31.98.001.000', name:'Esguicho metálico com revestimento emborrachado para jardim, 5 funções, EMP 1000 VONDER PLUS' },
-        { code:'31.98.003.012', name:'Conector triplo para engate rápido de 1/2", VONDER' },
-        { code:'31.98.012.002', name:'Engate rápido para mangueira 1/2", passagem livre, VONDER' },
-        { code:'31.98.012.007', name:'Conector plástico para torneira, rosca fêmea 3/4" VONDER' },
-        { code:'31.98.012.008', name:'Conector plástico para torneira, rosca macho 3/4" VONDER' },
-        { code:'31.98.012.010', name:'Engate rápido para mangueira 1/2", com bloqueador de fluxo, VONDER' },
-        { code:'31.98.012.034', name:'Engate rápido para mangueira 3/4", passagem livre, VONDER' },
-        { code:'31.98.012.070', name:'Esguicho plástico para jardim, 10 funções, engate 1/2", com prolongador, VONDER' },
-        { code:'31.98.012.076', name:'Esguicho de alumínio de 1/2", tipo jet, 76,0 cm, VONDER' },
-        { code:'31.98.012.104', name:'Esguicho plástico para jardim, 6 funções, engate 1/2", VONDER' },
-        { code:'31.98.012.107', name:'Esguicho plástico para jardim, 7 funções, engate 1/2", VONDER' },
-        { code:'31.98.012.217', name:'Esguicho metálico para jardim, tipo pistola, engate 1/2", EP 217, VONDER' },
-        { code:'31.98.012.227', name:'Esguicho plástico para jardim, 7 funções, reto, engate 1/2", ER 227, VONDER' },
-        { code:'31.98.012.237', name:'Esguicho metálico para jardim, tipo pistola, EP 237, VONDER' },
-        { code:'31.98.012.240', name:'Ducha telescópica portátil, VONDER' },
-        { code:'31.98.012.500', name:'Esguicho metálico para jardim, tipo pistola, engate 1/2", EP 500, VONDER' },
-        { code:'31.98.017.000', name:'Aspersor oscilante, 17 jatos, VONDER' },
-        { code:'31.98.112.007', name:'Conector de alumínio para torneira, rosca fêmea de 3/4" VONDER' },
-        { code:'31.98.112.104', name:'Esguicho plástico para jardim, 6 funções, com acessórios, engate 1/2", VONDER' },
-        { code:'31.98.165.220', name:'Ducha telescópica portátil DTP 220 VONDER' },
-        { code:'31.98.350.000', name:'Esguicho metálico para jardim, tipo pistola, engate 1/2", EMP 350 VONDER PLUS' },
-        { code:'31.98.550.000', name:'Esguicho metálico para jardim, 5 funções, EMP 550 VONDER PLUS' },
-        { code:'32.12.200.100', name:'Roldana para portão 2", tipo V, em nylon, caixa aberta, VONDER' },
-        { code:'32.12.200.170', name:'Roldana para portão 2", tipo V, aço zincado, com rolamento e pino, VONDER' },
-        { code:'32.12.200.171', name:'Roldana para portão 2", tipo U, aço zincado, com rolamento e pino, VONDER' },
-        { code:'32.12.200.182', name:'Roldana para portão 2", tipo U, aço zincado, com rolamento e bucha, VONDER' },
-        { code:'32.12.200.200', name:'Roldana para portão 2", tipo V, aço zincado, sem caixa, VONDER' },
-        { code:'32.12.200.300', name:'Roldana para portão 2", tipo V, aço polido, sem caixa, VONDER' },
-        { code:'32.12.200.400', name:'Roldana para portão 2", tipo V, aço zincado, caixa fechada, VONDER' },
-        { code:'32.12.200.500', name:'Roldana para portão 2", tipo V, aço zincado, caixa aberta, com parafuso, VONDER' },
-        { code:'32.12.200.600', name:'Roldana para portão 2", tipo V, aço zincado, caixa aberta, com rebite, VONDER' },
-        { code:'32.12.212.000', name:'Roldana para portão 2.1/2", tipo V, em nylon, sem caixa, VONDER' },
-        { code:'32.12.212.100', name:'Roldana para portão 2.1/2", tipo V, em nylon, caixa aberta, VONDER' },
-        { code:'32.12.212.190', name:'Roldana para portão 2.1/2", tipo V, aço zincado, com rolamento e pino, VONDER' },
-        { code:'32.12.212.191', name:'Roldana para portão 2.1/2", tipo U, aço zincado, com rolamento e pino, VONDER' },
-        { code:'32.12.212.192', name:'Roldana para portão 2.1/2", tipo U, aço zincado, com rolamento e bucha, VONDER' },
-        { code:'32.12.212.200', name:'Roldana para portão 2.1/2", tipo V, aço zincado, sem caixa, VONDER' },
-        { code:'32.12.212.300', name:'Roldana para portão 2.1/2", tipo V, aço polido, sem caixa, VONDER' },
-        { code:'32.12.212.400', name:'Roldana para portão 2.1/2", tipo V, aço zincado, caixa fechada, VONDER' },
-        { code:'32.12.212.500', name:'Roldana para portão 2.1/2", tipo V, aço zincado, caixa aberta, com parafuso, VONDER' },
-        { code:'32.12.212.600', name:'Roldana para portão 2.1/2", tipo V, aço zincado, caixa aberta, com rebite, VONDER' },
-        { code:'32.12.300.191', name:'Roldana para portão 3", tipo U, aço zincado, com rolamento e pino, VONDER' },
-        { code:'32.12.300.192', name:'Roldana para portão 3", tipo U, aço zincado, com rolamento e bucha, VONDER' },
-        { code:'32.90.380.000', name:'Tarjeta fio redondo zincada 38 mm, VONDER' },
-        { code:'32.90.380.001', name:'Tarjeta fio redondo zincada 38 mm, encartelado, VONDER' },
-        { code:'32.90.510.000', name:'Tarjeta fio redondo zincada 51 mm, VONDER' },
-        { code:'32.90.510.001', name:'Tarjeta fio redondo zincada 51 mm, encartelado, VONDER' },
-        { code:'32.90.630.000', name:'Tarjeta fio redondo zincada 63 mm, VONDER' },
-        { code:'32.90.630.001', name:'Tarjeta fio redondo zincada 63 mm, encartelado, VONDER' },
-        { code:'32.90.760.000', name:'Tarjeta fio redondo zincada 76 mm, VONDER' },
-        { code:'32.90.760.001', name:'Tarjeta fio redondo zincada 76 mm, encartelado, VONDER' },
-        { code:'33.41.190.050', name:'Jogo de ponteira para martelete rebarbador MR 190, VONDER' },
-        { code:'33.85.120.001', name:'Lâmina para tesoura corta vergalhão 12" VONDER' },
-        { code:'33.99.208.005', name:'Suporte do eixo/mancal para carrinho de mão, VONDER' },
-        { code:'35.18.140.641', name:'Cabo de aço alma de fibra polido, 14,30 mm - 9/16", 6 x 41WS, VONDER' },
-        { code:'35.19.064.636', name:'Cabo de aço polido, alma de aço cabo independente, 6,35 mm - 1/4", 6 x 36WS, VONDER' },
-        { code:'35.19.080.625', name:'Cabo de aço polido, alma de aço cabo independente, 7,94 mm - 5/16", 6 x 25F, VONDER' },
-        { code:'35.19.080.636', name:'Cabo de aço polido, alma de aço cabo independente, 7,94 mm - 5/16, 6 x 36WS, VONDER' },
-        { code:'35.19.110.625', name:'Cabo de aço polido, alma de aço cabo independente, 11,10 mm - 7/16", 6 x 25F, VONDER' },
-        { code:'35.19.130.625', name:'Cabo de aço polido, alma de aço cabo independente, 12,70 mm - 1/2", 6 x 25F, VONDER' },
-        { code:'35.19.130.641', name:'Cabo de aço polido, alma de aço cabo independente, 12,70 mm - 1/2", 6 x 41WS, VONDER' },
-        { code:'35.19.160.625', name:'Cabo de aço polido, alma de aço cabo independente, 15,90 mm - 5/8", 6 x 25F, VONDER' },
-        { code:'35.19.160.641', name:'Cabo de aço polido, alma de aço cabo independente, 15,90 mm - 5/8", 6 x 41WS, VONDER' },
-        { code:'35.19.190.625', name:'Cabo de aço polido, alma de aço cabo independente, 19,10 mm - 3/4", 6 x 25F, VONDER' },
-        { code:'35.19.190.641', name:'Cabo de aço polido, alma de aço cabo independente, 19,10 mm - 3/4", 6 x 41WS, VONDER' },
-        { code:'35.19.220.625', name:'Cabo de aço polido, alma de aço cabo independente, 22,20 mm - 7/8", 6 x 25F, VONDER' },
-        { code:'35.19.220.641', name:'Cabo de aço polido, alma de aço cabo independente, 22,20 mm - 7/8", 6 x 41WS, VONDER' },
-        { code:'35.19.250.625', name:'Cabo de aço polido, alma de aço cabo independente, 25,40 mm - 1", 6 x 25F, VONDER' },
-        { code:'35.19.250.641', name:'Cabo de aço polido, alma de aço cabo independente, 25,40 mm - 1", 6 x 41WS, VONDER' },
-        { code:'35.19.290.625', name:'Cabo de aço polido, alma de aço cabo independente, 28,6 mm - 1.1/8", 6 x 25F, VONDER' },
-        { code:'35.19.320.625', name:'Cabo de aço polido, alma de aço cabo independente, 31,8 mm - 1.1/4", 6 x 25F, VONDER' },
-        { code:'35.19.380.636', name:'Cabo de aço polido, alma de aço cabo independente, 38,1 mm - 1.1/2", 6 x 36WS, VONDER' },
-        { code:'35.19.510.641', name:'Cabo de aço polido, alma de aço cabo independente, 50,8 mm - 2", 6 x 41WS, VONDER' },
-        { code:'35.29.064.619', name:'Cabo de aço polido, alma de aço cabo independente, 6,35 mm - 1/4", 6 x 19S, VONDER' },
-        { code:'35.29.080.619', name:'Cabo de aço polido, alma de aço cabo independente, 7,94 mm - 5/16", 6 x 19S, VONDER' },
-        { code:'35.37.025.025', name:'Micrômetro externo digital 0-25 mm, MD 025, VONDER' },
-        { code:'35.37.050.050', name:'Micrômetro externo digital 25 mm - 50 mm, MD 050, VONDER' },
-        { code:'35.69.200.100', name:'Gancho olhal em aço, 1,12 T, sem trava, grau 8, VONDER PLUS' },
-        { code:'35.69.200.120', name:'Gancho olhal em aço, 12,50 T, sem trava, grau 8, VONDER PLUS' },
-        { code:'35.69.200.200', name:'Gancho olhal em aço, 2,00 T, sem trava, grau 8, VONDER PLUS' },
-        { code:'35.69.200.300', name:'Gancho olhal em aço, 3,15 T, sem trava, grau 8, VONDER PLUS' },
-        { code:'35.69.200.500', name:'Gancho olhal em aço, 5,30 T, sem trava, grau 8, VONDER PLUS' },
-        { code:'35.69.200.800', name:'Gancho olhal em aço, 8,00 T, sem trava, grau 8, VONDER PLUS' },
-        { code:'35.69.300.006', name:'Gancho clevis, com trava, 1,12 tonelada (1,12 tf), grau 8, VONDER PLUS' },
-        { code:'35.69.300.010', name:'Gancho clevis, com trava, 3,15 toneladas (3,15 tf), grau 8, VONDER PLUS' },
-        { code:'35.69.300.013', name:'Gancho clevis, com trava, 5,3 toneladas (5,3 tf), grau 8, VONDER PLUS' },
-        { code:'35.69.300.016', name:'Gancho clevis, com trava, 8,0 toneladas (8,0 tf), grau 8, VONDER PLUS' },
-        { code:'35.69.300.020', name:'Gancho clevis, com trava, 12,5 toneladas (12,5 tf), grau 8, VONDER' },
-        { code:'35.69.300.022', name:'Gancho clevis, com trava, 15,0 toneladas (15,0 tf), grau 8, VONDER' },
-        { code:'35.69.300.078', name:'Gancho clevis, com trava, 2,0 toneladas (2,0 tf), grau 8, VONDER PLUS' },
-        { code:'35.76.100.200', name:'Esticador olhal/olhal, para cabo de aço, 2", VONDER' },
-        { code:'35.80.300.090', name:'Grampo de aperto rápido tipo torpedo, GTPV 90 VONDER' },
-        { code:'35.80.300.130', name:'Grampo de aperto rápido tipo torpedo, GTPV 130 VONDER' },
-        { code:'35.80.300.300', name:'Grampo de aperto rápido tipo torpedo, GTPV 300 VONDER' },
-        { code:'35.80.400.225', name:'Grampo de aperto rápido tipo torpedo, GTPV 225 VONDER' },
-        { code:'35.80.400.385', name:'Grampo de aperto rápido tipo torpedo, GTPV 385 VONDER' },
-        { code:'35.80.400.680', name:'Grampo de aperto rápido tipo torpedo, GTPV 680 VONDER' },
-        { code:'35.81.003.010', name:'Jogo de rebites de rosca, M3 a M10, com 150 peças, VONDER' },
-        { code:'35.89.000.028', name:'Martelo 28 mm, borda intercambiável, nylon/poliuretano, cabo em madeira, VONDER' },
-        { code:'35.89.000.035', name:'Martelo 35 mm, borda intercambiável, nylon/poliuretano, cabo em madeira, VONDER' },
-        { code:'35.95.010.100', name:'Medidor de espessura 0 a 10 mm ME 010, VONDER' },
-        { code:'35.99.005.030', name:'Conjunto de bicos em aço inox para aplicador de silicone, VONDER' },
-        { code:'35.99.560.000', name:'Tubos isolantes termorretráteis, jogo com 560 peças, VONDER' },
-        { code:'36.06.300.008', name:'Chave combinada com catraca 8 mm VONDER' },
-        { code:'36.06.300.009', name:'Chave combinada com catraca 9 mm VONDER' },
-        { code:'36.06.300.010', name:'Chave combinada com catraca 10 mm VONDER' },
-        { code:'36.06.300.011', name:'Chave combinada com catraca 11 mm VONDER' },
-        { code:'36.06.300.012', name:'Chave combinada com catraca 12 mm VONDER' },
-        { code:'36.06.300.013', name:'Chave combinada com catraca 13 mm VONDER' },
-        { code:'36.06.300.014', name:'Chave combinada com catraca 14 mm VONDER' },
-        { code:'36.06.300.015', name:'Chave combinada com catraca 15 mm VONDER' },
-        { code:'36.06.300.017', name:'Chave combinada com catraca 17 mm VONDER' },
-        { code:'36.06.300.019', name:'Chave combinada com catraca 19 mm VONDER' },
-        { code:'36.24.001.000', name:'Cortador de chapas CC 025, VONDER' },
-        { code:'36.62.000.515', name:'Saca-rolha com abridor de garrafa SRV 515, VONDER' },
-        { code:'36.62.004.000', name:'Kit Manicure, 7 peças, VONDER' },
-        { code:'36.62.061.502', name:'Alicate corte frontal 6", 1.000 V, VONDER' },
-        { code:'38.20.000.004', name:'Medidor de distância a laser 40 m, com nível a laser, MNV 040, VONDER' },
-        { code:'38.20.020.021', name:'Suporte para nível a laser NLR 020 VONDER' },
-        { code:'38.20.300.301', name:'Suporte para nível a laser NLR 030 VONDER' },
-        { code:'38.68.010.370', name:'Trena curta de aço, dupla trava, 10 m x 25 mm, VONDER Construtor' },
-        { code:'38.68.030.030', name:'Trena curta de aço 3 m x 16 mm VONDER PLUS' },
-        { code:'38.68.050.050', name:'Trena curta de aço 5 m x 19 mm VONDER PLUS' },
-        { code:'38.68.080.080', name:'Trena curta de aço 8 m x 25 mm VONDER PLUS' },
-        { code:'38.68.100.100', name:'Trena curta de aço 10 m x 25 mm VONDER PLUS' },
-        { code:'38.68.110.110', name:'Trena curta de aço, autotrava, 10 m x 25 mm, VONDER Plus' },
-        { code:'38.68.200.000', name:'Régua de PVC 20 cm, VONDER' },
-        { code:'38.68.300.012', name:'Trena curta de aço 3 m x 12,5 mm, caixa com 12, VONDER' },
-        { code:'38.68.303.303', name:'Trena curta de aço, autotrava, 3 m x 16 mm, VONDER Plus' },
-        { code:'38.68.370.003', name:'Trena curta de aço 3 m x 12,5 VONDER' },
-        { code:'38.68.370.300', name:'Trena curta de aço 3 m x 12,5 mm VONDER' },
-        { code:'38.68.400.000', name:'Contador manual 4 dígitos, VCM 4, VONDER' },
-        { code:'38.68.500.012', name:'Trena curta de aço 5 m x 19 mm, caixa com 12, VONDER' },
-        { code:'38.68.505.505', name:'Trena curta de aço, autotrava, 5 m x 19 mm, VONDER Plus' },
-        { code:'38.68.570.005', name:'Trena curta de aço 5 m x 19 mm VONDER' },
-        { code:'38.68.570.025', name:'Trena curta de aço 5 m x 25 mm VONDER' },
-        { code:'38.68.570.500', name:'Trena curta de aço 5 m x 19 mm VONDER' },
-        { code:'38.68.572.005', name:'Trena curta de aço com 5 m e trena chaveiro 2 m TCV 2005 VONDER' },
-        { code:'38.68.750.006', name:'Trena curta de aço 7,5 m x 25 mm, caixa com 6, VONDER' },
-        { code:'38.68.770.075', name:'Trena curta de aço 7,5 m x 25 mm VONDER' },
-        { code:'38.68.770.750', name:'Trena curta de aço 7,5 m x 25 mm VONDER' },
-        { code:'38.68.808.808', name:'Trena curta de aço, autotrava, 8 m x 25 mm, VONDER Plus' },
-        { code:'38.70.001.001', name:'Alicate amperímetro digital AAV 1001, VONDER' },
-        { code:'38.70.200.000', name:'Alicate amperímetro digital AAV 2000 VONDER' },
-        { code:'38.70.420.000', name:'Alicate amperímetro digital AAV 4200, VONDER' },
-        { code:'38.70.600.200', name:'Alicate amperímetro digital inteligente AAV 6002I, VONDER' },
-        { code:'38.80.000.120', name:'Calculadora de mesa 12 dígitos, CS 312V II, VONDER' },
-        { code:'38.80.360.000', name:'Relógio de parede 360 mm, VONDER' },
-        { code:'38.80.400.000', name:'Relógio de parede 400 mm, VONDER' },
-        { code:'38.80.450.000', name:'Relógio de parede 450 mm, VONDER' },
-        { code:'38.80.600.000', name:'Relógio de parede 600 mm, VONDER' },
-        { code:'51.14.800.401', name:'Regulador de velocidade, 4 mm, rosca 1/8" BSP, VONDER' },
-        { code:'51.14.800.402', name:'Regulador de velocidade, 4 mm, rosca 1/4" BSP, VONDER' },
-        { code:'51.14.800.601', name:'Regulador de velocidade, 6 mm, rosca 1/8" BSP, VONDER' },
-        { code:'51.14.800.602', name:'Regulador de velocidade, 6 mm, rosca 1/4" BSP, VONDER' },
-        { code:'51.14.800.801', name:'Regulador de velocidade, 8 mm, rosca 1/8" BSP, VONDER' },
-        { code:'51.14.800.802', name:'Regulador de velocidade, 8 mm, rosca 1/4" BSP, VONDER' },
-        { code:'51.14.801.001', name:'Regulador de velocidade, 10 mm, rosca 1/8" BSP, VONDER' },
-        { code:'51.14.801.002', name:'Regulador de velocidade, 10 mm, rosca 1/4" BSP, VONDER' },
-        { code:'51.14.801.202', name:'Regulador de velocidade, 12 mm, rosca 1/4" BSP, VONDER' },
-        { code:'51.25.300.200', name:'Graxa em spray branca, base de lítio, 300 ml/200 g, VONDER' },
-        { code:'51.29.020.050', name:'Óleo solúvel, 1 litro, VONDER' },
-        { code:'51.29.025.000', name:'Óleo solúvel, 5 litros, VONDER' },
-        { code:'51.29.220.000', name:'Óleo solúvel, 20 litros, VONDER' },
-        { code:'51.99.000.025', name:'Grafite em pó 25 g VONDER' },
-        { code:'51.99.025.000', name:'Grafite em pó 25 g, cartela, VONDER' },
-        { code:'51.99.050.000', name:'Grafite em pó 5 kg, VONDER' },
-        { code:'51.99.100.000', name:'Grafite em pó 1 kg, VONDER' },
-        { code:'53.01.100.010', name:'Broca com 4 pontas para madeira, 10 mm, VONDER' },
-        { code:'53.01.100.014', name:'Broca com 4 pontas para madeira, 14 mm, VONDER' },
-        { code:'53.01.100.016', name:'Broca com 4 pontas para madeira, 16 mm, VONDER' },
-        { code:'53.01.100.019', name:'Broca com 4 pontas para madeira, 19 mm, VONDER' },
-        { code:'53.01.100.022', name:'Broca com 4 pontas para madeira, 22 mm, VONDER' },
-        { code:'53.01.100.025', name:'Broca com 4 pontas para madeira, 25 mm, VONDER' },
-        { code:'53.15.004.040', name:'Fresa topo 4,0 mm, em metal duro, 4 cortes, VONDER' },
-        { code:'53.15.004.050', name:'Fresa topo 5,0 mm, em metal duro, 4 cortes, VONDER' },
-        { code:'53.15.004.060', name:'Fresa topo 6,0 mm, em metal duro, 4 cortes, VONDER' },
-        { code:'53.15.004.080', name:'Fresa topo 8,0 mm, em metal duro, 4 cortes, VONDER' },
-        { code:'53.15.004.100', name:'Fresa topo 10,0 mm, em metal duro, 4 cortes, VONDER' },
-        { code:'53.15.004.120', name:'Fresa topo 12,0 mm, em metal duro, 4 cortes, VONDER' },
-        { code:'53.15.400.040', name:'Fresa topo toroidal 4 mm, em metal duro, 4 cortes, raio 0.5, VONDER' },
-        { code:'53.15.400.050', name:'Fresa topo toroidal 5 mm, em metal duro, 4 cortes, raio 0.5, VONDER' },
-        { code:'53.15.400.060', name:'Fresa topo toroidal 6 mm, em metal duro, 4 cortes, raio 0.5, VONDER' },
-        { code:'53.15.400.080', name:'Fresa topo toroidal 8 mm, em metal duro, 4 cortes, raio 0.5, VONDER' },
-        { code:'53.15.400.100', name:'Fresa topo toroidal 10 mm, em metal duro, 4 cortes, raio 0.5, VONDER' },
-        { code:'53.15.400.120', name:'Fresa topo toroidal 12 mm, em metal duro, 4 cortes, raio 0.5, VONDER' },
-        { code:'53.20.003.000', name:'Broca/macho combinado M3 x 0,5 mm, VONDER' },
-        { code:'53.20.004.000', name:'Broca/macho combinado M4 x 0,7 mm, VONDER' },
-        { code:'53.20.005.000', name:'Broca/macho combinado M5 x 0,8 mm, VONDER' },
-        { code:'53.20.006.000', name:'Broca/macho combinado M6 x 1 mm, VONDER' },
-        { code:'53.20.008.000', name:'Broca/macho combinado M8 x 1,25 mm, VONDER' },
-        { code:'53.20.010.000', name:'Broca/macho combinado M10 x 1,5 mm, VONDER' },
-        { code:'53.61.000.030', name:'Broca para concreto, ponta metal duro, 3 mm, VONDER' },
-        { code:'53.61.000.040', name:'Broca para concreto, ponta metal duro, 4 mm, VONDER' },
-        { code:'53.61.000.050', name:'Broca para concreto, ponta metal duro, 5 mm, VONDER' },
-        { code:'53.61.000.060', name:'Broca para concreto, ponta metal duro, 6 mm, VONDER' },
-        { code:'53.61.000.065', name:'Broca para concreto, ponta metal duro, 6,5 mm, VONDER' },
-        { code:'53.61.000.070', name:'Broca para concreto, ponta metal duro, 7 mm, VONDER' },
-        { code:'53.61.000.080', name:'Broca para concreto, ponta metal duro, 8 mm, VONDER' },
-        { code:'53.61.000.090', name:'Broca para concreto, ponta metal duro, 9 mm, VONDER' },
-        { code:'53.61.000.100', name:'Broca para concreto, ponta metal duro, 10 mm, VONDER' },
-        { code:'53.61.000.120', name:'Broca para concreto, ponta metal duro, 12 mm, VONDER' },
-        { code:'53.61.000.130', name:'Broca para concreto, ponta metal duro, 13 mm, VONDER' },
-        { code:'53.61.000.140', name:'Broca para concreto, ponta metal duro, 14 mm, VONDER' },
-        { code:'53.61.000.160', name:'Broca para concreto, ponta metal duro, 16 mm, VONDER' },
-        { code:'53.61.000.190', name:'Broca para concreto, ponta metal duro, 19 mm, VONDER' },
-        { code:'53.61.000.250', name:'Broca para concreto, ponta metal duro, 25 mm, VONDER' },
-        { code:'53.74.003.000', name:'Jogo de ponteiro e talhadeiras, SDS PLUS, 3 peças, VONDER' },
-        { code:'53.74.028.410', name:'Ponteiro com encaixe hexagonal, 28,0 mm x 410,0 mm, VONDER' },
-        { code:'53.74.030.410', name:'Ponteiro com encaixe hexagonal, 30,0 mm x 410,0 mm, VONDER' },
-        { code:'53.90.004.090', name:'Broca para porcelanato, ponta metal duro, 4 mm VONDER' },
-        { code:'53.90.005.090', name:'Broca para porcelanato, ponta metal duro, 5 mm VONDER' },
-        { code:'53.90.006.090', name:'Broca para porcelanato, ponta metal duro, 6 mm VONDER' },
-        { code:'53.90.008.090', name:'Broca para porcelanato, ponta metal duro, 8 mm VONDER' },
-        { code:'53.90.010.090', name:'Broca para porcelanato, ponta metal duro, 10 mm VONDER' },
-        { code:'53.90.012.090', name:'Broca para porcelanato, ponta metal duro, 12 mm VONDER' },
-        { code:'54.54.016.000', name:'Tarugo de nylon, 16 mm x 1 m, VONDER' },
-        { code:'54.54.020.000', name:'Tarugo de nylon, 20 mm x 1 m, VONDER' },
-        { code:'54.54.025.000', name:'Tarugo de nylon, 25 mm x 1 m, VONDER' },
-        { code:'54.54.030.000', name:'Tarugo de nylon, 30 mm x 1 m, VONDER' },
-        { code:'54.54.035.000', name:'Tarugo de nylon, 35 mm x 1 m, VONDER' },
-        { code:'54.54.040.000', name:'Tarugo de nylon, 40 mm x 1 m, VONDER' },
-        { code:'54.54.045.000', name:'Tarugo de nylon, 45 mm x 1 m, VONDER' },
-        { code:'54.54.050.000', name:'Tarugo de nylon, 50 mm x 1 m, VONDER' },
-        { code:'54.54.055.000', name:'Tarugo de nylon, 55 mm x 1 m, VONDER' },
-        { code:'54.54.060.000', name:'Tarugo de nylon, 60 mm x 1 m, VONDER' },
-        { code:'54.54.065.000', name:'Tarugo de nylon, 65 mm x 1 m, VONDER' },
-        { code:'54.54.070.000', name:'Tarugo de nylon, 70 mm x 1 m, VONDER' },
-        { code:'54.54.075.000', name:'Tarugo de nylon, 75 mm x 1 m, VONDER' },
-        { code:'54.54.080.000', name:'Tarugo de nylon, 80 mm x 1 m, VONDER' },
-        { code:'54.54.090.000', name:'Tarugo de nylon, 90 mm x 1 m, VONDER' },
-        { code:'54.54.100.000', name:'Tarugo de nylon, 100 mm x 1 m, VONDER' },
-        { code:'54.54.120.000', name:'Tarugo de nylon, 120 mm x 1 m, VONDER' },
-        { code:'54.54.150.000', name:'Tarugo de nylon, 150 mm x 1 m, VONDER' },
-        { code:'54.54.200.000', name:'Tarugo de nylon, 200 mm x 1 m, VONDER' },
-        { code:'60.01.000.020', name:'Compressor de ar tipo pistola, bateria 20 V, CPV 20N VONDER' },
-        { code:'60.01.016.220', name:'Furadeira de coluna 16 mm, 550 W, FCV 016, 220 V~, VONDER' },
-        { code:'60.01.050.220', name:'Serra fita horizontal de bancada, 5", 400 W, 220 V~, SFV 050, VONDER' },
-        { code:'60.01.065.127', name:'Esmerilhadeira angular 4.1/2", 650 W, 127 V~, com disco, EAV 650 VONDER' },
-        { code:'60.01.065.220', name:'Esmerilhadeira angular 4.1/2", 650 W, 220 V~, com disco, EAV 650 VONDER' },
-        { code:'60.01.095.127', name:'Afiador de brocas de 3 a 10 mm, 95 W, ABV 095, 127 V~, VONDER' },
-        { code:'60.01.095.220', name:'Afiador de brocas de 3 a 10 mm, 95 W, ABV 095, 220 V~, VONDER' },
-        { code:'60.01.114.127', name:'Esmerilhadeira angular 4.1/2", 1.100 W, 127 V~, EAV 1140 VONDER' },
-        { code:'60.01.114.220', name:'Esmerilhadeira angular 4.1/2", 1.100 W, 220 V~, EAV 1140 VONDER' },
-        { code:'60.01.115.127', name:'Esmerilhadeira angular 5", 1.100 W, 127 V~, EAV 1105 VONDER PLUS' },
-        { code:'60.01.115.220', name:'Esmerilhadeira angular 5", 1.100 W, 220 V~, EAV 1105 VONDER PLUS' },
-        { code:'60.01.220.127', name:'Esmerilhadeira angular 7", 2.200 W, 127 V~, EAV 2200 VONDER' },
-        { code:'60.01.220.230', name:'Esmerilhadeira angular 7", 2.200 W, 220 V~, EAV 2200 VONDER' },
-        { code:'60.01.260.127', name:'Esmerilhadeira angular 7", 2.600 W, 127 V~, EAV 2600 VONDER' },
-        { code:'60.01.260.220', name:'Esmerilhadeira angular 7", 2.600 W, 220 V~, EAV 2600 VONDER' },
-        { code:'60.01.370.127', name:'Motoesmeril e lixadeira de cinta, 2 em 1, 370 W, MLV 370 127 V~, VONDER' },
-        { code:'60.01.370.220', name:'Motoesmeril e lixadeira de cinta, 2 em 1, 370 W, MLV 370 220 V~, VONDER' },
-        { code:'60.01.634.127', name:'Chave de impacto com encaixe de 3/4", CIV 634, 600 W 127 V~, VONDER' },
-        { code:'60.01.634.220', name:'Chave de impacto com encaixe de 3/4", CIV 634, 600 W 220 V~, VONDER' },
-        { code:'60.01.650.127', name:'Esmerilhadeira angular 4.1/2", 650 W, 127 V~, EAV 650 VONDER' },
-        { code:'60.01.754.127', name:'Esmerilhadeira angular 4.1/2", 750 W, 127 V~, EAV 754 VONDER' },
-        { code:'60.01.754.220', name:'Esmerilhadeira angular 4.1/2", 750 W, 220 V~, EAV 754 VONDER' },
-        { code:'60.01.804.127', name:'Esmerilhadeira angular 4.1/2", 800 W, 127 V~, EAV 804, VONDER PLUS' },
-        { code:'60.01.804.220', name:'Esmerilhadeira angular 4.1/2", 800 W, 220 V~, EAV 804, VONDER PLUS' },
-        { code:'60.01.860.127', name:'Esmerilhadeira angular 4.1/2", 860 W, 127 V~, EAV 860N VONDER' },
-        { code:'60.01.860.220', name:'Esmerilhadeira angular 4.1/2", 860 W, 220 V~, EAV 860N VONDER' },
-        { code:'60.01.865.127', name:'Esmerilhadeira angular 5", 860 W, 127 V~, EAV 865 VONDER' },
-        { code:'60.01.865.220', name:'Esmerilhadeira angular 5", 860 W, 220 V~, EAV 865 VONDER' },
-        { code:'60.01.900.127', name:'Chave de impacto com encaixe de 1/2", CIV 900, 900 W 127 V~, VONDER' },
-        { code:'60.01.900.220', name:'Chave de impacto com encaixe de 1/2", CIV 900, 900 W 220 V~, VONDER' },
-        { code:'60.01.905.127', name:'Esmerilhadeira angular 5", 900 W, 127 V~, com velocidade variável, EAV 905V VONDER' },
-        { code:'60.01.905.220', name:'Esmerilhadeira angular 5", 900 W, 220 V~, com velocidade variável, EAV 905V VONDER' },
-        { code:'60.01.912.127', name:'Chave de impacto com encaixe de 1/2", CIV 912, 900 W 127 V~, VONDER' },
-        { code:'60.01.912.220', name:'Chave de impacto com encaixe de 1/2", CIV 912, 900 W 220 V~, VONDER' },
-        { code:'60.04.180.900', name:'Lanterna de LED, bateria intercambiável de 18 V, sem bateria e sem carregador, ILV 1809 VONDER' },
-        { code:'60.04.181.000', name:'Lanterna de LED, bateria intercambiável de 18 V, sem bateria e sem carregador, ILV 1810 VONDER' },
-        { code:'60.04.181.100', name:'Refletor de LED, bateria intercambiável de 18 V, sem bateria e sem carregador, ILV 1811 VONDER' },
-        { code:'60.99.906.600', name:'Boina de espuma 6" para Politriz PRV 906, VONDER' },
-        { code:'61.07.200.300', name:'Organizador plástico duplo, VD 2003, VONDER' },
-        { code:'61.07.400.300', name:'Estojo multiuso, composto de 4 partes rosqueáveis, VD 4003 VONDER' },
-        { code:'61.08.000.009', name:'Organizador plástico OPV 009 VONDER' },
-        { code:'61.08.000.900', name:'Organizador plástico OPV 090 VONDER' },
-        { code:'61.08.001.000', name:'Organizador plástico OPV 001 VONDER' },
-        { code:'61.08.002.000', name:'Organizador plástico OPV 002 VONDER' },
-        { code:'61.08.004.000', name:'Organizador plástico OPV 004 VONDER' },
-        { code:'61.08.012.000', name:'Organizador plástico OPV 012 VONDER' },
-        { code:'61.08.099.000', name:'Organizador plástico OPV 099 VONDER' },
-        { code:'61.08.100.000', name:'Organizador plástico OPV 100 VONDER' },
-        { code:'61.08.120.000', name:'Organizador plástico OPV 120 VONDER' },
-        { code:'61.08.170.000', name:'Organizador plástico OPV 170 VONDER' },
-        { code:'61.08.200.000', name:'Organizador plástico OPV 200 VONDER' },
-        { code:'61.08.222.000', name:'Organizador plástico OPV 222 VONDER' },
-        { code:'61.08.230.000', name:'Organizador plástico OPV 230 VONDER' },
-        { code:'61.08.234.000', name:'Organizador plástico com 4 gavetas, OPV 0234, VONDER' },
-        { code:'61.08.260.000', name:'Organizador plástico OPV 260 VONDER' },
-        { code:'61.08.271.000', name:'Organizador plástico com 3 gavetas, OPV 0271, VONDER' },
-        { code:'61.08.300.000', name:'Organizador plástico OPV 300 VONDER' },
-        { code:'61.08.305.000', name:'Organizador plástico com 8 gavetas, OPV 0305, VONDER' },
-        { code:'61.08.378.000', name:'Organizador plástico com 10 gavetas, OPV 0378, VONDER' },
-        { code:'61.10.150.300', name:'Aro para carrinho de carga 2 em 1 VONDER' },
-        { code:'61.10.350.000', name:'Aro metálico 8", para pneus 3,25" e 3,50", VONDER' },
-        { code:'61.10.350.400', name:'Aro metálico 4", para carrinhos 3,5" x 4", VONDER' },
-        { code:'61.10.358.000', name:'Aro de alumínio 8", com rolamento, para pneus 3,25" ou 3,50", VONDER' },
-        { code:'61.10.400.000', name:'Aro metálico 3,50" x 8", VONDER' },
-        { code:'61.13.413.032', name:'Guarda-chuva automático, VONDER' },
-        { code:'61.60.001.800', name:'Carrinho plataforma metálico, 800 kgf, desmontado, VONDER' },
-        { code:'61.60.002.050', name:'Rodízio traseiro 7,5", para carrinho para máquina de solda, VONDER' },
-        { code:'61.60.005.000', name:'Carrinho para transporte de cilindro de oxigênio e acetileno, para 2 cilindros G, VONDER' },
-        { code:'61.60.006.000', name:'Carrinho para transporte de cilindro de oxigênio ou acetileno, para 1 cilindro G, VONDER' },
-        { code:'61.60.010.003', name:'Carrinho plataforma metálico, 600 kgf, desmontado, VONDER' },
-        { code:'62.20.026.010', name:'Tanque de pressão com pistola para pintura, 10 litros, VONDER' },
-        { code:'62.20.083.110', name:'Bico metálico 6,0 mm para pistola PTV 83, VONDER' },
-        { code:'62.20.083.210', name:'Bico metálico 8,0 mm para pistola PTV 83, VONDER' },
-        { code:'62.20.110.109', name:'Filtro malha 100, para pistola das máquinas de pintura airless, MPA 1010, 120, 300, 350B, 540B VONDER' },
-        { code:'62.20.111.009', name:'Filtro malha 60, para pistola das máquinas de pintura airless, MPA 1010, 120, 300, 350B, 540B VONDER' },
-        { code:'62.20.400.000', name:'Jogo de acessórios para compressor, com 4 peças, ACV 4, VONDER' },
-        { code:'62.20.500.000', name:'Jogo de acessórios para compressor, com 5 peças, ACV 5, VONDER' },
-        { code:'62.40.000.150', name:'Pulverizador 1,5 litro, com compressão prévia, VONDER' },
-        { code:'62.40.000.300', name:'Pulverizador 300 ml, spray contínuo, VONDER' },
-        { code:'62.40.000.450', name:'Pulverizador 450 ml, PU 450, VONDER' },
-        { code:'62.40.000.500', name:'Pulverizador 500 ml, PU 500, VONDER' },
-        { code:'62.40.000.750', name:'Pulverizador 750 ml, PU 750 VONDER' },
-        { code:'62.40.001.000', name:'Pulverizador 1,0 litro, PU 010, VONDER' },
-        { code:'62.40.001.100', name:'Pulverizador 1 litro, PU 100 VONDER' },
-        { code:'62.40.075.000', name:'Pulverizador 360°, 750 ml VONDER PLUS' },
-        { code:'62.40.200.000', name:'Pulverizador 200 ml, spray contínuo, VONDER' },
-        { code:'62.40.200.200', name:'Pulverizador 2 litros, compressão prévia, VONDER' },
-        { code:'62.40.215.000', name:'Pulverizador adaptável em garrafa PET, PA 215, VONDER' },
-        { code:'62.40.300.000', name:'Pulverizador adaptável em garrafa PET VONDER' },
-        { code:'62.40.350.350', name:'Pulverizador tipo bomba, 350 ml, VONDER' },
-        { code:'62.49.340.000', name:'Manômetro para regulador de pressão RP 340 e RL 340, VONDER' },
-        { code:'62.49.500.009', name:'Copo para lubrificador, LL 120 e RL 120, VONDER' },
-        { code:'62.49.700.001', name:'Manômetro para regulador de pressão RP 120 e RL 120, VONDER' },
-        { code:'62.49.750.001', name:'Manômetro para regulador de pressão RP 140 e RL 140, VONDER' },
-        { code:'62.51.427.000', name:'Atomizador e soprador costal 14 litros, ASV 427, VONDER' },
-        { code:'62.51.794.000', name:'Atomizador e soprador costal 20 litros, ASV 794, VONDER' },
-        { code:'62.57.310.000', name:'Aplicador pneumático de silicone, APV 310 VONDER PLUS' },
-        { code:'62.99.540.014', name:'Tubo de enchimento para rolo de pintura com reservatório, VONDER' },
-        { code:'63.61.003.391', name:'Esfregão com espuma e cabo de madeira VONDER' },
-        { code:'63.64.003.001', name:'Boina de espuma para corte 3", para politriz rotativa ou roto-orbital, VONDER' },
-        { code:'63.64.003.002', name:'Boina de espuma para refino 3", para politriz rotativa ou roto-orbital, VONDER' },
-        { code:'63.64.003.003', name:'Boina de espuma para lustro 3", para politriz rotativa ou roto-orbital, VONDER' },
-        { code:'63.64.003.011', name:'Boina de espuma para corte 3", para politriz roto-orbital, VONDER' },
-        { code:'63.64.003.013', name:'Boina de espuma para lustro 3", para politriz roto-orbital, VONDER' },
-        { code:'63.64.003.021', name:'Boina de espuma para corte 3", para politriz rotativa, VONDER' },
-        { code:'63.64.003.022', name:'Boina de espuma para refino 3", para politriz rotativa, VONDER' },
-        { code:'63.64.003.023', name:'Boina de espuma para lustro 3", para politriz rotativa, VONDER' },
-        { code:'63.64.005.001', name:'Boina de espuma para corte 5", para politriz rotativa ou roto-orbital, VONDER' },
-        { code:'63.64.005.003', name:'Boina de espuma para lustro 5", para politriz rotativa ou roto-orbital, VONDER' },
-        { code:'63.64.005.011', name:'Boina de espuma para corte 5", para politriz roto-orbital, VONDER' },
-        { code:'63.64.005.013', name:'Boina de espuma para lustro 5", para politriz roto-orbital, VONDER' },
-        { code:'63.64.005.021', name:'Boina de espuma para corte 5", para politriz rotativa, VONDER' },
-        { code:'63.64.005.023', name:'Boina de espuma para lustro 5", para politriz rotativa, VONDER' },
-        { code:'63.64.006.001', name:'Boina de espuma para corte 6", para politriz rotativa ou roto-orbital, VONDER' },
-        { code:'63.64.006.003', name:'Boina de espuma para lustro 6", para politriz rotativa ou roto-orbital, VONDER' },
-        { code:'63.64.006.011', name:'Boina de espuma para corte 6", para politriz roto-orbital, VONDER' },
-        { code:'63.64.006.013', name:'Boina de espuma para lustro 6", para politriz roto-orbital, VONDER' },
-        { code:'63.64.006.021', name:'Boina de espuma para corte 6", para politriz rotativa, VONDER' },
-        { code:'63.64.006.023', name:'Boina de espuma para lustro 6", para politriz rotativa, VONDER' },
-        { code:'66.70.043.000', name:'Bucha de Redução CM4 x CM3, VONDER' },
-        { code:'66.70.053.000', name:'Bucha de Redução CM5 x CM3, VONDER' },
-        { code:'66.70.054.000', name:'Bucha de Redução CM5 x CM4, VONDER' },
-        { code:'66.70.064.000', name:'Bucha de Redução CM6 x CM4, VONDER' },
-        { code:'66.70.065.000', name:'Bucha de Redução CM6 x CM5, VONDER' },
-        { code:'66.70.072.018', name:'Adaptador para mandril cone B-18, para perfurador de solo PSV 520, VONDER' },
-        { code:'66.72.600.000', name:'Rolamento rígido de esfera, 6000-ZZ, VONDER' },
-        { code:'66.72.600.100', name:'Rolamento rígido de esfera, 6001-ZZ, VONDER' },
-        { code:'66.72.600.200', name:'Rolamento rígido de esfera, 6002-ZZ, VONDER' },
-        { code:'66.72.600.300', name:'Rolamento rígido de esfera, 6003-ZZ, VONDER' },
-        { code:'66.72.600.400', name:'Rolamento rígido de esfera, 6004-ZZ, VONDER' },
-        { code:'66.72.600.500', name:'Rolamento rígido de esfera, 6005-ZZ, VONDER' },
-        { code:'66.72.600.600', name:'Rolamento rígido de esfera, 6006-ZZ, VONDER' },
-        { code:'66.72.608.000', name:'Rolamento rígido de esfera, 608-ZZ, VONDER' },
-        { code:'66.72.620.000', name:'Rolamento rígido de esfera, 6200-ZZ, VONDER' },
-        { code:'66.72.620.100', name:'Rolamento rígido de esfera, 6201-ZZ, VONDER' },
-        { code:'66.74.600.000', name:'Rolamento rígido de esfera, 6000-2RS, VONDER' },
-        { code:'66.74.600.100', name:'Rolamento rígido de esfera, 6001-2RS, VONDER' },
-        { code:'66.74.600.200', name:'Rolamento rígido de esfera, 6002-2RS, VONDER' },
-        { code:'66.74.600.300', name:'Rolamento rígido de esfera, 6003-2RS, VONDER' },
-        { code:'66.74.600.400', name:'Rolamento rígido de esfera, 6004-2RS, VONDER' },
-        { code:'66.74.600.500', name:'Rolamento rígido de esfera, 6005-2RS, VONDER' },
-        { code:'66.74.600.600', name:'Rolamento rígido de esfera, 6006-2RS, VONDER' },
-        { code:'66.74.608.000', name:'Rolamento rígido de esfera, 608-2RS, VONDER' },
-        { code:'66.74.620.000', name:'Rolamento rígido de esfera, 6200-2RS, VONDER' },
-        { code:'66.74.620.100', name:'Rolamento rígido de esfera, 6201-2RS, VONDER' },
-        { code:'66.74.620.200', name:'Rolamento rígido de esfera, 6202-2RS, VONDER' },
-        { code:'66.75.017.018', name:'Bucha de Redução CM2xCM1, tipo 262, 527-718 ROHM' },
-        { code:'66.75.017.019', name:'Bucha de Redução CM3xCM1, tipo 262, 17019 RÖHM' },
-        { code:'66.75.017.020', name:'Bucha de Redução CM3xCM2, tipo 262, 527-719 RÖHM' },
-        { code:'66.75.017.022', name:'Bucha de Redução CM4xCM2, tipo 262, 527-722 RÖHM' },
-        { code:'66.75.017.023', name:'Bucha de Redução CM4xCM3, tipo 262, 527-721 RÖHM' },
-        { code:'66.75.017.026', name:'Bucha de Redução CM5xCM3, tipo 262, 17026 ROHM' },
-        { code:'66.75.017.027', name:'Bucha de Redução CM5xCM4, tipo 262, 527-724 RÖHM' },
-        { code:'66.75.017.031', name:'Bucha de Redução CM6xCM5, tipo 262, 17031 RÖHM' },
-        { code:'66.75.180.246', name:'Fuso de ajuste EG/ES 200, 180246, RÖHM' },
-        { code:'66.75.180.247', name:'Fuso de ajuste EG/ES 250, 180247, RÖHM' },
-        { code:'66.75.438.261', name:'Cilindro hidráulico OVS 85, 438261, RÖHM' },
-        { code:'66.75.760.463', name:'Parafuso de ajuste KSK-C40, 760463, RÖHM' },
-        { code:'66.75.760.465', name:'Parafuso de ajuste KSK-C63, 760465, RÖHM' },
-        { code:'66.77.012.050', name:'Polia de aluminio 1 canal, perfil A, 50 mm com furo de 1/2" - 12,7 mm, VONDER' },
-        { code:'66.77.014.100', name:'Polia de aluminio 1 canal, perfil A, 100 mm com furo de 14 mm, VONDER' },
-        { code:'66.77.019.100', name:'Polia de aluminio 1 canal, perfil A, 100 mm com furo de 19 mm, VONDER' },
-        { code:'66.77.028.150', name:'Polia de aluminio 1 canal, perfil A, 150 mm com furo de 28 mm, VONDER' },
-        { code:'66.77.034.100', name:'Polia de aluminio 1 canal, perfil A, 100 mm com furo de 3/4" - 19,1 mm, VONDER' },
-        { code:'66.77.034.120', name:'Polia de aluminio 1 canal, perfil A, 120 mm com furo de 3/4" - 19,1 mm, VONDER' },
-        { code:'66.77.034.150', name:'Polia de aluminio 1 canal, perfil A, 150 mm com furo de 3/4" - 19,1 mm, VONDER' },
-        { code:'66.77.058.100', name:'Polia de aluminio 1 canal, perfil A, 100 mm com furo de 5/8" - 15,9 mm, VONDER' },
-        { code:'66.77.058.120', name:'Polia de aluminio 1 canal, perfil A, 120 mm com furo de 5/8" - 15,9 mm, VONDER' },
-        { code:'66.77.058.150', name:'Polia de aluminio 1 canal, perfil A, 150 mm com furo de 5/8" - 15,9 mm, VONDER' },
-        { code:'66.84.110.050', name:'Polia de alumínio 1 canal, perfil A, 50 mm, sem furo VONDER' },
-        { code:'66.84.110.060', name:'Polia de alumínio 1 canal, perfil A, 60 mm, sem furo VONDER' },
-        { code:'66.84.110.070', name:'Polia de alumínio 1 canal, perfil A, 70 mm, sem furo VONDER' },
-        { code:'66.84.110.080', name:'Polia de alumínio 1 canal, perfil A, 80 mm, sem furo VONDER' },
-        { code:'66.84.110.090', name:'Polia de alumínio 1 canal, perfil A, 90 mm, sem furo VONDER' },
-        { code:'66.84.110.100', name:'Polia de aluminio 1 canal, perfil A, 100 mm, sem furo VONDER' },
-        { code:'66.84.110.110', name:'Polia de aluminio 1 canal, perfil A, 110 mm, sem furo VONDER' },
-        { code:'66.84.110.120', name:'Polia de aluminio 1 canal, perfil A, 120 mm, sem furo VONDER' },
-        { code:'66.84.110.130', name:'Polia de aluminio 1 canal, perfil A, 130 mm, sem furo VONDER' },
-        { code:'66.84.110.140', name:'Polia de aluminio 1 canal, perfil A, 140 mm, sem furo VONDER' },
-        { code:'66.84.110.150', name:'Polia de aluminio 1 canal, perfil A, 150 mm, sem furo VONDER' },
-        { code:'66.84.110.160', name:'Polia de aluminio 1 canal, perfil A, 160 mm, sem furo VONDER' },
-        { code:'66.84.110.180', name:'Polia de aluminio 1 canal, perfil A, 180 mm, sem furo VONDER' },
-        { code:'66.84.110.200', name:'Polia de aluminio 1 canal, perfil A, 200 mm, sem furo VONDER' },
-        { code:'66.84.110.230', name:'Polia de aluminio 1 canal, perfil A, 230 mm, sem furo VONDER' },
-        { code:'66.84.110.250', name:'Polia de aluminio 1 canal, perfil A, 250 mm, sem furo VONDER' },
-        { code:'66.84.210.100', name:'Polia de alumínio 1 canal, perfil B, 100 mm, sem furo VONDER' },
-        { code:'66.84.210.110', name:'Polia de alumínio 1 canal, perfil B, 110 mm, sem furo VONDER' },
-        { code:'66.84.210.120', name:'Polia de alumínio 1 canal, perfil B, 120 mm, sem furo VONDER' },
-        { code:'66.84.210.140', name:'Polia de alumínio 1 canal, perfil B, 140 mm, sem furo VONDER' },
-        { code:'66.84.210.150', name:'Polia de alumínio 1 canal, perfil B, 150 mm, sem furo VONDER' },
-        { code:'66.86.002.005', name:'Bomba submersa de mangote, 2", sem motor, VONDER' },
-        { code:'66.96.112.800', name:'Correia perfil V A-128 VONDER' },
-        { code:'66.97.101.600', name:'Correia perfil V A-16 industrial VONDER PLUS' },
-        { code:'66.97.101.800', name:'Correia perfil V A-18 industrial VONDER PLUS' },
-        { code:'66.97.101.900', name:'Correia perfil V A-19 industrial VONDER PLUS' },
-        { code:'66.97.102.000', name:'Correia perfil V A-20 industrial VONDER PLUS' },
-        { code:'66.97.102.100', name:'Correia perfil V A-21 industrial VONDER PLUS' },
-        { code:'66.97.102.200', name:'Correia perfil V A-22 VONDER' },
-        { code:'66.97.102.300', name:'Correia perfil V A-23 VONDER' },
-        { code:'66.97.102.400', name:'Correia perfil V A-24 VONDER' },
-        { code:'66.97.102.500', name:'Correia perfil V A-25 VONDER' },
-        { code:'66.97.102.600', name:'Correia perfil V A-26 VONDER' },
-        { code:'66.97.102.700', name:'Correia perfil V A-27 VONDER' },
-        { code:'66.97.110.000', name:'Correia perfil V A-100 industrial VONDER PLUS' },
-        { code:'66.97.110.400', name:'Correia perfil V A-104 VONDER' },
-        { code:'66.97.110.500', name:'Correia perfil V A-105 VONDER' },
-        { code:'66.97.111.100', name:'Correia perfil V A-111 VONDER' },
-        { code:'66.97.111.200', name:'Correia perfil V A-112 VONDER' },
-        { code:'66.97.112.000', name:'Correia perfil V A-120 VONDER' },
-        { code:'66.97.112.800', name:'Correia perfil V A-128 industrial VONDER PLUS' },
-        { code:'66.97.113.600', name:'Correia perfil V A-136 industrial VONDER PLUS' },
-        { code:'66.97.114.400', name:'Correia perfil V A-144 VONDER' },
-        { code:'68.24.000.150', name:'Bancada portátil para serras esquadrias VONDER' },
-        { code:'68.28.000.120', name:'Compressor de ar automotivo, CAV 120, 12 V, VONDER' },
-        { code:'68.28.012.000', name:'Compressor de ar automotivo, CAV 12, 12 V, VONDER' },
-        { code:'68.28.012.128', name:'Compressor de ar automotivo a bateria, CAV 128 VONDER PLUS' },
-        { code:'68.28.023.000', name:'Compressor ar direto, 1/2 cv (hp), 2,3 pcm, VONDER' },
-        { code:'68.28.126.120', name:'Compressor de ar automotivo, CAV 126, 12 V, VONDER' },
-        { code:'68.28.150.000', name:'Compressor de ar automotivo, CAV 150, 12 V ou 127 V~ a 220 V~ bivolt automático, VONDER' },
-        { code:'68.28.230.000', name:'Compressor ar direto, 1/2 cv (hp), 2,3 pcm, VONDER' },
-        { code:'68.28.750.127', name:'Compressor ar direto para poço artesiano, 1 hp, 127 V~ VONDER' },
-        { code:'68.28.750.220', name:'Compressor ar direto para poço artesiano, 1 hp, 220 V~ VONDER' },
-        { code:'68.29.715.222', name:'Compressor de ar VDCSL 15/130, 3,0 cv monofásico, 127 V ~/220 V~, VONDER' },
-        { code:'68.29.715.233', name:'Compressor de ar VDCSL 15/130, 3,0 cv trifásico, 220 V ~/380 V~, VONDER' },
-        { code:'68.29.720.333', name:'Compressor de ar VDCSL 20/200, 5,0 cv trifásico, 220 V ~/380 V~, VONDER' },
-        { code:'68.29.740.533', name:'Compressor de ar VDCSL 40/250, 10,0 cv trifásico, 220 V ~/380 V~, VONDER' },
-        { code:'68.29.740.733', name:'Compressor de ar VDCSL 40/250, 10,0 cv trifásico, 380 V ~/660 V~, VONDER' },
-        { code:'68.29.760.633', name:'Compressor de ar VDCSLV 60/350, 15,0 cv trifásico, 220 V ~/380 V~, VONDER' },
-        { code:'68.29.760.833', name:'Compressor de ar VDCSL 60/350, 15,0 cv trifásico, 380 V ~/660 V~, VONDER' },
-        { code:'68.29.774.122', name:'Compressor de ar VDCSI 7,4/30, 1,5 cv monofásico, 127 V ~, VONDER' },
-        { code:'68.29.774.133', name:'Compressor de ar VDCSI 7,4/30, 1,5 cv monofásico, 220 V ~, VONDER' },
-        { code:'68.49.160.013', name:'Conector do comando para tocha TIG, VONDER' },
-        { code:'68.49.160.016', name:'Cabo de comando para tochas TIG, VONDER' },
-        { code:'68.69.160.000', name:'Máquina de solda ponto portátil MSP 160 VONDER' },
-        { code:'70.48.002.000', name:'Respirador dobrável, semifacial, sem carvão ativado, com válvula, PFF1, RDV 2102, azul, VONDER' },
-        { code:'70.48.003.000', name:'Respirador dobrável, semifacial, sem carvão ativado, com válvula, PFF2, RDV 2202, azul, VONDER' },
-        { code:'70.48.004.000', name:'Respirador dobrável, semifacial, sem carvão ativado, sem válvula, PFF1, RDV 2101, azul, VONDER' },
-        { code:'70.48.005.000', name:'Respirador dobrável, semifacial, sem carvão ativado, sem válvula, PFF2, RDV 2201, azul, VONDER' },
-        { code:'70.48.100.010', name:'Respirador tipo concha, sem carvão ativado, sem válvula, PFF1, 100 VONDER' },
-        { code:'70.48.210.101', name:'Respirador dobrável, semifacial, sem carvão ativado, sem válvula, PFF1, RDV 2101, branco, VONDER' },
-        { code:'70.48.210.210', name:'Respirador dobrável, semi facial, sem carvão ativado, com válvula, PFF 1, RDV 2102, branco, VONDER' },
-        { code:'70.48.220.102', name:'Respirador dobrável, semifacial, sem carvão ativado, sem válvula, PFF2, RDV 2201, branco, VONDER' },
-        { code:'70.48.220.220', name:'Respirador dobrável, semifacial, sem carvão ativado, com válvula, PFF2, RDV 2202, branco, VONDER' },
-        { code:'70.48.222.220', name:'Respirador dobrável, semifacial, com carvão ativado, com válvula, PFF2, RDV 2222, VONDER' },
-        { code:'70.51.061.035', name:'Botina em couro nobuck, 35, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.036', name:'Botina em couro nobuck, 36, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.037', name:'Botina em couro nobuck, 37, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.038', name:'Botina em couro nobuck, 38, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.039', name:'Botina em couro nobuck, 39, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.040', name:'Botina em couro nobuck, 40, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.041', name:'Botina em couro nobuck, 41, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.042', name:'Botina em couro nobuck, 42, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.043', name:'Botina em couro nobuck, 43, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.044', name:'Botina em couro nobuck, 44, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.51.061.045', name:'Botina em couro nobuck, 45, com solado em poliuretano bidensidade, com cadarço, sem biqueira, eletricista, VONDER' },
-        { code:'70.74.000.605', name:'Escudo para solda em fibra VD 605, VONDER' },
-        { code:'70.74.000.620', name:'Escudo para solda em polipropileno VD 620, VONDER' },
-        { code:'70.74.000.630', name:'Escudo para solda em celeron VD 630, VONDER' },
-        { code:'70.74.700.621', name:'Escudo para solda em polipropileno VD 621, VONDER' },
-        { code:'70.76.000.700', name:'Máscara para solda em fibra preta VD 700, VONDER' },
-        { code:'70.76.000.720', name:'Máscara para solda com visor fixo VD 720, VONDER' },
-        { code:'70.76.000.725', name:'Máscara para solda com visor articulado VD 725, VONDER' },
-        { code:'70.76.000.730', name:'Máscara para solda em celeron VD 730, VONDER' },
-        { code:'70.76.000.735', name:'Máscara para solda em celeron VD 735, VONDER' },
-        { code:'70.76.003.002', name:'Lente de proteção externa para máscara MEV 0913 VONDER' },
-        { code:'70.76.003.004', name:'Lente de proteção interna para máscara MEV 0913 VONDER' },
-        { code:'70.76.011.002', name:'Lente de proteção interna para máscara MSN 011, VONDER' },
-        { code:'70.76.011.003', name:'Lente de proteção externa para máscara MSN 011, VONDER' },
-        { code:'70.76.012.001', name:'Lente de proteção externa para máscara MSV 012 VONDER' },
-        { code:'70.76.012.004', name:'Lente de proteção interna para máscara MSV 012 VONDER' },
-        { code:'70.76.091.302', name:'Lente de proteção interna para máscara MSN 913, VONDER' },
-        { code:'70.76.091.303', name:'Lente de proteção externa para máscara MSN 913, VONDER' },
-        { code:'70.76.412.003', name:'Lente de proteção externa para MSV 412 VONDER PLUS' },
-        { code:'70.76.412.006', name:'Lentes de proteção internas para MSV 412 VONDER PLUS' },
-        { code:'70.76.513.010', name:'Lente de proteção externa para MSV 513, VONDER PLUS' },
-        { code:'70.76.513.012', name:'Lente de proteção interna para MSV 513, VONDER PLUS' },
-        { code:'70.76.700.721', name:'Máscara para solda com visor fixo, ajuste com catraca, VD 721, VONDER' },
-        { code:'70.76.700.722', name:'Máscara para solda com visor fixo, ajuste simples, VD 722, VONDER' },
-        { code:'70.76.700.726', name:'Máscara para solda com visor articulado, ajuste com catraca, VD 726, VONDER' },
-        { code:'70.76.700.727', name:'Máscara para solda com visor articulado, ajuste simples, VD 727, VONDER' },
-        { code:'70.76.913.002', name:'Lente de proteção externa para máscara MSV 913 VONDER' },
-        { code:'70.76.913.004', name:'Lente de proteção interna para máscara MSV 913 VONDER' },
-        { code:'70.85.010.001', name:'Luva de látex, tamanho P, cor amarela, antiderrapante, com forro, VONDER' },
-        { code:'70.85.010.002', name:'Luva de látex, tamanho M, cor amarela, antiderrapante, com forro, VONDER' },
-        { code:'70.85.010.003', name:'Luva de látex, tamanho G, cor amarela, antiderrapante, com forro, VONDER' },
-        { code:'70.85.010.004', name:'Luva de látex, tamanho XG, cor amarela, antiderrapante, com forro, VONDER' },
-        { code:'70.99.062.030', name:'Cavalete para sinalização VONDER' },
-        { code:'70.99.200.000', name:'Protetor de para-choque para garagem, 2 camadas de EVA, VONDER' },
-        { code:'70.99.300.000', name:'Protetor de para-choque para garagem, 3 camadas de EVA, VONDER' },
-        { code:'72.99.500.000', name:'Conector rápido macho e fêmea, 13 mm, para cabo de solda, VONDER' },
-        { code:'74.12.016.006', name:'Eletrodo de tungstênio, ponta cinza, com 2% de Cério, 1,6 mm, AWS A5.12, VONDER' },
-        { code:'74.12.024.006', name:'Eletrodo de tungstênio, ponta cinza, com 2% de Cério, 2,4 mm, AWS A5.12, VONDER' },
-        { code:'74.12.024.150', name:'Eletrodo de tungstênio puro, ponta verde, 2,4 mm AWS A5.12 VONDER' },
-        { code:'74.12.032.006', name:'Eletrodo de tungstênio, ponta cinza, com 2% de Cério, 3,2 mm, AWS A5.12, VONDER' },
-        { code:'74.12.032.150', name:'Eletrodo de tungstênio puro, ponta verde, 3,2 mm AWS A5.12 VONDER' },
-        { code:'74.12.150.016', name:'Eletrodo de tungstênio, ponta roxa, com 1,5% Lantânio + 0,8% Zircônio + 0,8% Ítrio, 1,6 mm, AWS A5.12, VONDER' },
-        { code:'74.12.150.024', name:'Eletrodo de tungstênio, ponta roxa, com 1,5% Lantânio + 0,8% Zircônio + 0,8% Ítrio, 2,4 mm, AWS A5.12, VONDER' },
-        { code:'74.12.150.032', name:'Eletrodo de tungstênio, ponta roxa, com 1,5% Lantânio + 0,8% Zircônio + 0,8% Ítrio, 3,2 mm, AWS A5.12, VONDER' },
-        { code:'74.12.160.006', name:'Eletrodo de tungstênio, ponta dourada, com 1,5% de Lantânio, 1,6 mm, AWS A5.12, VONDER' },
-        { code:'74.12.160.150', name:'Eletrodo de tungstênio, ponta vermelha, com 2% de tório, 1,6 mm, AWS A5.12, VONDER' },
-        { code:'74.12.240.006', name:'Eletrodo de tungstênio, ponta dourada, 2,4 mm, AWS A5.12, VONDER' },
-        { code:'74.12.240.150', name:'Eletrodo de tungstênio, ponta vermelha, com 2% de tório, 2,4 mm, AWS A5.12, VONDER' },
-        { code:'74.12.320.006', name:'Eletrodo de tungstênio, ponta dourada, 3,2 mm, AWS A5.12, VONDER' },
-        { code:'74.12.320.150', name:'Eletrodo de tungstênio, ponta vermelha, com 2% de tório, 3,2 mm AWS A5.12 VONDER' },
-        { code:'74.19.016.308', name:'Vareta para solda TIG aço inox 308LSi, 1,6 mm, VONDER' },
-        { code:'74.19.016.309', name:'Vareta para solda TIG aço inox 309LSi, 1,6 mm, VONDER' },
-        { code:'74.19.016.316', name:'Vareta para solda TIG aço inox 316LSi, 1,60 mm, VONDER' },
-        { code:'74.19.024.308', name:'Vareta para solda TIG aço inox 308LSi, 2,4 mm, VONDER' },
-        { code:'74.19.024.309', name:'Vareta para solda TIG aço inox 309LSi, 2,4 mm, VONDER' },
-        { code:'74.19.024.316', name:'Vareta para solda TIG aço inox 316LSi, 2,4 mm, VONDER' },
-        { code:'74.19.032.308', name:'Vareta para solda TIG aço inox 308LSi, 3,2 mm, VONDER' },
-        { code:'74.19.032.309', name:'Vareta para solda TIG aço inox 309LSi, 3,25 mm, VONDER' },
-        { code:'74.19.032.316', name:'Vareta para solda TIG aço inox 316LSi, 3,2 mm, VONDER' },
-        { code:'74.59.200.020', name:'Extensão de solda 200 oxiacetilênico, nº 02, VONDER' },
-        { code:'74.59.200.040', name:'Extensão de solda 200 oxiacetilênico, nº 04, VONDER' },
-        { code:'74.59.200.060', name:'Extensão de solda 200 oxiacetilênico, nº 06, VONDER' },
-        { code:'74.59.200.090', name:'Extensão de solda 200 oxiacetilênico, nº 09, VONDER' },
-        { code:'74.65.030.000', name:'Ferro para solda com bateria de lítio, cabo USB, FSV 030 VONDER' },
-        { code:'78.16.440.010', name:'Ducha 3 temperaturas, 4.400 W, 127 V~, branca, VONDER' },
-        { code:'78.16.440.020', name:'Ducha 3 temperaturas, 4.400 W, 220 V~, branca, VONDER' },
-        { code:'78.16.540.010', name:'Ducha 3 temperaturas, 5.400 W, 127 V~, branca, VONDER' },
-        { code:'78.16.540.020', name:'Ducha 3 temperaturas, 5.400 W, 220 V~, branca, VONDER' },
-        { code:'78.16.550.010', name:'Ducha 4 temperaturas, 5.500 W, 127 V~, branca, VONDER' },
-        { code:'78.16.680.020', name:'Ducha 4 temperaturas, 6.800 W, 220 V~, branca, VONDER' },
-        { code:'78.99.000.025', name:'Cabo de transmissão/chupeta, para bateria, 3,0 m, VONDER' },
-        { code:'78.99.100.000', name:'Cordão/pendente de luz com pino, VONDER' },
-        { code:'78.99.800.350', name:'Cabo de transmissão/chupeta para caminhão, 25 mm x 3,5 m, VONDER' },
-        { code:'80.28.000.116', name:'Lençol de borracha sintética, 1/16" - 1,6 mm, sem lona VONDER' },
-        { code:'80.28.000.140', name:'Lençol de borracha sintética, 1/4" - 6,4 mm, sem lona VONDER' },
-        { code:'80.28.000.180', name:'Lençol de borracha sintética, 1/8" - 3,2 mm, sem lona VONDER' },
-        { code:'80.28.000.316', name:'Lençol de borracha sintética, 3/16" - 4,8 mm, sem lona VONDER' },
-        { code:'80.28.000.332', name:'Lençol de borracha sintética, 3/32" - 2,4 mm, sem lona VONDER' },
-        { code:'80.28.000.564', name:'Lençol de borracha sintética, 5/64" - 2 mm, sem lona VONDER' },
-        { code:'80.28.116.100', name:'Lençol de borracha natural 1/16", 1,6 mm, com 1 lona, VONDER' },
-        { code:'80.28.116.200', name:'Lençol de borracha nitrílica, 1/16" - 1,6 mm, sem lona, VONDER' },
-        { code:'80.28.132.300', name:'Lençol de borracha de silicone 1/32" - 0,8 mm, sem lona, VONDER' },
-        { code:'80.28.140.200', name:'Lençol de borracha nitrílica, 1/4" - 6,4 mm, sem lona, VONDER' },
-        { code:'80.28.140.300', name:'Lençol de borracha de silicone 1/4" - 6,4 mm, sem lona, VONDER' },
-        { code:'80.28.180.100', name:'Lençol de borracha natural 1/8", 3,2 mm, com 1 lona, VONDER' },
-        { code:'80.28.180.200', name:'Lençol de borracha nitrílica, 1/8" - 3,2 mm, sem lona, VONDER' },
-        { code:'80.28.180.300', name:'Lençol de borracha de silicone 1/8" - 3,2 mm, sem lona, VONDER' },
-        { code:'80.28.316.100', name:'Lençol de borracha natural 3/16", 4,8 mm, com 1 lona, VONDER' },
-        { code:'80.28.316.200', name:'Lençol de borracha nitrílica, 3/16" - 4,8 mm, sem lona, VONDER' },
-        { code:'80.28.316.300', name:'Lençol de borracha de silicone 3/16" - 4,8 mm, sem lona, VONDER' },
-        { code:'80.28.332.100', name:'Lençol de borracha natural 3/32", 2,4 mm, com 1 lona, VONDER' },
-        { code:'80.28.332.200', name:'Lençol de borracha nitrílica, 3/32" - 2,4 mm, sem lona, VONDER' },
-        { code:'80.28.564.100', name:'Lençol de borracha natural 5/64", 2,0 mm, com 1 lona, VONDER' },
-        { code:'80.28.564.200', name:'Lençol de borracha nitrílica, 5/64" - 2,0 mm, sem lona, VONDER' },
-        { code:'80.28.564.300', name:'Lençol de borracha de silicone 5/64" - 2,0 mm, sem lona, VONDER' },
-        { code:'80.41.002.000', name:'Expositor para trenas, VONDER' },
-        { code:'80.41.002.100', name:'Expositor para cordas em carretel, VD 002 VONDER' },
-        { code:'80.41.003.003', name:'Expositor para lubrificante VONDER PLUS' },
-        { code:'80.41.003.100', name:'Expositor para cabo de aços VONDER' },
-        { code:'80.41.004.000', name:'Expositor para cadeados VONDER' },
-        { code:'80.41.013.000', name:'Expositor para macaco, VONDER' },
-        { code:'80.41.029.000', name:'Expositor para discos de corte e rebolos, VONDER' },
-        { code:'80.41.032.000', name:'Expositor para tinta spray, VONDER' },
-        { code:'80.41.035.000', name:'Expositor para mangueiras para jardim em rolo, VONDER' },
-        { code:'80.41.051.000', name:'Expositor para chaves de fenda/phillips VONDER' },
-        { code:'80.41.060.000', name:'Expositor para 3 roçadeiras VONDER' },
-        { code:'80.41.061.000', name:'Expositor para bolsas VONDER' },
-        { code:'80.41.150.000', name:'Expositor para óculos linha completa VONDER' },
-        { code:'80.50.000.120', name:'Gaxeta de algodão, quadrada, ensebada, 1/2", VONDER' },
-        { code:'80.50.000.140', name:'Gaxeta de algodão, quadrada, ensebada, 1/4", VONDER' },
-        { code:'80.50.000.316', name:'Gaxeta de algodão, quadrada, ensebada, 3/16", VONDER' },
-        { code:'80.50.000.340', name:'Gaxeta de algodão, quadrada, ensebada, 3/4", VONDER' },
-        { code:'80.50.000.380', name:'Gaxeta de algodão, quadrada, ensebada, 3/8", VONDER' },
-        { code:'80.50.000.516', name:'Gaxeta de algodão, quadrada, ensebada, 5/16", VONDER' },
-        { code:'80.50.000.580', name:'Gaxeta de algodão, quadrada, ensebada, 5/8", VONDER' },
-        { code:'80.75.012.024', name:'Sinalizador de emergência giratório VONDER' },
-        { code:'80.75.037.075', name:'Sinalizador de emergência giratório, recarregável, VONDER' },
-        { code:'80.77.000.120', name:'Mangueira para óleo e graxa, 1/2" - 12,7 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.000.140', name:'Mangueira para óleo e graxa, 1/4" - 6,35 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.000.340', name:'Mangueira para óleo e graxa, 3/4" - 19,1 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.000.380', name:'Mangueira para óleo e graxa, 3/8" - 9,53 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.000.516', name:'Mangueira para óleo e graxa, 5/16" - 7,94 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.000.580', name:'Mangueira para óleo e graxa, 5/8" - 15,9 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.012.000', name:'Mangueira para óleo e graxa, 1/2" - 12,7 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.014.000', name:'Mangueira para óleo e graxa, 1/4" - 6,35 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.034.000', name:'Mangueira para óleo e graxa, 3/4" - 19,1 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.038.000', name:'Mangueira para óleo e graxa, 3/8" - 9,53 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.051.600', name:'Mangueira para óleo e graxa, 5/16" - 7,94 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.77.058.000', name:'Mangueira para óleo e graxa, 5/8" - 15,9 mm, PT 350 lbf/pol², PVC, VONDER' },
-        { code:'80.93.000.112', name:'Mangueira PVC flutuante para piscina 1.1/2" azul VONDER' },
-        { code:'80.99.008.000', name:'Caderno espiral com capa dura, VONDER' },
-        { code:'80.99.555.000', name:'Bola de futebol oficial, VONDER' },
-        { code:'82.18.001.015', name:'Mangueira para irrigação kit jardim, 15 metros, VONDER' },
-        { code:'82.18.001.100', name:'Mangueira para irrigação rolo com 100 metros, modelo I VONDER' },
-        { code:'82.18.002.100', name:'Mangueira para irrigação rolo com 100 metros, modelo II VONDER' },
-        { code:'91.30.413.911', name:'Sacola amarela, VONDER' },
-        { code:'93.25.400.002', name:'Lâmina para Alicate Cortador e Crimpador Hidráulico a Bateria ACC 400, VONDER' },
-        { code:'93.28.128.014', name:'Mangueira de ar para compressor de ar a bateria CAV 128, VONDER' },
-        { code:'93.28.128.015', name:'Cabo de carregamento 12 V para compressor de ar a bateria CAV 128, VONDER' },
-        { code:'93.28.128.016', name:'Cabo de carregamento USB tipo C para compressor de ar a bateria CAV 128, VONDER' },
-        { code:'99.14.020.000', name:'Jaqueta de nylon, feminina, tamanho P, VONDER' },
-        { code:'99.14.030.000', name:'Jaqueta de nylon, feminina, tamanho M, VONDER' },
-        { code:'99.14.040.000', name:'Jaqueta de nylon, feminina, tamanho G, VONDER' },
-        { code:'99.14.050.000', name:'Jaqueta de nylon, feminina, tamanho GG, VONDER' },
-        { code:'99.99.140.000', name:'Mesa de pebolim, VONDER' },
-      ]
+      catalog: []
     };
     let APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
 
@@ -1703,6 +1203,14 @@
       // que já exibiam antes, então nada muda visualmente para quem já usava
       APP_SETTINGS.editorias = (APP_SETTINGS.editorias||[]).map(e=> typeof e === 'string' ? { name:e } : e);
       APP_SETTINGS.editorias.forEach((e,i)=>{ if(!e.color) e.color = TAG_PALETTE[i % TAG_PALETTE.length]; });
+      // migra o formato antigo de agendamento (uma rede/formato/tipo únicos) para o novo,
+      // que permite várias redes, cada uma com vários tipos e vários formatos
+      APP_SETTINGS.editorias.forEach(e=>{
+        if(e.schedule && !Array.isArray(e.schedule.channels)){
+          const { weekdays, channel, place, type } = e.schedule;
+          e.schedule = { weekdays, channels: channel ? [{ channel, types: type?[type]:['Static'], places: place?[place]:[] }] : [] };
+        }
+      });
     }
     // nomes das editorias como lista de strings — usado onde é preciso comparar/colorir por nome
     function editoriaNames(){ return APP_SETTINGS.editorias.map(e=>e.name); }
@@ -1757,6 +1265,10 @@
     let editingNetworkName = null;
     // nome da editoria atualmente em modo de edição inline na tela de Configurações (ou null)
     let editingEditoriaName = null;
+    // nome da editoria cujo painel de "dias fixos e formatos" está aberto para edição (ou null)
+    let openEditoriaSchedule = null;
+    // handle do buildScheduleEditor() ativo no formulário de "+ Adicionar" editoria
+    let newEditoriaScheduleEditor = null;
 
     function renderNetsUI(){
       // checkboxes de rede dentro do modal de criar/editar postagem — mudar a rede também
@@ -1843,8 +1355,8 @@
             if(APP_SETTINGS.networks.some(x=>x!==n && x.name===newName)){ alert('Já existe uma rede com esse nome.'); nameInput.value = n.name; return; }
             const oldName = n.name;
             n.name = newName;
-            state.posts.forEach(p=>{ if(p.channel===oldName) p.channel = newName; });
-            APP_SETTINGS.editorias.forEach(e=>{ if(e.schedule && e.schedule.channel===oldName) e.schedule.channel = newName; });
+            state.posts.forEach(p=>{ if(p.channel===oldName) p.channel = newName; if(Array.isArray(p.channels)) p.channels.forEach(c=>{ if(c.channel===oldName) c.channel = newName; }); });
+            APP_SETTINGS.editorias.forEach(e=>{ if(e.schedule) (e.schedule.channels||[]).forEach(c=>{ if(c.channel===oldName) c.channel = newName; }); });
             if(openNetworkFormats===oldName) openNetworkFormats = newName;
             if(editingNetworkName===oldName) editingNetworkName = newName;
             saveState(); saveSettings(); renderAllDynamicUI(); render();
@@ -1881,45 +1393,129 @@
 
     const WEEKDAY_ABBR = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
-    // Formato depende da rede escolhida para o agendamento de uma nova editoria — refaz a lista quando a rede muda
-    function refreshNewEditoriaPlaceOptions(){
-      const netSel = $('newEditoriaNet'); const placeSel = $('newEditoriaPlace'); if(!netSel || !placeSel) return;
-      const net = APP_SETTINGS.networks.find(x=>x.name===netSel.value);
-      placeSel.innerHTML = (net && net.formats || []).map(f=>`<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`).join('');
+    // Constrói, dentro de `container`, o editor de agendamento de uma editoria: dias fixos da
+    // semana + redes/tipos/formatos em que ela publica. Permite marcar várias redes, várias
+    // tipos por rede e vários formatos por tipo. Reutilizado tanto no formulário de nova
+    // editoria quanto na edição inline de uma editoria já cadastrada — cada chamada monta sua
+    // própria árvore de elementos, então várias instâncias podem coexistir na mesma tela.
+    // Retorna { getValue() } que lê a seleção atual e devolve { weekdays, channels } (ou null
+    // se não houver dias ou nenhuma rede totalmente configurada — tipo e formato marcados).
+    function buildScheduleEditor(container, schedule){
+      const weekdays = (schedule && schedule.weekdays) || [];
+      const cfgByChannel = {};
+      ((schedule && schedule.channels) || []).forEach(c=>{ cfgByChannel[c.channel] = { channel: c.channel, types: (c.types||[]).slice(), places: (c.places||[]).slice() }; });
+
+      container.innerHTML = `
+        <div>
+          <label>Datas de publicação</label>
+          <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 4px">Opcional — dias fixos da semana em que essa editoria publica (ex: sempre segunda e quarta). Depois, use "Aplicar" para gerar os cards do mês visível no calendário.</div>
+          <div class="sched-weekdays" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+        </div>
+        <div>
+          <label>Redes, tipos e formatos</label>
+          <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 4px">Marque quantas redes forem necessárias — cada uma pode ter vários tipos, e cada tipo, vários formatos.</div>
+          <div class="sched-nets" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <div class="sched-net-configs" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
+        </div>`;
+
+      const wd = container.querySelector('.sched-weekdays');
+      WEEKDAY_ABBR.forEach((label,i)=>{
+        const lbl=document.createElement('label'); lbl.className='chip'; lbl.style.padding='4px 8px';
+        lbl.innerHTML = `<input type="checkbox" class="sched-weekday" value="${i}" ${weekdays.includes(i)?'checked':''} />${label}`;
+        wd.appendChild(lbl);
+      });
+      const allChecked = weekdays.length===7;
+      const allLbl = document.createElement('label'); allLbl.className='chip'; allLbl.style.padding='4px 8px';
+      allLbl.innerHTML = `<input type="checkbox" class="sched-all-days" ${allChecked?'checked':''} />Todos os dias`;
+      wd.appendChild(allLbl);
+      wd.querySelectorAll('.sched-weekday').forEach(cb=>{ cb.disabled = allChecked; });
+      allLbl.querySelector('input').addEventListener('change', (ev)=>{
+        const on = ev.target.checked;
+        wd.querySelectorAll('.sched-weekday').forEach(cb=>{ cb.checked = on; cb.disabled = on; });
+      });
+
+      const netsC = container.querySelector('.sched-nets');
+      const configsC = container.querySelector('.sched-net-configs');
+
+      // salva o que estiver marcado nos painéis visíveis antes de reconstruí-los, para não
+      // perder a seleção de tipo/formato de uma rede ao marcar/desmarcar outra rede
+      function syncVisiblePanelsIntoState(){
+        configsC.querySelectorAll('.sched-net-config').forEach(panel=>{
+          const net = panel.dataset.net;
+          cfgByChannel[net] = cfgByChannel[net] || { channel: net, types: [], places: [] };
+          cfgByChannel[net].types = Array.from(panel.querySelectorAll('.sched-type:checked')).map(el=>el.value);
+          cfgByChannel[net].places = Array.from(panel.querySelectorAll('.sched-place:checked')).map(el=>el.value);
+        });
+      }
+
+      function renderNetConfigs(){
+        syncVisiblePanelsIntoState();
+        const checkedNets = Array.from(netsC.querySelectorAll('.sched-net:checked')).map(el=>el.value);
+        configsC.innerHTML = '';
+        checkedNets.forEach(netName=>{
+          const net = APP_SETTINGS.networks.find(x=>x.name===netName);
+          const cfg = cfgByChannel[netName] || { channel: netName, types: [], places: [] };
+          const panel = document.createElement('div');
+          panel.className = 'sched-net-config'; panel.dataset.net = netName;
+          panel.style.cssText = 'padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)';
+          panel.innerHTML = `
+            <div style="font-weight:600;font-size:12px;margin-bottom:4px">${escapeHtml(netName)}</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Tipo</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+              <label class="chip"><input type="checkbox" class="sched-type" value="Static" ${cfg.types.includes('Static')?'checked':''}/> Estático</label>
+              <label class="chip"><input type="checkbox" class="sched-type" value="Video" ${cfg.types.includes('Video')?'checked':''}/> Vídeo</label>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Formato</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              ${(net && net.formats || []).map(f=>`<label class="chip"><input type="checkbox" class="sched-place" value="${escapeHtml(f.name)}" ${cfg.places.includes(f.name)?'checked':''}/> ${escapeHtml(f.name)}</label>`).join('') || '<span style="font-size:11.5px;color:var(--text-faint)">Essa rede ainda não tem formatos cadastrados.</span>'}
+            </div>`;
+          configsC.appendChild(panel);
+        });
+      }
+
+      APP_SETTINGS.networks.forEach(n=>{
+        const lbl = document.createElement('label'); lbl.className='chip';
+        lbl.innerHTML = `<input type="checkbox" class="sched-net" value="${escapeHtml(n.name)}" ${cfgByChannel[n.name]?'checked':''} /> ${escapeHtml(n.name)}`;
+        netsC.appendChild(lbl);
+        lbl.querySelector('input').addEventListener('change', renderNetConfigs);
+      });
+      renderNetConfigs();
+
+      return {
+        getValue(){
+          const weekdaysOut = Array.from(wd.querySelectorAll('.sched-weekday:checked')).map(el=>parseInt(el.value,10));
+          syncVisiblePanelsIntoState();
+          const checkedNets = Array.from(netsC.querySelectorAll('.sched-net:checked')).map(el=>el.value);
+          const channels = checkedNets.map(n=> cfgByChannel[n]).filter(c=> c && c.types.length>0 && c.places.length>0);
+          if(weekdaysOut.length===0 || channels.length===0) return null;
+          return { weekdays: weekdaysOut, channels };
+        }
+      };
     }
 
     function renderEditoriasUI(){
       const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e.name)}" /> <span class="dot" style="background:${editoriaColor(e.name)}"></span>${escapeHtml(e.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
       const fc = $('filterEditoriasContainer'); if(fc){ fc.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fEditoria" value="${escapeHtml(e.name)}"/> <span class="dot" style="background:${editoriaColor(e.name)}"></span>${escapeHtml(e.name)}`; fc.appendChild(lbl); }); }
 
-      // toggles de dias fixos + campos de template, usados ao criar uma nova editoria com agendamento
-      const wd = $('newEditoriaWeekdays');
-      if(wd){
-        wd.innerHTML='';
-        WEEKDAY_ABBR.forEach((label,i)=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.style.padding='4px 8px'; lbl.innerHTML = `<input type="checkbox" class="newEdWeekday" value="${i}" />${label}`; wd.appendChild(lbl); });
-        // "Todos os dias" é um atalho: marca/desmarca os 7 dias de uma vez, não é um valor próprio
-        const allLbl = document.createElement('label'); allLbl.className='chip'; allLbl.style.padding='4px 8px';
-        allLbl.innerHTML = `<input type="checkbox" id="newEditoriaAllDays" />Todos os dias`;
-        wd.appendChild(allLbl);
-        allLbl.querySelector('input').addEventListener('change', (ev)=>{
-          const on = ev.target.checked;
-          document.querySelectorAll('.newEdWeekday').forEach(cb=>{ cb.checked = on; cb.disabled = on; });
-        });
-      }
-      const netSel = $('newEditoriaNet');
-      if(netSel) netSel.innerHTML = APP_SETTINGS.networks.map(n=>`<option value="${escapeHtml(n.name)}">${escapeHtml(n.name)}</option>`).join('');
-      refreshNewEditoriaPlaceOptions();
+      // dias fixos + redes/tipos/formatos do formulário de nova editoria — monta o editor
+      // reutilizável e guarda o handle para o botão "Adicionar editoria" ler ao salvar
+      const newSchedFields = $('newEditoriaScheduleFields');
+      if(newSchedFields) newEditoriaScheduleEditor = buildScheduleEditor(newSchedFields, null);
 
       // lista de editorias cadastradas — mesmo padrão visual/de edição das redes: modo de
       // visualização (bolinha colorida + nome) e, pelo lápis, modo de edição inline com
-      // seletor de cor e renomear (o renome cascateia para as postagens existentes)
+      // seletor de cor e renomear (o renome cascateia para as postagens existentes). O
+      // agendamento (dias fixos + redes/tipos/formatos) abre num painel expansível à parte,
+      // no mesmo padrão dos formatos de cada rede em "secRedes".
       const list = $('editoriasList');
       if(list){
         list.innerHTML='';
         APP_SETTINGS.editorias.forEach(e=>{
           const row = document.createElement('div');
           row.className = 'net-row';
-          const scheduleLabel = e.schedule ? e.schedule.weekdays.slice().sort().map(d=>WEEKDAY_ABBR[d]).join(', ') : '';
+          const hasSchedule = e.schedule && (e.schedule.channels||[]).length>0;
+          const scheduleLabel = hasSchedule ? e.schedule.weekdays.slice().sort().map(d=>WEEKDAY_ABBR[d]).join(', ') : '';
+          const channelsLabel = hasSchedule ? e.schedule.channels.map(c=>c.channel).join(', ') : '';
           row.innerHTML = `
             <div class="net-row-head">
               <span class="net-view">
@@ -1930,12 +1526,42 @@
                 <input type="color" class="ed-edit-color" value="${e.color||'#7c3aed'}" title="Cor da editoria" style="flex-shrink:0" />
                 <input type="text" class="ed-edit-name" value="${escapeHtml(e.name)}" title="Nome da editoria" style="flex:2;min-width:110px" />
               </div>` +
-            (e.schedule ? `<span class="chip" style="font-size:11px" title="Repete em dias fixos">📅 ${escapeHtml(scheduleLabel)} · ${escapeHtml(e.schedule.channel)}</span><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}">Aplicar ao mês visível</button>` : '') +
-            `<button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome/cor">✏️</button>
+            (hasSchedule ? `<span class="chip" style="font-size:11px" title="Repete em dias fixos">📅 ${escapeHtml(scheduleLabel)} · ${escapeHtml(channelsLabel)}</span><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}">Aplicar ao mês visível</button>` : '') +
+            `<button type="button" class="net-row-formats-toggle ed-schedule-toggle">${hasSchedule?'Editar datas/formatos':'+ Datas e formatos'} <span class="settings-caret">▾</span></button>
+              <button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome/cor">✏️</button>
               <button type="button" class="btn ghost small" data-editoria="${escapeHtml(e.name)}" aria-label="Remover editoria">✕</button>
+            </div>
+            <div class="net-row-formats">
+              <div class="ed-schedule-editor" style="display:flex;flex-direction:column;gap:8px"></div>
+              <div style="display:flex;justify-content:flex-end">
+                <button type="button" class="btn small ed-schedule-save">Salvar</button>
+              </div>
             </div>`;
           list.appendChild(row);
           if(editingEditoriaName === e.name) row.classList.add('editing');
+          if(openEditoriaSchedule === e.name) row.classList.add('open');
+
+          let schedEditor = null;
+          if(openEditoriaSchedule === e.name){
+            schedEditor = buildScheduleEditor(row.querySelector('.ed-schedule-editor'), e.schedule);
+          }
+
+          // abre/fecha o painel de dias fixos + redes/tipos/formatos dessa editoria
+          row.querySelector('.ed-schedule-toggle').addEventListener('click', ()=>{
+            openEditoriaSchedule = (openEditoriaSchedule === e.name) ? null : e.name;
+            renderAllDynamicUI();
+          });
+
+          // salva o agendamento editado e fecha o painel — se nada ficou totalmente configurado
+          // (dia + rede + tipo + formato), remove o agendamento da editoria em vez de salvar
+          // algo incompleto
+          const saveBtn = row.querySelector('.ed-schedule-save');
+          if(saveBtn) saveBtn.addEventListener('click', ()=>{
+            const value = schedEditor ? schedEditor.getValue() : null;
+            e.schedule = value || undefined;
+            openEditoriaSchedule = null;
+            saveSettings(); renderAllDynamicUI(); render();
+          });
 
           row.querySelector('.ed-edit-toggle').addEventListener('click', ()=>{
             editingEditoriaName = (editingEditoriaName === e.name) ? null : e.name;
@@ -1957,6 +1583,7 @@
             state.posts.forEach(p=>{ if(Array.isArray(p.editoria)){ p.editoria = p.editoria.map(x=> x===oldName ? newName : x); } else if(p.editoria===oldName){ p.editoria = newName; } });
             filters.editorias = filters.editorias.map(x=> x===oldName ? newName : x);
             if(editingEditoriaName===oldName) editingEditoriaName = newName;
+            if(openEditoriaSchedule===oldName) openEditoriaSchedule = newName;
             saveState(); saveSettings(); renderAllDynamicUI(); render();
           });
           nameInput.addEventListener('keydown', ev=>{ if(ev.key==='Enter') nameInput.blur(); });
@@ -1971,28 +1598,53 @@
     // existentes daquela editoria+rede no mesmo dia, então pode ser clicado várias vezes com segurança.
     function applyEditoriaSchedule(editoriaName){
       const editoria = APP_SETTINGS.editorias.find(x=>x.name===editoriaName);
-      if(!editoria || !editoria.schedule){ alert('Esta editoria não tem dias fixos configurados.'); return; }
-      const { weekdays, channel, place, type } = editoria.schedule;
+      if(!editoria || !editoria.schedule || !(editoria.schedule.channels||[]).length){ alert('Esta editoria não tem dias fixos configurados.'); return; }
+      const { weekdays, channels } = editoria.schedule;
       const YEAR = viewDate.getFullYear(), MONTH = viewDate.getMonth();
       const totalDays = new Date(YEAR, MONTH+1, 0).getDate();
       const defaultStatus = (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho';
       const created = [];
+      const updatedBefore = []; // snapshots (para desfazer) dos cards já existentes que forem atualizados
+      // um único card por editoria por data — a rede/tipo/formato marcados no agendamento
+      // ficam guardados em post.channels e aparecem resumidos no próprio card. Se a data já
+      // tiver um card dessa editoria (de uma aplicação anterior), ele é atualizado com a
+      // distribuição atual em vez de duplicado — assim, editar o agendamento e clicar em
+      // "Aplicar" de novo propaga a mudança para os cards já gerados.
+      const primary = channels[0];
+      const channelsSnapshot = channels.map(c=>({ channel: c.channel, types: c.types.slice(), places: c.places.slice() }));
       for(let d=1; d<=totalDays; d++){
         const date = new Date(YEAR, MONTH, d);
         if(!weekdays.includes(date.getDay())) continue;
         const dateStr = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const already = state.posts.some(p=> p.date===dateStr && p.channel===channel && (Array.isArray(p.editoria)?p.editoria:[p.editoria]).includes(editoriaName));
-        if(already) continue;
-        const p = { id: generateId(), title: editoriaName, date: dateStr, channel, place, type, status: defaultStatus, notes: '', collab: false, color: null, editoria: [editoriaName], products: [], order: nextOrderForDate(dateStr) };
+        const existing = state.posts.find(p=> p.date===dateStr && (Array.isArray(p.editoria)?p.editoria:[p.editoria]).includes(editoriaName));
+        if(existing){
+          updatedBefore.push({ id: existing.id, channel: existing.channel, place: existing.place, type: existing.type, channels: existing.channels });
+          existing.channel = primary.channel; existing.place = primary.places.slice(); existing.type = primary.types[0] || 'Static';
+          existing.channels = channelsSnapshot.map(c=>Object.assign({},c));
+          continue;
+        }
+        const p = {
+          id: generateId(), title: editoriaName, date: dateStr,
+          channel: primary.channel, place: primary.places.slice(), type: primary.types[0] || 'Static',
+          channels: channelsSnapshot.map(c=>Object.assign({},c)),
+          status: defaultStatus, notes: '', collab: false, color: null, editoria: [editoriaName], products: [], order: nextOrderForDate(dateStr)
+        };
         state.posts.push(p);
         created.push(p);
       }
-      if(created.length>0){
+      if(created.length>0 || updatedBefore.length>0){
         saveState(); buildCalendar(); render();
-        pushUndo({ type:'create', posts: created.map(p=>p.id) }); redoStack = [];
-        alert(`Criados ${created.length} posts de "${editoriaName}" para ${$('monthLabelText').textContent}.`);
+        const actions = [];
+        if(created.length>0) actions.push({ type:'create', posts: created.map(p=>p.id) });
+        if(updatedBefore.length>0) actions.push({ type:'edit-multi', before: updatedBefore });
+        actions.forEach(a=> pushUndo(a));
+        redoStack = [];
+        const parts = [];
+        if(created.length>0) parts.push(`${created.length} criados`);
+        if(updatedBefore.length>0) parts.push(`${updatedBefore.length} atualizados`);
+        alert(`"${editoriaName}" em ${$('monthLabelText').textContent}: ${parts.join(', ')}.`);
       } else {
-        alert(`Nenhum post novo — já existem posts de "${editoriaName}" em todos os dias configurados deste mês.`);
+        alert(`Nenhuma data configurada para "${editoriaName}" neste mês.`);
       }
     }
 
@@ -2082,12 +1734,24 @@
       $('mDate').value = post.date || '';
       document.querySelectorAll('input[name="mStatus"]').forEach(el=>{ el.checked = (el.value === (post.status || (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name))); });
       $('mNotes').value = post.notes || '';
-      // na edição, só a rede da postagem fica marcada (e travada) — o Formato é regerado a partir dela
-      document.querySelectorAll('.mNet').forEach(n=>{ n.checked = (n.value===post.channel); n.disabled = true; });
+      $('mBriefingLink').value = post.briefingLink || '';
+      $('mReferencesLink').value = post.referencesLink || '';
+      $('mArtsLink').value = post.artsLink || '';
+      const entries = postChannelEntries(post);
+      const heterogeneous = isHeterogeneousChannels(entries);
+      const entryChannels = entries.map(c=>c.channel);
+      // marca todas as redes da postagem — sempre editáveis, mesmo quando a distribuição é
+      // heterogênea (tipo/formato diferentes por rede, o que só vem do agendamento de uma
+      // editoria); nesse caso o aviso abaixo só explica que salvar aqui unifica a distribuição
+      document.querySelectorAll('.mNet').forEach(n=>{ n.checked = entryChannels.includes(n.value); });
       renderModalFormatsUI();
       document.querySelectorAll('input[name="mPlace"]').forEach(el=>{ el.checked = false; });
-      if(post.place){ if(Array.isArray(post.place)){ post.place.forEach(pp=>{ const el = document.querySelector(`input[name="mPlace"][value="${pp}"]`); if(el) el.checked = true; }); } else { const el = document.querySelector(`input[name="mPlace"][value="${post.place}"]`); if(el) el.checked = true; } }
-      if(post.type){ const typeRadio = document.querySelector(`input[name="mType"][value="${post.type}"]`); if(typeRadio) typeRadio.checked = true; }
+      const unionPlaces = [...new Set(entries.flatMap(c=>c.places||[]))];
+      unionPlaces.forEach(pp=>{ const el = document.querySelector(`input[name="mPlace"][value="${pp}"]`); if(el) el.checked = true; });
+      const unionTypes = [...new Set(entries.flatMap(c=>c.types||[]))];
+      const typeVal = unionTypes[0] || post.type || 'Static';
+      const typeRadio = document.querySelector(`input[name="mType"][value="${typeVal}"]`); if(typeRadio) typeRadio.checked = true;
+      setModalMultiChannelState(heterogeneous, post);
       $('mCollab').checked = !!post.collab;
       // marca as editorias da postagem
       document.querySelectorAll('.mEditoria').forEach(e=>{ e.checked = false; });
@@ -2098,11 +1762,18 @@
       hideProductSuggestions();
       // troca o título do modal para indicar o modo edição
       document.querySelector('#modalBackdrop .modal h2').textContent = 'Editar postagem';
+      // habilita o "⋮" (duplicar/excluir) — só faz sentido para uma postagem que já existe
+      if($('modalMenuBtn')) $('modalMenuBtn').style.display = 'flex';
+      // os formatos/tipo foram marcados direto pela propriedade .checked acima (não dispara
+      // "change"), então a pré-visualização e as sugestões de título só ficam em dia com um
+      // refresh explícito aqui no final
+      refreshModalDynamic();
       $('modalBackdrop').style.display = 'flex';
     }
 
     function closeEditState(){
       isEditing = false; editingId = null; document.querySelector('#modalBackdrop .modal h2').textContent = 'Criar postagem';
+      if($('modalMenuBtn')) $('modalMenuBtn').style.display = 'none';
       document.querySelectorAll('.mNet').forEach(n=>{ n.disabled = false; n.checked = false; });
       $('mCollab').checked = false;
       renderModalFormatsUI();
@@ -2269,12 +1940,15 @@
       // (a mesma ordem que será usada para montar o briefing a partir do calendário)
       const copy = state.posts.slice().sort((a,b)=> a.date.localeCompare(b.date) || ((a.order||0) - (b.order||0)));
       copy.forEach(p=>{
-        const placeVal = Array.isArray(p.place)? p.place.join('|') : (p.place||'');
+        const entries = postChannelEntries(p);
+        const channelVal = entries.map(c=>c.channel).join('|');
+        const placeVal = [...new Set(entries.flatMap(c=>c.places||[]))].join('|');
+        const typeVal = [...new Set(entries.flatMap(c=>c.types||[]))].join('|');
         const editoriasVal = Array.isArray(p.editoria)? p.editoria.join('|') : (p.editoria||'');
         const prods = getPostProducts(p);
         const productCodesVal = prods.map(x=>x.code).join('|');
         const productNamesVal = prods.map(x=>x.name).join('|');
-        rows.push([csvEscape(p.date), csvEscape(p.title), csvEscape(p.channel), csvEscape(placeVal), csvEscape(p.type), csvEscape(p.status||''), csvEscape(p.collab? 'true':'false'), csvEscape(p.notes), csvEscape(editoriasVal), csvEscape(productCodesVal), csvEscape(productNamesVal), csvEscape(p.id)].join(','));
+        rows.push([csvEscape(p.date), csvEscape(p.title), csvEscape(channelVal), csvEscape(placeVal), csvEscape(typeVal), csvEscape(p.status||''), csvEscape(p.collab? 'true':'false'), csvEscape(p.notes), csvEscape(editoriasVal), csvEscape(productCodesVal), csvEscape(productNamesVal), csvEscape(p.id)].join(','));
       });
       download('calendar_posts.csv', rows.join('\n'));
     }
@@ -2319,6 +1993,19 @@
       saveSettings(); renderCatalogUI();
     });
     if($('mTitle')) $('mTitle').addEventListener('input', refreshModalDynamic);
+    if($('mArtsLink')) $('mArtsLink').addEventListener('input', refreshModalDynamic);
+    if($('mReferencesLink')) $('mReferencesLink').addEventListener('input', refreshModalDynamic);
+    // botão de copiar o texto da pré-visualização do briefing — feedback visual rápido (✓) no
+    // próprio ícone, sem precisar de alert/toast
+    if($('mCopyBriefingBtn')) $('mCopyBriefingBtn').addEventListener('click', ()=>{
+      const btn = $('mCopyBriefingBtn');
+      if(!currentBriefingText){ return; }
+      copyTextToClipboard(currentBriefingText).then(()=>{
+        const original = btn.textContent;
+        btn.textContent = '✓';
+        setTimeout(()=>{ btn.textContent = original; }, 1200);
+      });
+    });
     document.querySelectorAll('input[name="mType"]').forEach(el=> el.addEventListener('change', refreshModalDynamic));
     if($('mCollab')) $('mCollab').addEventListener('change', refreshModalDynamic);
     if($('mProductName')){
@@ -2459,6 +2146,7 @@
     // lote, filtros) E FECHAMENTO DOS MODAIS
     // ============================================================
     const _exportCsvBtn = $('exportCsvBtn'); if(_exportCsvBtn) _exportCsvBtn.addEventListener('click', exportCSV);
+    const _resetMonthBtn = $('resetMonthBtn'); if(_resetMonthBtn) _resetMonthBtn.addEventListener('click', resetMonth);
     const _toggleSelectBtn = $('toggleSelect'); if(_toggleSelectBtn) _toggleSelectBtn.addEventListener('click', toggleSelectMode);
     const _bulkEditBtn = $('bulkEditBtn'); if(_bulkEditBtn) _bulkEditBtn.addEventListener('click', openBulkEdit);
     const _cancelBulk = $('cancelBulk'); if(_cancelBulk) _cancelBulk.addEventListener('click', closeBulkEdit);
@@ -2484,18 +2172,25 @@
     });
     function closeFilters(){ $('filtersBackdrop').style.display = 'none'; }
 
-    // fechamento padrão de qualquer modal: pelo botão "X" ou clicando fora da caixa (no backdrop)
-    function wireModalDismiss(backdropId, closeFn){
+    // fechamento padrão de qualquer modal: pelo botão "X" ou clicando fora da caixa (no backdrop).
+    // `closeBtnSelector` é opcional — só é preciso quando o modal tem mais de um botão com a
+    // classe ".modal-close" (caso do modal de postagem, que também tem o "⋮" de mais ações);
+    // sem ele, cai no primeiro ".modal-close" encontrado, como nos demais modais
+    function wireModalDismiss(backdropId, closeFn, closeBtnSelector){
       const backdrop = $(backdropId);
       if(!backdrop) return;
       backdrop.addEventListener('click', ev=>{ if(ev.target === backdrop) closeFn(); });
-      const closeBtn = backdrop.querySelector('.modal-close');
+      const closeBtn = backdrop.querySelector(closeBtnSelector || '.modal-close');
       if(closeBtn) closeBtn.addEventListener('click', closeFn);
     }
-    wireModalDismiss('modalBackdrop', closeModal);
+    wireModalDismiss('modalBackdrop', closeModal, '#modalCloseBtn');
+    // botão "⋮" do modal de edição — fixo, ligado uma única vez; lê editingId no momento do
+    // clique (por isso o getter), já que o mesmo botão é reaproveitado a cada postagem editada
+    if($('modalMenuBtn')) wireCardMenuButton($('modalMenuBtn'), () => editingId);
     wireModalDismiss('settingsBackdrop', closeSettings);
     wireModalDismiss('bulkEditBackdrop', closeBulkEdit);
     wireModalDismiss('filtersBackdrop', closeFilters);
+    wireModalDismiss('dayPostsBackdrop', closeDayPosts);
     // menu lateral do modal de Configurações — clicar numa categoria mostra o painel correspondente à direita
     document.querySelectorAll('.settings-nav-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
@@ -2524,9 +2219,7 @@
     // formulário de nova editoria: fica oculto até o botão "+ Adicionar" (ao lado do título) ser clicado
     function openNewEditoriaForm(){
       $('newEditoriaInput').value = '';
-      document.querySelectorAll('.newEdWeekday').forEach(cb=>{ cb.checked=false; cb.disabled=false; });
-      if($('newEditoriaAllDays')) $('newEditoriaAllDays').checked = false;
-      refreshNewEditoriaPlaceOptions();
+      if($('newEditoriaScheduleFields')) newEditoriaScheduleEditor = buildScheduleEditor($('newEditoriaScheduleFields'), null);
       $('newEditoriaForm').style.display = 'flex';
       $('newEditoriaInput').focus();
     }
@@ -2536,23 +2229,12 @@
       if(isOpen) closeNewEditoriaForm(); else openNewEditoriaForm();
     });
     if($('cancelNewEditoriaBtn')) $('cancelNewEditoriaBtn').addEventListener('click', closeNewEditoriaForm);
-    if($('newEditoriaNet')) $('newEditoriaNet').addEventListener('change', refreshNewEditoriaPlaceOptions);
     if($('addEditoriaBtn')) $('addEditoriaBtn').addEventListener('click', ()=>{
       const v=$('newEditoriaInput').value.trim(); if(!v){ alert('Digite o nome da editoria.'); return; }
       if(APP_SETTINGS.editorias.some(x=>x.name===v)){ alert('Já existe uma editoria com esse nome.'); return; }
-      const weekdays = Array.from(document.querySelectorAll('.newEdWeekday:checked')).map(el=>parseInt(el.value,10));
       const entry = { name: v, color: $('newEditoriaColor') ? $('newEditoriaColor').value : '#7c3aed' };
-      if(weekdays.length>0){
-        const netEl = $('newEditoriaNet'), placeEl = $('newEditoriaPlace'), typeEl = $('newEditoriaType');
-        const channel = netEl && netEl.value ? netEl.value : (APP_SETTINGS.networks[0] && APP_SETTINGS.networks[0].name);
-        const channelNet = APP_SETTINGS.networks.find(x=>x.name===channel);
-        entry.schedule = {
-          weekdays,
-          channel,
-          place: placeEl && placeEl.value ? placeEl.value : ((channelNet && channelNet.formats[0] && channelNet.formats[0].name) || 'Feed'),
-          type: typeEl ? typeEl.value : 'Static'
-        };
-      }
+      const scheduleValue = newEditoriaScheduleEditor ? newEditoriaScheduleEditor.getValue() : null;
+      if(scheduleValue) entry.schedule = scheduleValue;
       APP_SETTINGS.editorias.push(entry);
       saveSettings(); renderAllDynamicUI();
       closeNewEditoriaForm();

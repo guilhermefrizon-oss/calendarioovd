@@ -63,6 +63,8 @@
        mesma altura reduzida, para não desalinhar quando aparecem juntas numa mesma linha */
     .btn.ghost.small,.btn.small{height:28px;padding:0 10px;font-size:12px}
     .btn.ghost.btn--active{background:var(--accent-weak);color:var(--accent);border-color:var(--accent)}
+    .btn.ghost.danger{color:var(--danger);border-color:var(--danger-border)}
+    .btn.ghost.danger:hover{background:var(--danger-bg);border-color:var(--danger)}
     .btn-icon{width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s,border-color .12s}
     .btn-icon:hover{background:var(--surface-muted);color:var(--text);border-color:var(--border-strong)}
 
@@ -125,7 +127,8 @@
     .day-count.low{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)}
     .day-count.ok{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
     .posts{margin-top:8px;flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}
-    .more-badge{position:absolute;right:8px;bottom:8px;background:var(--card);border-radius:999px;padding:3px 9px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--accent);box-shadow:var(--shadow-sm)}
+    .more-badge{position:absolute;right:8px;bottom:8px;background:var(--card);border-radius:999px;padding:3px 9px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--accent);box-shadow:var(--shadow-sm);cursor:pointer}
+    .more-badge:hover{background:var(--accent-weak)}
 
     /* Cartão de postagem (evento) dentro de uma célula do calendário */
     .event{position:relative;display:flex;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:6px 8px 6px 10px;margin-bottom:5px;box-shadow:var(--shadow-sm);cursor:grab;overflow:hidden;transition:box-shadow .15s,border-color .15s,transform .15s}
@@ -142,6 +145,19 @@
     .tag--outline{background:var(--surface-muted);color:var(--muted);border:1px solid var(--border)}
     .tag--collab{background:var(--collab-bg);color:var(--collab);border:1px solid var(--collab-border)}
     .select-checkbox{position:absolute;top:6px;right:6px;width:16px;height:16px;margin:0;z-index:5}
+
+    /* Menu "⋮" de ações do card (duplicar/excluir), no card do calendário e na linha da lista */
+    .event-menu-btn{position:absolute;top:2px;right:2px;width:20px;height:20px;border:none;background:transparent;color:var(--text-faint);cursor:pointer;border-radius:6px;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;z-index:6;font-family:inherit}
+    .event-menu-btn:hover{background:var(--surface-muted);color:var(--text)}
+    .list-row-menu-btn{border:none;background:transparent;color:var(--text-faint);cursor:pointer;border-radius:6px;width:24px;height:24px;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:inherit}
+    .list-row-menu-btn:hover{background:var(--card);color:var(--text)}
+    /* position:fixed e reposicionado via JS a cada abertura — se nascesse dentro do card
+       (que tem overflow:hidden para arredondar cantos), o menu seria cortado */
+    .event-menu{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);z-index:1000;display:none;flex-direction:column;min-width:130px;overflow:hidden}
+    .event-menu.open{display:flex}
+    .event-menu button{background:none;border:none;text-align:left;padding:8px 11px;font-size:12.5px;color:var(--text);cursor:pointer;font-family:inherit}
+    .event-menu button:hover{background:var(--surface-muted)}
+    .event-menu button.danger{color:var(--danger)}
 
     /* Destaque visual da célula quando um card está sendo arrastado sobre ela */
     .day.drag-over{outline:2px dashed var(--accent);outline-offset:-2px;border-radius:var(--radius-md)}
@@ -164,7 +180,7 @@
     .list-date-dow{font-size:12px;color:var(--muted);text-transform:capitalize}
     .list-date.today .list-date-num{color:var(--accent)}
     .today-badge{margin-left:auto;background:var(--accent);color:var(--on-accent);font-size:10px;font-weight:700;padding:2px 9px;border-radius:999px}
-    .list-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+    .list-row{position:relative;display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
     .list-row:last-child{border-bottom:none}
     .list-row:hover{background:var(--surface-muted)}
     .list-row.dragging{opacity:0.5}
@@ -219,8 +235,8 @@
     .format-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);font-size:12px}
     .format-row-name{font-weight:600;color:var(--text)}
     .format-row-meta{color:var(--muted);flex:1}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    @media (max-width:640px){.grid-2{grid-template-columns:1fr}}
+    /* modal de criar/editar postagem: blocos empilhados numa coluna só, um abaixo do outro */
+    .grid-2{display:grid;grid-template-columns:1fr;gap:16px}
     /* telas estreitas: o menu de Configurações vira uma barra horizontal de abas acima do conteúdo */
     @media (max-width:640px){
       .settings-layout{flex-direction:column;gap:10px}

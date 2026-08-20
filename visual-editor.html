@@ -56,6 +56,7 @@
         <button id="bulkEditBtn" class="btn ghost">Editar em lote</button>
         <button id="importBriefingBtn" class="btn ghost">Importar Briefing</button>
         <button id="exportCsvBtn" class="btn ghost">Exportar CSV</button>
+        <button id="resetMonthBtn" class="btn ghost danger" style="margin-left:8px" title="Apaga todas as postagens do mês visível">Resetar mês</button>
       </div>
 
       <!-- Visão em calendário mensal: cabeçalho de dias da semana + grade de células (montada pelo JS em buildCalendar) -->
@@ -128,6 +129,14 @@
           </div>
         </div>
       </div>
+      <!-- Modal "Postagens do dia": abre ao clicar no badge "+N" quando um dia tem mais cards do que cabe na célula -->
+      <div id="dayPostsBackdrop" class="modal-backdrop">
+        <div class="modal" role="dialog" aria-modal="true">
+          <button type="button" class="modal-close" aria-label="Fechar">✕</button>
+          <h2 id="dayPostsTitle">Postagens do dia</h2>
+          <div id="dayPostsList" style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden"></div>
+        </div>
+      </div>
       <!-- Modal de Configurações: metas, redes, editorias, formatos, status e catálogo de produtos (tudo persistido no localStorage) -->
       <div id="settingsBackdrop" class="modal-backdrop">
         <div class="modal modal--wide" role="dialog" aria-modal="true">
@@ -188,16 +197,7 @@
                       <input id="newEditoriaColor" type="color" value="#7c3aed" title="Cor da etiqueta" />
                     </div>
                   </div>
-                  <div>
-                    <label>Datas de publicação</label>
-                    <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 4px">Opcional — dias fixos da semana em que essa editoria publica (ex: sempre segunda e quarta). Depois, use "Aplicar" na lista abaixo para gerar os cards do mês visível no calendário.</div>
-                    <div id="newEditoriaWeekdays" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                  </div>
-                  <div id="newEditoriaScheduleFields" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                    <select id="newEditoriaNet" style="flex:1;min-width:100px;width:auto"></select>
-                    <select id="newEditoriaPlace" style="flex:1;min-width:100px;width:auto"></select>
-                    <select id="newEditoriaType" style="flex:1;min-width:100px;width:auto"><option value="Static">Estático</option><option value="Video">Vídeo</option></select>
-                  </div>
+                  <div id="newEditoriaScheduleFields" style="display:flex;flex-direction:column;gap:8px"></div>
                   <div style="display:flex;gap:8px;justify-content:flex-end">
                     <button type="button" id="cancelNewEditoriaBtn" class="btn ghost small">Cancelar</button>
                     <button type="button" id="addEditoriaBtn" class="btn small">Adicionar editoria</button>
@@ -239,7 +239,8 @@
     <!-- Modal de Criar/Editar postagem: pré-visualização ao vivo + campos de conteúdo, categorização, produção, distribuição e notas -->
     <div id="modalBackdrop" class="modal-backdrop">
       <div class="modal" role="dialog" aria-modal="true">
-        <button type="button" class="modal-close" aria-label="Fechar">✕</button>
+        <button type="button" id="modalMenuBtn" class="modal-close" style="right:48px;display:none" aria-label="Mais ações" title="Mais ações">⋮</button>
+        <button type="button" id="modalCloseBtn" class="modal-close" aria-label="Fechar">✕</button>
         <h2 id="modalTitleHeading">Criar postagem</h2>
 
         <div id="modalPreview" class="modal-preview">
@@ -261,6 +262,16 @@
               <input id="mDate" type="date" />
               <label class="field-gap">Formato</label>
               <div id="mPlacesContainer" style="display:flex;gap:8px;margin-top:6px"></div>
+            </div>
+
+            <div class="form-group">
+              <div class="fg-label">Salvar</div>
+              <label>Briefing salvo em:</label>
+              <input id="mBriefingLink" type="text" placeholder="Link ou local onde o briefing foi salvo" />
+              <label class="field-gap">Referências salvas em:</label>
+              <input id="mReferencesLink" type="text" placeholder="Link ou local onde as referências foram salvas" />
+              <label class="field-gap">Salvar artes em:</label>
+              <input id="mArtsLink" type="text" placeholder="Link ou local onde as artes devem ser salvas" />
             </div>
 
             <div class="form-group">
@@ -290,6 +301,7 @@
             <div class="form-group">
               <div class="fg-label">Distribuição</div>
               <label>Redes</label>
+              <div id="mMultiChannelNote" style="display:none;font-size:11.5px;color:var(--muted);margin:-2px 0 6px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)"></div>
               <div id="netsContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
               <div class="field-gap"><label><input type="checkbox" id="mCollab" /> <span style="margin-left:8px">Collab (não entra na contagem)</span></label></div>
             </div>
@@ -297,6 +309,14 @@
               <div class="fg-label">Notas</div>
               <label>Observações</label>
               <textarea id="mNotes" rows="5"></textarea>
+            </div>
+            <div class="form-group">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+                <div class="fg-label" style="margin-bottom:0">Pré-visualização do briefing</div>
+                <button type="button" id="mCopyBriefingBtn" class="btn-icon" style="width:26px;height:26px;font-size:13px;flex-shrink:0" title="Copiar texto do briefing" aria-label="Copiar texto do briefing">📋</button>
+              </div>
+              <div style="font-size:11.5px;color:var(--muted);margin:-6px 0 4px">Texto consolidado a partir dos campos preenchidos acima, atualizado em tempo real.</div>
+              <div id="mBriefingPreview" style="font-size:13px;line-height:1.7;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted);color:var(--text)"></div>
             </div>
           </div>
         </div>
