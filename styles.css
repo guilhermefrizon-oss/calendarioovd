@@ -151,22 +151,33 @@
     .page-subtitle{margin:0;font-size:13px;color:var(--muted)}
     .page-header-actions{display:flex;gap:10px;align-items:center;flex-shrink:0}
 
-    /* Busca de postagens (lupa no cabeçalho): em repouso é só o botão-lupa; ao abrir, ela vira uma
-       barra grande que cresce pro espaço vazio do cabeçalho (entre o título e os botões), sem
-       empurrar ou esconder Configurações/Nova postagem, que continuam no lugar de sempre. */
+    /* Busca de postagens (lupa no cabeçalho): em repouso é só o botão-lupa; ao abrir, a barra
+       cresce por cima do espaço vazio do cabeçalho (entre o título e os botões) como uma camada
+       flutuante (position:absolute), ancorada pela direita no lugar do próprio botão-lupa. Como
+       ela sai do fluxo normal, Configurações/Nova postagem nunca se movem — só a barra anima. */
     .search-wrap{position:relative;flex-shrink:0}
-    .page-header-actions.search-active{flex:1;min-width:0}
-    .page-header-actions.search-active .search-wrap{flex:1;min-width:0}
     .search-toggle-btn{display:flex}
     .search-active .search-toggle-btn{display:none}
-    .search-bar{display:none;align-items:center;gap:8px;height:var(--control-h);padding:0 6px 0 4px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);transition:border-color .12s,box-shadow .12s}
-    .search-active .search-bar{display:flex}
+    .search-bar{
+      position:absolute;top:50%;right:0;transform:translateY(-50%);
+      display:flex;align-items:center;gap:8px;overflow:hidden;
+      width:32px;height:var(--control-h);padding:0 6px 0 4px;
+      border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);
+      opacity:0;pointer-events:none;
+      transition:width .3s cubic-bezier(.16,1,.3,1),opacity .18s ease,border-color .12s,box-shadow .12s;
+    }
+    .search-active .search-bar{width:clamp(240px,32vw,480px);opacity:1;pointer-events:auto}
     .search-bar:focus-within{border-color:var(--accent-ink);box-shadow:0 0 0 3px var(--accent-weak)}
-    .search-bar input{flex:1;height:auto;padding:0;border:0;background:transparent}
+    .search-bar input{flex:1;min-width:0;height:auto;padding:0;border:0;background:transparent}
     .search-bar input:focus{outline:none;box-shadow:none}
     .search-bar-icon{display:flex;align-items:center;justify-content:center;color:var(--text-faint);flex-shrink:0}
-    .search-results{display:none;flex-direction:column;gap:2px;position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:6px;max-height:360px;overflow-y:auto;z-index:45}
-    .search-active .search-results.open{display:flex}
+    .search-results{display:none;flex-direction:column;gap:2px;position:absolute;top:50%;transform:translateY(calc(var(--control-h) / 2 + 6px));right:0;width:clamp(240px,32vw,480px);background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:6px;max-height:360px;overflow-y:auto;z-index:45}
+    .search-active .search-results.open{display:flex;animation:searchResultsIn .2s cubic-bezier(.16,1,.3,1) .18s both}
+    @keyframes searchResultsIn{from{opacity:0;transform:translateY(calc(var(--control-h) / 2))}to{opacity:1;transform:translateY(calc(var(--control-h) / 2 + 6px))}}
+    @media (prefers-reduced-motion: reduce){
+      .search-bar{transition:none}
+      .search-active .search-results.open{animation:none}
+    }
     .search-result-row{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--radius-sm);cursor:pointer;transition:background .12s}
     .search-result-row:hover{background:var(--surface-muted)}
     .search-result-nets{display:flex;align-items:center;gap:2px;flex-shrink:0}
@@ -174,7 +185,7 @@
     .search-result-body{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px}
     .search-result-title{flex:1;min-width:0;font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .search-result-meta{flex-shrink:0;font-size:11px;color:var(--muted);white-space:nowrap}
-    .search-empty,.search-hint{padding:16px 4px;text-align:center;font-size:12px;color:var(--text-faint)}
+    .search-empty,.search-hint{padding:9px 4px;text-align:center;font-size:12px;color:var(--text-faint)}
 
     /* Superfície de cartão genérica, reaproveitada pela toolbar, pelo card de sugestão e pelos grupos da lista */
     .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;box-shadow:var(--shadow-sm)}
@@ -351,8 +362,13 @@
     /* data em destaque — maior e mais peso, pra ser a primeira coisa que o olho pega na célula */
     .day .date{box-sizing:border-box;font-size:16px;line-height:1;font-weight:900;color:var(--text);width:27px;height:27px;min-width:27px;min-height:27px;max-width:27px;max-height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
     .day.today .date{background:var(--accent);color:var(--on-accent)}
+    /* nome da data comemorativa (feriado/data comercial), ao lado do número do dia — ver
+       commemorativeDateName() em app.js. Trunca com "..." na grade do mês (pouco espaço
+       horizontal); o title="" no elemento mostra o nome completo ao passar o mouse. */
+    .holiday-name{font-size:12px;font-weight:300;font-style:italic;color:var(--accent-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+    .week-day-head .holiday-name{white-space:normal;overflow:visible;text-overflow:clip;flex:none;line-height:1.3}
     /* contador "x/y" fica discreto (opacidade reduzida) pra não competir com a data */
-    .day-count{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:var(--radius-sm);background:var(--surface-muted);color:var(--muted);border:1px solid var(--border);white-space:nowrap;opacity:.55;transition:opacity .12s}
+    .day-count{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:var(--radius-sm);background:var(--surface-muted);color:var(--muted);border:1px solid var(--border);white-space:nowrap;opacity:.55;transition:opacity .12s;flex-shrink:0}
     .day:hover .day-count{opacity:.85}
     .day-count.low{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)}
     .day-count.ok{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
@@ -605,11 +621,11 @@
     .bp-content-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-ink);margin-bottom:5px}
 
     /* ============================================================
-       GUIA DE MARCA (brand-guide.html) — página inteira com menu lateral,
-       reaproveitando .settings-layout/.settings-sidebar/.settings-nav-btn/
-       .settings-panel do modal de Configurações (mesmo padrão visual de
-       abas laterais), mas sem os limites de altura/largura pensados para
-       um modal, já que aqui é o conteúdo principal da página.
+       Layout de página inteira com menu lateral (usado pela Central de Inteligência,
+       intelligence-center.html), reaproveitando .settings-layout/.settings-sidebar/
+       .settings-nav-btn/.settings-panel do modal de Configurações (mesmo padrão visual
+       de abas laterais), mas sem os limites de altura/largura pensados para um modal,
+       já que aqui é o conteúdo principal da página.
        ============================================================ */
     .bg-layout-card{padding:0;overflow:hidden}
     .bg-layout{display:flex;align-items:stretch}
@@ -633,9 +649,8 @@
     .bg-add-form-row > *{flex:1 1 160px;min-width:140px}
 
     /* lista de itens já cadastrados — uma .bg-list-row por item, com título + subtítulo(s) à
-       esquerda e um botão de remover à direita; usada por palavras proibidas, terminologia,
-       produtos, linhas, públicos, pilares, formatos, dimensões, CTAs, hashtags, disclaimers,
-       requisitos, arquivos, personas etc. (ver setupListSection() em brand-guide.js) */
+       esquerda e um botão de remover à direita; usada pelas listas de referências da Central
+       de Inteligência (artes, legendas, briefings — ver intelligence-center.js) */
     .bg-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
     .bg-list-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)}
     .bg-list-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
@@ -646,33 +661,22 @@
     .bg-list-row .btn-icon{flex-shrink:0}
     .bg-empty{font-size:12px;color:var(--text-faint);padding:10px 2px}
 
-    /* chips removíveis (ex: atributos de personalidade do tom de voz) — reaproveita .chip,
-       só acrescenta o wrap da lista */
-    .bg-chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-
-    /* ícone de arquivo genérico (documento) usado na lista de Arquivos base e nos arquivos do logo */
+    /* ícone de arquivo genérico (documento/vídeo) — usado nas listas de referência da
+       Central de Inteligência (ver intelligence-center.js) */
     .bg-file-icon{width:34px;height:34px;border-radius:var(--radius-sm);background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--border)}
 
-    /* linha de persona: avatar circular (foto enviada ou iniciais) + nome/papel/descrição */
-    .bg-persona-avatar{width:44px;height:44px;border-radius:50%;background:var(--accent-weak);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;flex-shrink:0;overflow:hidden}
-    .bg-persona-avatar img{width:100%;height:100%;object-fit:cover}
     .bp-content-text{font-size:13px;line-height:1.6;color:var(--text)}
 
     /* ============================================================
-       CONEXÃO GUIA DE MARCA ↔ CALENDÁRIO — usadas no modal de criar/editar
-       postagem (visual-editor.html), alimentadas pelo BRAND_GUIDE lido em
-       app.js (ver findForbiddenWords()/renderBrandGuideQuickInsert()).
+       Usadas pela Central de Inteligência (intelligence-center.html) e pelo bloco de
+       integração dentro do modal de criar/editar postagem (visual-editor.html/app.js).
        ============================================================ */
-    /* aviso de palavra proibida — só avisa, não impede salvar */
+    /* aviso inline (ex: editoria ainda sem DNA gerado) — só avisa, não impede salvar */
     .bg-inline-warning{margin-top:8px;padding:8px 10px;border:1px solid var(--danger-border);border-radius:var(--radius-sm);background:var(--danger-bg);color:var(--danger);font-size:12px;line-height:1.5}
 
-    /* painel de CTAs/hashtags/disclaimers do Guia de Marca, com inserção de um clique */
-    .bg-quick-insert{margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted);display:flex;flex-direction:column;gap:8px}
-    .bg-quick-insert-title{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint)}
+    /* linha "rótulo: valor(es)" — usada no painel de DNA da editoria (palavras/CTAs identificados) */
     .bg-quick-insert-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
     .bg-quick-insert-label{font-size:11px;font-weight:700;color:var(--muted);flex:0 0 auto;margin-right:2px}
-    .bg-quick-chip{background:var(--card);cursor:pointer}
-    .bg-quick-chip:hover{background:var(--accent-weak);border-color:var(--accent-ink);color:var(--accent-ink)}
 
     /* ============================================================
        CENTRAL DE INTELIGÊNCIA (intelligence-center.html/js) — biblioteca de editorias,

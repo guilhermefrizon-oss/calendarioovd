@@ -6,7 +6,7 @@
   <title>Editor Visual — Calendário de Postagens</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,300;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -205,6 +205,7 @@
               <button type="button" class="settings-nav-btn" data-panel="secRedes">Redes</button>
               <button type="button" class="settings-nav-btn" data-panel="secEditorias">Editorias</button>
               <button type="button" class="settings-nav-btn" data-panel="secStatus">Status</button>
+              <button type="button" class="settings-nav-btn" data-panel="secComemorativas">Datas comemorativas</button>
               <button type="button" class="settings-nav-btn" data-panel="secCatalogo">Catálogo de produtos</button>
             </div>
 
@@ -272,6 +273,24 @@
                   <button id="addStatusBtn" class="btn ghost">Adicionar</button>
                 </div>
                 <div id="statusesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+              </div>
+
+              <div class="settings-panel" id="secComemorativas">
+                <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 2px">Datas próprias (ex: aniversário da empresa, um evento específico), somadas às datas comemorativas e feriados já calculados automaticamente. Aparecem ao lado do número do dia no calendário.</div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <input id="newCustomDateName" type="text" placeholder="Nome (ex: Aniversário da empresa)" style="flex:2;min-width:180px" />
+                  <input id="newCustomDateInput" type="date" style="flex:1;min-width:150px" />
+                  <button id="addCustomDateBtn" class="btn ghost">Adicionar</button>
+                </div>
+                <label class="chip" style="margin-top:2px;width:fit-content"><input id="newCustomDateRecurring" type="checkbox" checked /> Repete todo ano (ignora o ano cadastrado)</label>
+                <div id="customDatesList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:22px;padding-top:14px;border-top:1px solid var(--border)">
+                  <h3 style="margin:0;padding:0;border:0;font-size:12px">Todas as datas cadastradas</h3>
+                  <select id="commemorativeYearSelect" style="width:auto"></select>
+                </div>
+                <div style="font-size:11.5px;color:var(--muted);margin:2px 0 2px">Feriados, datas comerciais e datas personalizadas já reconhecidos pelo calendário no ano selecionado.</div>
+                <div id="allCommemorativeDatesList" style="display:flex;flex-direction:column;margin-top:6px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md)"></div>
               </div>
 
               <div class="settings-panel" id="secCatalogo">

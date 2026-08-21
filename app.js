@@ -964,6 +964,89 @@
     function todayStr(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 
     // ============================================================
+    // DATAS COMEMORATIVAS — feriados nacionais + datas comerciais de referência para
+    // planejamento de conteúdo, exibidas ao lado do número do dia na grade do mês. Datas fixas
+    // (mesmo dia todo ano) ficam num dicionário "MM-DD"; datas móveis (baseadas na Páscoa, ou no
+    // "enésimo dia da semana do mês", como Dia das Mães/Pais e Black Friday) são calculadas em
+    // tempo real para o ano exibido e guardadas em cache por ano, já que o cálculo da Páscoa
+    // não é trivial de refazer a cada célula do calendário.
+    // ============================================================
+    const FIXED_COMMEMORATIVE_DATES = {
+      '01-01': 'Ano Novo',
+      '03-08': 'Dia Internacional da Mulher',
+      '03-15': 'Dia do Consumidor',
+      '04-21': 'Tiradentes',
+      '05-01': 'Dia do Trabalhador',
+      '06-12': 'Dia dos Namorados',
+      '09-07': 'Independência do Brasil',
+      '09-15': 'Dia do Cliente',
+      '10-12': 'Dia das Crianças / N. Sra. Aparecida',
+      '11-02': 'Finados',
+      '11-15': 'Proclamação da República',
+      '11-20': 'Dia da Consciência Negra',
+      '12-25': 'Natal'
+    };
+    // data da Páscoa (algoritmo de Gauss/computus gregoriano) — base de todos os feriados móveis
+    function easterDate(year){
+      const a = year % 19, b = Math.floor(year/100), c = year % 100;
+      const d = Math.floor(b/4), e = b % 4, f = Math.floor((b+8)/25);
+      const g = Math.floor((b-f+1)/3), h = (19*a+b-d-g+15) % 30;
+      const i = Math.floor(c/4), k = c % 4, l = (32+2*e+2*i-h-k) % 7;
+      const m = Math.floor((a+11*h+22*l)/451);
+      const month = Math.floor((h+l-7*m+114)/31);
+      const day = ((h+l-7*m+114) % 31) + 1;
+      return new Date(year, month-1, day);
+    }
+    function addDays(date, days){ const d = new Date(date); d.setDate(d.getDate()+days); return d; }
+    // enésima ocorrência de um dia da semana (0=Dom...6=Sáb) num mês — usado pra Dia das Mães
+    // (2º domingo de maio) e Dia dos Pais (2º domingo de agosto)
+    function nthWeekdayOfMonth(year, month, weekday, n){
+      const first = new Date(year, month, 1);
+      const offset = (weekday - first.getDay() + 7) % 7;
+      return new Date(year, month, 1 + offset + (n-1)*7);
+    }
+    // última ocorrência de um dia da semana num mês — usado pra Black Friday (última 6ª de novembro)
+    function lastWeekdayOfMonth(year, month, weekday){
+      const last = new Date(year, month+1, 0);
+      const offset = (last.getDay() - weekday + 7) % 7;
+      return new Date(year, month, last.getDate() - offset);
+    }
+    function ymd(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
+    const movableCommemorativeDatesCache = {};
+    function movableCommemorativeDates(year){
+      if(movableCommemorativeDatesCache[year]) return movableCommemorativeDatesCache[year];
+      const easter = easterDate(year);
+      const map = {};
+      map[ymd(addDays(easter,-47))] = 'Carnaval';
+      map[ymd(addDays(easter,-2))] = 'Sexta-feira Santa';
+      map[ymd(easter)] = 'Páscoa';
+      map[ymd(addDays(easter,60))] = 'Corpus Christi';
+      map[ymd(nthWeekdayOfMonth(year,4,0,2))] = 'Dia das Mães'; // maio, domingo
+      map[ymd(nthWeekdayOfMonth(year,7,0,2))] = 'Dia dos Pais'; // agosto, domingo
+      const blackFriday = lastWeekdayOfMonth(year,10,5); // novembro, sexta
+      map[ymd(blackFriday)] = 'Black Friday';
+      map[ymd(addDays(blackFriday,3))] = 'Cyber Monday';
+      movableCommemorativeDatesCache[year] = map;
+      return map;
+    }
+    // nome(s) da(s) data(s) comemorativa(s) em "YYYY-MM-DD" (fixas/móveis + personalizadas
+    // cadastradas em Configurações), unidos por " · " quando mais de uma cair no mesmo dia —
+    // ou null se o dia não corresponder a nenhuma
+    function commemorativeDateName(dateStr){
+      const names = [];
+      const fixed = FIXED_COMMEMORATIVE_DATES[dateStr.slice(5)];
+      if(fixed) names.push(fixed);
+      const year = Number(dateStr.slice(0,4));
+      const movable = movableCommemorativeDates(year)[dateStr];
+      if(movable) names.push(movable);
+      (APP_SETTINGS.customDates||[]).forEach(c=>{
+        const matches = c.recurring ? c.date.slice(5)===dateStr.slice(5) : c.date===dateStr;
+        if(matches) names.push(c.name);
+      });
+      return names.length ? names.join(' · ') : null;
+    }
+
+    // ============================================================
     // CALENDÁRIO MENSAL — monta as células (4 a 6 semanas, conforme
     // o necessário) do mês exibido e liga o drag-and-drop de
     // postagens entre os dias
@@ -1047,7 +1130,10 @@
           const dateStr = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-${String(dayIndex).padStart(2,'0')}`;
           cell.dataset.date = dateStr;
           if(dateStr===tStr) cell.classList.add('today');
-          cell.innerHTML = `<div class="day-head"><span class="date">${dayIndex}</span><span class="day-count"></span></div><div class="posts"></div>`;
+          // nome da data comemorativa (feriado ou data comercial), quando o dia corresponder a uma
+          const holidayName = commemorativeDateName(dateStr);
+          const holidayHtml = holidayName ? `<span class="holiday-name" title="${escapeHtml(holidayName)}">${escapeHtml(holidayName)}</span>` : '';
+          cell.innerHTML = `<div class="day-head"><span class="date">${dayIndex}</span>${holidayHtml}<span class="day-count"></span></div><div class="posts"></div>`;
           // clicar no número do dia ou no contador (0/3, 1/3...) abre o popup com todas as
           // postagens daquela data — igual ao badge "+N", mas funciona mesmo com 0, 1, 2 ou 3
           // postagens (quando não há badge "+N" porque tudo já cabe na célula)
@@ -1086,7 +1172,9 @@
         cell.className = 'day week-day';
         cell.dataset.date = dateStr;
         if(dateStr===tStr) cell.classList.add('today');
-        cell.innerHTML = `<div class="week-day-head"><div class="week-day-top-row"><span class="week-day-label">${WEEKDAY_ABBR[i]}</span><span class="day-count"></span></div><span class="date">${d.getDate()}</span></div><div class="posts"></div><button type="button" class="week-day-add">+ Adicionar postagem</button>`;
+        const holidayName = commemorativeDateName(dateStr);
+        const holidayHtml = holidayName ? `<span class="holiday-name" title="${escapeHtml(holidayName)}">${escapeHtml(holidayName)}</span>` : '';
+        cell.innerHTML = `<div class="week-day-head"><div class="week-day-top-row"><span class="week-day-label">${WEEKDAY_ABBR[i]}</span><span class="day-count"></span></div><span class="date">${d.getDate()}</span>${holidayHtml}</div><div class="posts"></div><button type="button" class="week-day-add">+ Adicionar postagem</button>`;
         attachDayCellInteractions(cell, dateStr);
         cell.querySelector('.week-day-add').addEventListener('click', (ev)=>{ ev.stopPropagation(); closeEditState(); openModal(dateStr); });
         grid.appendChild(cell);
@@ -1838,7 +1926,10 @@
         { name:'Aprovado', color:'#10b981' },
         { name:'Agendado', color:'#6366f1' }
       ],
-      catalog: []
+      catalog: [],
+      // datas comemorativas personalizadas (ex: aniversário da empresa, um evento específico)
+      // — somam-se às datas comemorativas fixas/móveis calculadas em commemorativeDateName()
+      customDates: []
     };
     let APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
 
@@ -2642,8 +2733,89 @@
       list.querySelectorAll('button[data-catalog]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.catalog; APP_SETTINGS.catalog = (APP_SETTINGS.catalog||[]).filter(x=>x.code!==v); saveSettings(); renderCatalogUI(); }));
     }
 
+    // datas comemorativas personalizadas (ex: aniversário da empresa, um evento específico) —
+    // "todo ano" repete pelo dia/mês (ignora o ano cadastrado); sem marcar, vale só para a data exata
+    function renderCustomDatesUI(){
+      const list = $('customDatesList'); if(!list) return;
+      list.innerHTML = '';
+      const items = (APP_SETTINGS.customDates||[]).slice().sort((a,b)=> a.date.slice(5).localeCompare(b.date.slice(5)));
+      if(!items.length){ list.innerHTML = `<div style="font-size:12px;color:var(--text-faint);padding:6px 2px">Nenhuma data personalizada cadastrada ainda.</div>`; return; }
+      items.forEach(item=>{
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:12px';
+        const [y,m,d] = item.date.split('-').map(Number);
+        const dateLabel = item.recurring
+          ? new Date(2000,m-1,d).toLocaleDateString('pt-BR',{day:'2-digit',month:'long'})
+          : new Date(y,m-1,d).toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+        row.innerHTML = `<span style="flex:1;font-weight:700;color:var(--text)">${escapeHtml(item.name)}</span><span style="color:var(--muted);white-space:nowrap">${dateLabel}${item.recurring?' · todo ano':''}</span><button class="btn ghost small" data-custom-date="${item.id}" aria-label="Remover data">${UI_ICONS.x(13)}</button>`;
+        list.appendChild(row);
+      });
+      list.querySelectorAll('button[data-custom-date]').forEach(bt=> bt.addEventListener('click', ()=>{
+        const v = bt.dataset.customDate;
+        APP_SETTINGS.customDates = (APP_SETTINGS.customDates||[]).filter(x=>x.id!==v);
+        saveSettings(); renderCustomDatesUI(); renderCommemorativeDatesYearList();
+      }));
+    }
+
+    // todas as datas comemorativas (fixas + móveis + personalizadas) já reconhecidas pelo
+    // calendário num ano específico, em ordem cronológica — cada entrada agrupa os nomes de
+    // todas as datas que caem naquele mesmo dia (ex: um evento cadastrado no mesmo dia de um feriado)
+    function allCommemorativeDatesForYear(year){
+      const byDate = {};
+      const add = (dateStr, name)=>{ (byDate[dateStr] = byDate[dateStr] || []).push(name); };
+      Object.keys(FIXED_COMMEMORATIVE_DATES).forEach(mmdd=> add(`${year}-${mmdd}`, FIXED_COMMEMORATIVE_DATES[mmdd]));
+      const movable = movableCommemorativeDates(year);
+      Object.keys(movable).forEach(dateStr=> add(dateStr, movable[dateStr]));
+      (APP_SETTINGS.customDates||[]).forEach(c=>{
+        if(c.recurring) add(`${year}-${c.date.slice(5)}`, c.name);
+        else if(c.date.slice(0,4)===String(year)) add(c.date, c.name);
+      });
+      return Object.keys(byDate).sort().map(dateStr=> ({ dateStr, names: byDate[dateStr] }));
+    }
+
+    // ano atualmente selecionado no filtro de "Todas as datas cadastradas" — inicia no ano
+    // do mês exibido no calendário, pra já abrir mostrando o ano relevante
+    let commemorativeListYear = null;
+    function renderCommemorativeDatesYearList(){
+      const sel = $('commemorativeYearSelect');
+      const list = $('allCommemorativeDatesList');
+      if(!sel || !list) return;
+      if(commemorativeListYear===null) commemorativeListYear = viewDate.getFullYear();
+      if(!sel.options.length){
+        const base = new Date().getFullYear();
+        for(let y=base-1; y<=base+4; y++){
+          const opt = document.createElement('option'); opt.value = String(y); opt.textContent = String(y);
+          sel.appendChild(opt);
+        }
+      }
+      // garante uma opção pro ano selecionado mesmo se estiver fora do intervalo padrão
+      // (ex: navegou o calendário pra um ano bem no futuro/passado antes de abrir Configurações)
+      if(!Array.from(sel.options).some(o=> o.value===String(commemorativeListYear))){
+        const opt = document.createElement('option'); opt.value = String(commemorativeListYear); opt.textContent = String(commemorativeListYear);
+        sel.appendChild(opt);
+        Array.from(sel.options).sort((a,b)=> Number(a.value)-Number(b.value)).forEach(o=> sel.appendChild(o));
+      }
+      sel.value = String(commemorativeListYear);
+      list.innerHTML = '';
+      const items = allCommemorativeDatesForYear(commemorativeListYear);
+      if(!items.length){ list.innerHTML = `<div style="font-size:12px;color:var(--text-faint);padding:8px">Nenhuma data neste ano.</div>`; return; }
+      items.forEach(({dateStr, names})=>{
+        const [y,m,d] = dateStr.split('-').map(Number);
+        const label = new Date(y,m-1,d).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',weekday:'short'}).replace(/\./g,'');
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px';
+        row.innerHTML = `<span style="color:var(--muted);min-width:90px;flex-shrink:0;text-transform:capitalize">${label}</span><span style="flex:1;color:var(--text)">${escapeHtml(names.join(' · '))}</span>`;
+        list.appendChild(row);
+      });
+      list.lastChild.style.borderBottom = 'none';
+    }
+    if($('commemorativeYearSelect')) $('commemorativeYearSelect').addEventListener('change', (ev)=>{
+      commemorativeListYear = Number(ev.target.value);
+      renderCommemorativeDatesYearList();
+    });
+
     // reconstrói toda a UI dependente das configurações, de uma vez
-    function renderAllDynamicUI(){ renderTabs(); renderNetsUI(); renderEditoriasUI(); renderPlacesUI(); renderStatusUI(); renderCatalogUI(); }
+    function renderAllDynamicUI(){ renderTabs(); renderNetsUI(); renderEditoriasUI(); renderPlacesUI(); renderStatusUI(); renderCatalogUI(); renderCustomDatesUI(); renderCommemorativeDatesYearList(); }
 
     // ============================================================
     // MODAL DE CONFIGURAÇÕES — abrir, fechar e salvar a meta
@@ -2924,6 +3096,17 @@
       APP_SETTINGS.catalog.push({code, name});
       $('newCatalogCode').value=''; $('newCatalogName').value='';
       saveSettings(); renderCatalogUI();
+    });
+    if($('addCustomDateBtn')) $('addCustomDateBtn').addEventListener('click', ()=>{
+      const name = $('newCustomDateName').value.trim();
+      const date = $('newCustomDateInput').value;
+      if(!name){ alert('Digite o nome da data.'); return; }
+      if(!date){ alert('Escolha uma data.'); return; }
+      const recurring = $('newCustomDateRecurring').checked;
+      APP_SETTINGS.customDates = APP_SETTINGS.customDates || [];
+      APP_SETTINGS.customDates.push({ id: generateId(), name, date, recurring });
+      $('newCustomDateName').value=''; $('newCustomDateInput').value=''; $('newCustomDateRecurring').checked = true;
+      saveSettings(); renderCustomDatesUI();
     });
     if($('mTitle')) $('mTitle').addEventListener('input', refreshModalDynamic);
     if($('mDate')) $('mDate').addEventListener('input', refreshModalDynamic);
