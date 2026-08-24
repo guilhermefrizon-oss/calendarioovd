@@ -130,6 +130,36 @@
     let EDITORIAS = readEditoriaList();
 
     // ============================================================
+    // LISTA DE REDES SOCIAIS E SEUS FORMATOS — mesma fonte usada em Configurações → Redes no
+    // Calendário de Postagens (app.js); aqui só lemos, pra abrir os campos de upload certos
+    // pra cada rede na "Nova peça de referência"
+    // ============================================================
+    const FALLBACK_NETWORK_FORMATS = {
+      Instagram: [{ name:'Feed', width:1080, height:1350 }, { name:'Stories', width:1080, height:1920 }, { name:'Reels', width:1080, height:1920 }],
+      Facebook: [{ name:'Feed', width:1080, height:1350 }, { name:'Stories', width:1080, height:1920 }, { name:'Reels', width:1080, height:1920 }],
+      Twitter: [{ name:'Post', width:1200, height:675 }],
+      LinkedIn: [{ name:'Post', width:1200, height:627 }, { name:'Artigo', width:1200, height:644 }],
+      TikTok: [{ name:'Vídeo', width:1080, height:1920 }],
+      Blog: [{ name:'Post', width:1200, height:630 }],
+      Email: [{ name:'Email', width:600, height:800 }]
+    };
+    const FALLBACK_NETWORKS = Object.keys(FALLBACK_NETWORK_FORMATS).map(name=> ({ name, formats: FALLBACK_NETWORK_FORMATS[name] }));
+    function readNetworkList(){
+      const raw = localStorage.getItem(CALENDAR_SETTINGS_KEY);
+      if(!raw) return FALLBACK_NETWORKS;
+      try{
+        const s = JSON.parse(raw);
+        const nets = Array.isArray(s.networks) ? s.networks : null;
+        if(!nets || !nets.length) return FALLBACK_NETWORKS;
+        return nets.map(n=> ({ name:n.name, formats: (Array.isArray(n.formats) && n.formats.length) ? n.formats : (FALLBACK_NETWORK_FORMATS[n.name] || [{name:'Post'}]) }));
+      }catch(e){ return FALLBACK_NETWORKS; }
+    }
+    let NETWORKS = readNetworkList();
+    function networkFormats(networkName){
+      const n = NETWORKS.find(x=> x.name===networkName);
+      return n ? n.formats : [];
+    }
+    // ============================================================
     // MODELO E PERSISTÊNCIA DO APRENDIZADO — delegados a intelligence-data.js (IntelStore),
     // ponto único de leitura/escrita/análise, também usado pelo calendário (app.js) para ler
     // o DNA já gerado e sugerir/validar conteúdo na hora de criar uma publicação.
@@ -195,7 +225,7 @@
     // ============================================================
     let selectedEditoria = null;
 
-    const STATUS_LABELS = { 'sem-dados':'Sem referências', 'nao-treinado':'Não treinado', 'desatualizado':'Novas referências não analisadas', 'poucas-referencias':'Poucas referências', 'treinado':'Treinado' };
+    const STATUS_LABELS = { 'sem-dados':'Sem referências', 'nao-treinado':'Inteligência não criada', 'desatualizado':'Novas referências não analisadas', 'poucas-referencias':'Poucas referências', 'treinado':'Inteligência criada' };
     const STATUS_CLASSES = { 'sem-dados':'muted', 'nao-treinado':'warn', 'desatualizado':'warn', 'poucas-referencias':'warn', 'treinado':'ok' };
 
     function renderLibrary(){
@@ -204,7 +234,7 @@
       EDITORIAS.forEach(ed=>{
         const bucket = IntelStore.getBucket(INTEL, ed.name);
         const status = IntelStore.learningStatus(bucket);
-        const n = IntelStore.referenceCount(bucket);
+        const analyzedCount = bucket.dna ? bucket.dna.referenceCount : 0;
         const lastUpdate = bucket.dna ? new Date(bucket.dna.generatedAt).toLocaleDateString('pt-BR') : '—';
         const card = document.createElement('div');
         card.className = 'intel-editoria-card' + (selectedEditoria===ed.name ? ' active' : '');
@@ -213,11 +243,17 @@
             <span class="dot" style="background:${escapeHtml(ed.color||'#64748b')};width:12px;height:12px"></span>
             <span class="intel-editoria-card-name">${escapeHtml(ed.name)}</span>
           </div>
-          <div class="intel-editoria-card-stat">${n} referência${n===1?'':'s'} analisada${n===1?'':'s'}</div>
+          <div class="intel-editoria-card-stat">${analyzedCount} referência${analyzedCount===1?'':'s'} analisada${analyzedCount===1?'':'s'}</div>
           <span class="intel-status-pill ${STATUS_CLASSES[status]}">${STATUS_LABELS[status]}</span>
           <div class="intel-editoria-card-updated">Atualizado em ${lastUpdate}</div>
         `;
-        card.addEventListener('click', ()=>{ selectedEditoria = ed.name; renderLibrary(); renderWorkspace(); });
+        card.addEventListener('click', ()=>{
+          selectedEditoria = ed.name;
+          resetPieceDraft();
+          $('intelPieceBriefing').value = '';
+          $('intelPieceCaption').value = '';
+          renderLibrary(); renderWorkspace();
+        });
         grid.appendChild(card);
       });
       if(!EDITORIAS.length) grid.innerHTML = `<div class="bg-empty">Nenhuma editoria cadastrada ainda — cadastre editorias em Configurações, no Calendário de Postagens.</div>`;
@@ -242,189 +278,391 @@
       if(r < 0.87) return 'vertical';
       return 'quadrado';
     }
+    // amostra a imagem já reduzida numa grade de pontos (não pixel a pixel, só o bastante pra
+    // estimar a cor média) — usada depois pra notar paleta/luminosidade recorrente entre as peças
+    function averageColorFromCanvas(ctx, w, h){
+      try{
+        const gridW = Math.min(w, 40), gridH = Math.min(h, 40);
+        const stepX = Math.max(1, Math.floor(w/gridW));
+        const stepY = Math.max(1, Math.floor(h/gridH));
+        const data = ctx.getImageData(0, 0, w, h).data;
+        let r=0, g=0, b=0, n=0;
+        for(let y=0; y<h; y+=stepY){
+          for(let x=0; x<w; x+=stepX){
+            const i = (y*w + x) * 4;
+            r += data[i]; g += data[i+1]; b += data[i+2]; n++;
+          }
+        }
+        if(!n) return null;
+        return rgbToHex(r/n, g/n, b/n);
+      }catch(e){ return null; }
+    }
     // reduz a imagem antes de guardar (uma editoria acumula muitas artes ao longo do tempo —
     // guardar em resolução original em base64 estouraria a cota do localStorage rápido demais);
-    // a proporção é calculada a partir da imagem original, antes do corte
+    // a proporção e a cor média são calculadas a partir da imagem já reduzida
     function downscaleImage(dataUrl, maxDim){
       return new Promise(resolve=>{
         const img = new Image();
         img.onload = ()=>{
           const ratio = classifyRatio(img.naturalWidth, img.naturalHeight);
+          const rawRatio = (img.naturalWidth && img.naturalHeight) ? img.naturalWidth / img.naturalHeight : null;
           const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
           const w = Math.max(1, Math.round(img.naturalWidth * scale));
           const h = Math.max(1, Math.round(img.naturalHeight * scale));
           const canvas = document.createElement('canvas');
           canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.82), ratio });
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const color = averageColorFromCanvas(ctx, w, h);
+          resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.82), ratio, rawRatio, color });
         };
-        img.onerror = ()=> resolve({ dataUrl, ratio:null });
+        img.onerror = ()=> resolve({ dataUrl, ratio:null, rawRatio:null, color:null });
         img.src = dataUrl;
       });
     }
     const RATIO_LABELS = { quadrado:'Quadrado (1:1)', vertical:'Vertical (4:5/9:16)', horizontal:'Horizontal (16:9)' };
-    const VISUAL_TAG_LABELS = { realUse:'Produto em uso real', lowText:'Pouco texto', visibleCta:'CTA visível', recurringElement:'Elemento recorrente' };
 
-    function renderVisualsList(bucket){
-      const el = $('intelVisualsList'); if(!el) return;
-      const items = bucket.references.visuals;
-      el.innerHTML = '';
-      if(!items.length){ el.innerHTML = `<div class="bg-empty">Nenhuma arte enviada ainda.</div>`; return; }
-      items.slice().reverse().forEach(item=>{
-        const row = document.createElement('div');
-        row.className = 'bg-list-row';
-        const tags = Object.keys(item.tags||{}).filter(k=> item.tags[k]).map(k=> VISUAL_TAG_LABELS[k]).filter(Boolean);
-        const metaParts = [item.format, item.ratio ? RATIO_LABELS[item.ratio] : null].filter(Boolean);
-        row.innerHTML = `
-          ${item.kind==='video' ? `<span class="bg-file-icon">${UI_ICONS.film(16)}</span>` : `<img src="${item.dataUrl}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);flex-shrink:0" />`}
-          <div class="bg-list-row-main">
-            <div class="bg-list-row-title">${escapeHtml(item.name)}</div>
-            ${metaParts.length ? `<div class="bg-list-row-sub">${metaParts.map(escapeHtml).join(' · ')}</div>` : ''}
-            ${tags.length ? `<div class="bg-list-row-sub">${tags.map(escapeHtml).join(' · ')}</div>` : ''}
+    // ============================================================
+    // LIGHTBOX — clique numa arte/vídeo de referência pra ver maior, num modal com cantos
+    // arredondados e um X pra fechar
+    // ============================================================
+    function openLightbox(item){
+      const content = $('intelLightboxContent');
+      content.innerHTML = item.kind==='video'
+        ? `<video src="${item.dataUrl}" controls autoplay></video>`
+        : `<img src="${item.dataUrl}" alt="${escapeHtml(item.name||'')}" />`;
+      $('intelLightbox').style.display = 'flex';
+    }
+    function closeLightbox(){
+      $('intelLightbox').style.display = 'none';
+      $('intelLightboxContent').innerHTML = '';
+    }
+    function setupLightbox(){
+      $('intelLightboxClose').addEventListener('click', closeLightbox);
+      $('intelLightbox').addEventListener('click', e=>{ if(e.target.id==='intelLightbox') closeLightbox(); });
+      document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeLightbox(); });
+    }
+
+    // ============================================================
+    // "NOVA PEÇA DE REFERÊNCIA" — rascunho em memória da peça sendo montada (rede + artes por
+    // formato); briefing/legenda ficam só no textarea, lidos na hora de salvar. É reiniciado a
+    // cada troca de editoria ou depois de adicionar a peça.
+    // ============================================================
+    let pieceDraft = { network: (NETWORKS[0] && NETWORKS[0].name) || null, formats: {} };
+    function resetPieceDraft(){
+      pieceDraft = { network: (NETWORKS[0] && NETWORKS[0].name) || null, formats: {} };
+    }
+
+    function renderPieceNetworkSelect(){
+      const sel = $('intelPieceNetwork'); if(!sel) return;
+      sel.innerHTML = NETWORKS.map(n=> `<option value="${escapeHtml(n.name)}">${escapeHtml(n.name)}</option>`).join('');
+      if(pieceDraft.network) sel.value = pieceDraft.network;
+    }
+
+    async function addPieceFormatFiles(formatName, fileList){
+      const files = Array.from(fileList || []);
+      if(!files.length) return;
+      if(!pieceDraft.formats[formatName]) pieceDraft.formats[formatName] = [];
+      for(const file of files){
+        if(file.size > MAX_FILE_BYTES){ alert(`"${file.name}" é grande demais (máx. 15 MB) — ignorado.`); continue; }
+        const isVideo = /^video\//.test(file.type);
+        if(isVideo){
+          const dataUrl = await readFileAsDataUrl(file);
+          pieceDraft.formats[formatName].push({ id:generateId(), name:file.name, mime:file.type, size:file.size, dataUrl, addedAt:Date.now(), kind:'video', ratio:null, color:null });
+        } else {
+          const raw = await readFileAsDataUrl(file);
+          const { dataUrl, ratio, color } = await downscaleImage(raw, 900);
+          pieceDraft.formats[formatName].push({ id:generateId(), name:file.name, mime:'image/jpeg', size: Math.round(dataUrl.length*0.75), dataUrl, addedAt:Date.now(), kind:'imagem', ratio, color });
+        }
+      }
+    }
+
+    function findFormatSlot(formatName){
+      return Array.from(document.querySelectorAll('#intelPieceFormats .intel-format-slot')).find(s=> s.dataset.formatName===formatName);
+    }
+
+    // dois layouts bem diferentes por formato: sem referência ainda, título+formato em cima e o
+    // campo de arrastar/selecionar embaixo; com referência, a miniatura ao lado do título+formato
+    // e o link "Substituir referência" no rodapé do card (só existe quando já há o que substituir)
+    function formatSlotHtml(f){
+      const items = pieceDraft.formats[f.name] || [];
+      const dims = (f.width && f.height) ? `<div class="intel-format-slot-dims">(${f.width}×${f.height})</div>` : '';
+      if(!items.length){
+        return `
+          <div class="intel-format-slot" data-format-name="${escapeHtml(f.name)}">
+            <div class="intel-format-slot-header">${escapeHtml(f.name)}</div>
+            ${dims}
+            <label class="intel-format-empty-drop">
+              <span>Arraste aqui ou clique para selecionar (mais de um arquivo = carrossel)</span>
+              <input type="file" accept="image/*,video/*" multiple style="display:none" />
+            </label>
           </div>
-          <button type="button" class="btn-icon" aria-label="Remover" title="Remover">${UI_ICONS.x(13)}</button>
         `;
-        row.querySelector('button').addEventListener('click', ()=>{
-          bucket.references.visuals = bucket.references.visuals.filter(x=> x.id!==item.id);
-          saveIntel(); renderLibrary(); renderVisualsList(bucket);
+      }
+      const previews = items.map((item,idx)=> `
+        <div class="intel-preview-box" data-idx="${idx}">
+          ${item.kind==='video' ? `<div class="intel-preview-video-badge">${UI_ICONS.film(22)}</div>` : `<img src="${item.dataUrl}" alt="" />`}
+          <button type="button" class="intel-preview-remove" aria-label="Remover" title="Remover">${UI_ICONS.x(12)}</button>
+        </div>
+      `).join('');
+      return `
+        <div class="intel-format-slot" data-format-name="${escapeHtml(f.name)}">
+          <div class="intel-format-slot-body">
+            <div class="intel-format-previews">${previews}</div>
+            <div class="intel-format-info">
+              <div class="intel-format-slot-header">${escapeHtml(f.name)}</div>
+              ${dims}
+            </div>
+          </div>
+          <label class="intel-module-link">
+            Substituir referência
+            <input type="file" accept="image/*,video/*" multiple style="display:none" />
+          </label>
+        </div>
+      `;
+    }
+
+    // reconstrói só o card do formato afetado (o layout muda inteiro entre vazio/preenchido, não
+    // dá pra só trocar as miniaturas); "Substituir referência" sempre troca o que já estava
+    // selecionado (em vez de acumular) — reflete que só se monta uma referência por vez, mas cada
+    // arquivo de um carrossel ainda pode ser removido individualmente pelo X da miniatura
+    function refreshFormatSlot(f){
+      const old = findFormatSlot(f.name); if(!old) return;
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = formatSlotHtml(f).trim();
+      const next = wrapper.firstElementChild;
+      old.replaceWith(next);
+      wireFormatSlot(next, f);
+    }
+
+    function wireFormatSlot(slot, f){
+      const items = pieceDraft.formats[f.name] || [];
+      const input = slot.querySelector('input[type=file]');
+      input.addEventListener('change', async ()=>{
+        pieceDraft.formats[f.name] = [];
+        await addPieceFormatFiles(f.name, input.files);
+        refreshFormatSlot(f);
+      });
+      ['dragenter','dragover'].forEach(evt=> slot.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); slot.classList.add('dragover'); }));
+      ['dragleave','dragend'].forEach(evt=> slot.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); slot.classList.remove('dragover'); }));
+      slot.addEventListener('drop', async e=>{
+        e.preventDefault(); e.stopPropagation();
+        slot.classList.remove('dragover');
+        pieceDraft.formats[f.name] = [];
+        await addPieceFormatFiles(f.name, e.dataTransfer && e.dataTransfer.files);
+        refreshFormatSlot(f);
+      });
+      slot.querySelectorAll('.intel-preview-box[data-idx]').forEach(box=>{
+        const idx = Number(box.dataset.idx);
+        box.querySelector('.intel-preview-remove').addEventListener('click', e=>{
+          e.stopPropagation();
+          pieceDraft.formats[f.name].splice(idx,1);
+          refreshFormatSlot(f);
         });
-        el.appendChild(row);
+        box.addEventListener('click', ()=> openLightbox(items[idx]));
       });
     }
-    function renderCaptionsList(bucket){
-      const el = $('intelCaptionsList'); if(!el) return;
-      const items = bucket.references.captions;
-      el.innerHTML = '';
-      if(!items.length){ el.innerHTML = `<div class="bg-empty">Nenhuma legenda adicionada ainda.</div>`; return; }
-      items.slice().reverse().forEach(item=>{
-        const row = document.createElement('div');
-        row.className = 'bg-list-row';
-        row.innerHTML = `<div class="bg-list-row-main"><div class="bg-list-row-sub" style="color:var(--text);white-space:pre-wrap">${escapeHtml(item.text)}</div></div><button type="button" class="btn-icon" aria-label="Remover" title="Remover">${UI_ICONS.x(13)}</button>`;
-        row.querySelector('button').addEventListener('click', ()=>{
-          bucket.references.captions = bucket.references.captions.filter(x=> x.id!==item.id);
-          saveIntel(); renderLibrary(); renderCaptionsList(bucket);
-        });
-        el.appendChild(row);
+
+    // monta um campo de upload por formato da rede selecionada — os formatos vêm das Redes
+    // cadastradas em Configurações, então mudam sozinhos conforme a rede escolhida no passo 1
+    function renderPieceFormatSlots(){
+      const container = $('intelPieceFormats'); if(!container) return;
+      const formats = networkFormats(pieceDraft.network);
+      if(!formats.length){
+        container.innerHTML = `<div class="bg-empty">Nenhum formato cadastrado para esta rede — cadastre em Configurações → Redes, no Calendário de Postagens.</div>`;
+        return;
+      }
+      container.innerHTML = formats.map(f=> formatSlotHtml(f)).join('');
+      formats.forEach(f=>{
+        const slot = findFormatSlot(f.name);
+        if(slot) wireFormatSlot(slot, f);
       });
     }
-    function renderBriefingsList(bucket){
-      const el = $('intelBriefingsList'); if(!el) return;
-      const items = bucket.references.briefings;
-      el.innerHTML = '';
-      if(!items.length){ el.innerHTML = `<div class="bg-empty">Nenhum briefing adicionado ainda.</div>`; return; }
-      items.slice().reverse().forEach(item=>{
-        const row = document.createElement('div');
-        row.className = 'bg-list-row';
-        const fileLink = item.fileName ? `<div class="bg-list-row-sub"><a href="${item.dataUrl}" download="${escapeHtml(item.fileName)}" target="_blank" rel="noopener">${escapeHtml(item.fileName)}</a>${item.size?` · ${humanSize(item.size)}`:''}</div>` : '';
-        row.innerHTML = `
-          <span class="bg-file-icon">${UI_ICONS.file(16)}</span>
-          <div class="bg-list-row-main">
-            ${item.text ? `<div class="bg-list-row-sub" style="color:var(--text);white-space:pre-wrap">${escapeHtml(item.text)}</div>` : ''}
-            ${fileLink}
+
+    function fmtDate(ts){ return ts ? new Date(ts).toLocaleDateString('pt-BR') : '—'; }
+
+    // card de uma peça já adicionada — mesma disposição de módulo usada em "Artes por formato"
+    // (miniatura ao lado do título+info, "Remover" fixado no rodapé); o item mostrado na
+    // miniatura é o desta peça no formato da seção em que o card está sendo listado (uma peça
+    // com Feed+Stories aparece uma vez em cada uma dessas seções, com a arte correspondente)
+    function pieceCardHtml(post, formatName, item){
+      const formatCounts = Object.entries(post.formats||{}).filter(([,v])=> v && v.length).map(([k,v])=> `${k} (${v.length})`).join(', ');
+      const tags = [formatCounts || 'sem artes', post.requestBriefing ? 'briefing' : null, post.caption ? 'legenda' : null].filter(Boolean);
+      const previewHtml = item ? `
+        <div class="intel-preview-box" data-piece-preview data-format-name="${escapeHtml(formatName||'')}" data-item-id="${escapeHtml(item.id)}">
+          ${item.kind==='video' ? `<div class="intel-preview-video-badge">${UI_ICONS.film(22)}</div>` : `<img src="${item.dataUrl}" alt="" />`}
+        </div>
+      ` : `<div class="intel-preview-box intel-preview-box--empty">${UI_ICONS.file(22)}</div>`;
+      return `
+        <div class="intel-format-slot intel-format-slot--piece" data-piece-id="${escapeHtml(post.id)}">
+          <div class="intel-format-slot-body">
+            <div class="intel-format-previews">${previewHtml}</div>
+            <div class="intel-format-info">
+              <div class="intel-format-slot-header">${fmtDate(post.addedAt)}</div>
+              <div class="intel-format-slot-dims">${tags.map(escapeHtml).join(' · ')}</div>
+            </div>
           </div>
-          <button type="button" class="btn-icon" aria-label="Remover" title="Remover">${UI_ICONS.x(13)}</button>
-        `;
-        row.querySelector('button').addEventListener('click', ()=>{
-          bucket.references.briefings = bucket.references.briefings.filter(x=> x.id!==item.id);
-          saveIntel(); renderLibrary(); renderBriefingsList(bucket);
-        });
-        el.appendChild(row);
+          <button type="button" class="intel-module-link">Remover</button>
+        </div>
+      `;
+    }
+
+    // seccionado por rede social e, dentro de cada rede, por formato — uma peça com artes em
+    // mais de um formato aparece uma vez em cada seção de formato correspondente; peças sem
+    // nenhuma arte (só briefing/legenda) caem numa seção "Sem artes" pra não sumir da lista
+    function renderPiecesList(bucket){
+      const el = $('intelPiecesList'); if(!el) return;
+      const items = bucket.posts || [];
+      if(!items.length){ el.innerHTML = `<div class="bg-empty">Nenhuma peça adicionada ainda.</div>`; return; }
+      const ordered = items.slice().reverse();
+
+      const byNetwork = new Map();
+      ordered.forEach(post=>{
+        const net = post.network || 'Rede não definida';
+        if(!byNetwork.has(net)) byNetwork.set(net, []);
+        byNetwork.get(net).push(post);
       });
+
+      el.innerHTML = Array.from(byNetwork.entries()).map(([network, posts])=>{
+        const byFormat = new Map();
+        const semArtes = [];
+        posts.forEach(post=>{
+          const withItems = Object.entries(post.formats||{}).filter(([,v])=> v && v.length);
+          if(!withItems.length){ semArtes.push(post); return; }
+          withItems.forEach(([formatName, arr])=>{
+            if(!byFormat.has(formatName)) byFormat.set(formatName, []);
+            byFormat.get(formatName).push({ post, item:arr[0] });
+          });
+        });
+
+        const formatGroupsHtml = Array.from(byFormat.entries()).map(([formatName, entries])=> `
+          <div class="intel-pieces-format-group">
+            <div class="bg-quick-insert-label">${escapeHtml(formatName)}</div>
+            <div class="intel-pieces-format-stack">
+              ${entries.map(({post,item})=> pieceCardHtml(post, formatName, item)).join('')}
+            </div>
+          </div>
+        `).join('');
+
+        const semArtesHtml = semArtes.length ? `
+          <div class="intel-pieces-format-group">
+            <div class="bg-quick-insert-label">Sem artes</div>
+            <div class="intel-pieces-format-stack">
+              ${semArtes.map(post=> pieceCardHtml(post, null, null)).join('')}
+            </div>
+          </div>
+        ` : '';
+
+        return `
+          <div class="intel-pieces-network-section">
+            <div class="intel-pieces-network-label">${escapeHtml(network)}</div>
+            <div class="intel-pieces-format-rowset">${formatGroupsHtml}${semArtesHtml}</div>
+          </div>
+        `;
+      }).join('');
+
+      el.querySelectorAll('.intel-format-slot[data-piece-id]').forEach(card=>{
+        const post = ordered.find(p=> p.id===card.dataset.pieceId);
+        const previewBox = card.querySelector('[data-piece-preview]');
+        if(previewBox){
+          const item = (post.formats[previewBox.dataset.formatName]||[]).find(i=> i.id===previewBox.dataset.itemId);
+          if(item) previewBox.addEventListener('click', ()=> openLightbox(item));
+        }
+        card.querySelector('.intel-module-link').addEventListener('click', ()=>{
+          bucket.posts = bucket.posts.filter(p=> p.id!==post.id);
+          saveIntel(); renderLibrary(); renderPiecesList(bucket); renderPieceFormatSlots();
+        });
+      });
+    }
+
+    // pelo menos uma imagem (não vídeo) em alguma peça — é isso que decide se a análise visual
+    // por IA (Gemini) roda junto com o DNA heurístico ao clicar em "Criar/Atualizar inteligência"
+    function bucketHasAnyImage(bucket){
+      return (bucket.posts||[]).some(post=> Object.values(post.formats||{}).some(items=> (items||[]).some(i=> i.kind==='imagem')));
     }
 
     function renderTrainingPanel(bucket){
-      renderVisualsList(bucket);
-      renderCaptionsList(bucket);
-      renderBriefingsList(bucket);
-      $('intelProductsNotes').value = bucket.productsNotes || '';
+      renderPieceNetworkSelect();
+      renderPieceFormatSlots();
+      renderPiecesList(bucket);
+      $('intelInstructionsNotes').value = bucket.instructions || '';
       const n = IntelStore.referenceCount(bucket);
-      $('intelAnalyzeHint').textContent = n===0 ? 'Envie ao menos uma referência para poder analisar.' : (n<3 ? `${n} referência${n===1?'':'s'} enviada${n===1?'':'s'} — quanto mais referências, mais confiável fica o DNA.` : '');
+      let hint = n===0 ? 'Envie ao menos uma referência para poder criar a inteligência.' : (n<3 ? `${n} referência${n===1?'':'s'} enviada${n===1?'':'s'} — quanto mais referências, mais confiável fica o DNA.` : '');
+      if(bucketHasAnyImage(bucket)) hint += (hint ? ' ' : '') + 'Isso também envia até 6 imagens desta editoria para análise visual por IA (Google Gemini).';
+      $('intelAnalyzeHint').textContent = hint;
+      $('intelAnalyzeBtn').textContent = bucket.dna ? 'Atualizar inteligência' : 'Criar inteligência da editoria';
+      $('intelAnalyzeBtn').disabled = false;
     }
 
     function setupTrainingHandlers(){
-      $('intelVisualUploadInput').addEventListener('change', async ()=>{
-        if(!selectedEditoria) return;
-        const input = $('intelVisualUploadInput');
-        const files = Array.from(input.files || []);
-        if(!files.length) return;
-        const bucket = IntelStore.getBucket(INTEL, selectedEditoria);
-        const format = $('intelVisualFormat').value;
-        const tags = {
-          realUse: $('intelTagRealUse').checked,
-          lowText: $('intelTagLowText').checked,
-          visibleCta: $('intelTagCta').checked,
-          recurringElement: $('intelTagRecurring').checked
-        };
-        for(const file of files){
-          if(file.size > MAX_FILE_BYTES){ alert(`"${file.name}" é grande demais (máx. 15 MB) — ignorado.`); continue; }
-          const isVideo = /^video\//.test(file.type);
-          if(isVideo){
-            const dataUrl = await readFileAsDataUrl(file);
-            bucket.references.visuals.push({ id:generateId(), name:file.name, mime:file.type, size:file.size, dataUrl, addedAt:Date.now(), format, kind:'video', ratio:null, tags });
-          } else {
-            const raw = await readFileAsDataUrl(file);
-            const { dataUrl, ratio } = await downscaleImage(raw, 900);
-            bucket.references.visuals.push({ id:generateId(), name:file.name, mime:'image/jpeg', size: Math.round(dataUrl.length*0.75), dataUrl, addedAt:Date.now(), format, kind:'imagem', ratio, tags });
-          }
-        }
-        input.value = '';
-        saveIntel();
-        renderLibrary();
-        renderTrainingPanel(bucket);
+      $('intelPieceNetwork').addEventListener('change', ()=>{
+        const newNetwork = $('intelPieceNetwork').value;
+        const allowedFormats = networkFormats(newNetwork).map(f=> f.name);
+        // mantém os uploads já feitos nos formatos que também existem na rede nova (ex: Feed
+        // existe tanto em Instagram quanto em Facebook); descarta só o que não existe mais
+        const kept = {};
+        Object.keys(pieceDraft.formats).forEach(k=>{ if(allowedFormats.includes(k)) kept[k] = pieceDraft.formats[k]; });
+        pieceDraft.formats = kept;
+        pieceDraft.network = newNetwork;
+        renderPieceFormatSlots();
       });
 
-      $('intelCaptionAdd').addEventListener('click', ()=>{
+      $('intelPieceAdd').addEventListener('click', ()=>{
         if(!selectedEditoria) return;
-        const text = $('intelCaptionInput').value.trim();
-        if(!text){ alert('Cole o texto de uma legenda.'); return; }
+        const briefing = $('intelPieceBriefing').value.trim();
+        const caption = $('intelPieceCaption').value.trim();
+        const hasAnyFile = Object.values(pieceDraft.formats).some(arr=> arr && arr.length);
+        if(!hasAnyFile && !briefing && !caption){ alert('Preencha ao menos o briefing, uma arte ou a legenda antes de adicionar a peça.'); return; }
         const bucket = IntelStore.getBucket(INTEL, selectedEditoria);
-        bucket.references.captions.push({ id:generateId(), text, addedAt:Date.now() });
-        $('intelCaptionInput').value = '';
+        bucket.posts.push({ id:generateId(), network:pieceDraft.network, requestBriefing:briefing, caption, formats:pieceDraft.formats, addedAt:Date.now() });
+        resetPieceDraft();
+        $('intelPieceBriefing').value = '';
+        $('intelPieceCaption').value = '';
         saveIntel(); renderLibrary(); renderTrainingPanel(bucket);
       });
 
-      $('intelBriefingUploadInput').addEventListener('change', ()=>{
-        const file = $('intelBriefingUploadInput').files && $('intelBriefingUploadInput').files[0];
-        if(!file) return;
-        if(file.size > MAX_FILE_BYTES){ alert('Arquivo muito grande (máx. 15 MB).'); $('intelBriefingUploadInput').value=''; return; }
-        $('intelBriefingUploadBtnText').textContent = 'Selecionado: ' + file.name;
-      });
-      $('intelBriefingAdd').addEventListener('click', async ()=>{
-        if(!selectedEditoria) return;
-        const text = $('intelBriefingInput').value.trim();
-        const fileInput = $('intelBriefingUploadInput');
-        const file = fileInput.files && fileInput.files[0];
-        if(!text && !file){ alert('Cole o texto do briefing ou anexe um arquivo.'); return; }
-        const bucket = IntelStore.getBucket(INTEL, selectedEditoria);
-        const entry = { id:generateId(), text, addedAt:Date.now() };
-        if(file){
-          entry.dataUrl = await readFileAsDataUrl(file);
-          entry.fileName = file.name;
-          entry.size = file.size;
-        }
-        bucket.references.briefings.push(entry);
-        $('intelBriefingInput').value = '';
-        fileInput.value = '';
-        $('intelBriefingUploadBtnText').textContent = 'Anexar arquivo (opcional)';
-        saveIntel(); renderLibrary(); renderTrainingPanel(bucket);
-      });
-
-      $('intelProductsNotes').addEventListener('change', ()=>{
+      $('intelInstructionsNotes').addEventListener('change', ()=>{
         if(!selectedEditoria) return;
         const bucket = IntelStore.getBucket(INTEL, selectedEditoria);
-        bucket.productsNotes = $('intelProductsNotes').value.trim();
+        bucket.instructions = $('intelInstructionsNotes').value.trim();
         saveIntel();
       });
 
-      $('intelAnalyzeBtn').addEventListener('click', ()=>{
+      $('intelAnalyzeBtn').addEventListener('click', async ()=>{
         if(!selectedEditoria) return;
         const bucket = IntelStore.getBucket(INTEL, selectedEditoria);
-        if(IntelStore.referenceCount(bucket)===0){ alert('Envie ao menos uma referência (arte, legenda ou briefing) antes de analisar.'); return; }
+        if(IntelStore.referenceCount(bucket)===0){ alert('Adicione ao menos uma peça de referência (com arte, briefing ou legenda) antes de analisar.'); return; }
+
+        // heurístico primeiro — roda 100% offline e sempre funciona, mesmo se a análise
+        // visual por IA (abaixo) falhar ou não rodar por falta de imagens
         bucket.dna = IntelStore.generateDNA(bucket);
+        IntelStore.recordDnaGeneration(bucket);
         saveIntel();
         renderLibrary();
         renderWorkspace();
         switchIntelTab('intelPanelDna');
+
+        if(bucketHasAnyImage(bucket)){
+          const btn = $('intelAnalyzeBtn');
+          btn.disabled = true;
+          btn.textContent = 'Analisando visual com IA…';
+          // visível na aba DNA (pra onde acabamos de trocar) enquanto a chamada assíncrona
+          // roda — renderWorkspace() no finally substitui isso pelo resultado/erro real
+          $('intelDnaVTContent').style.display = 'none';
+          $('intelDnaVTWarning').style.display = 'none';
+          $('intelDnaVTEmpty').style.display = 'block';
+          $('intelDnaVTEmpty').textContent = 'Analisando padrão visual com IA…';
+          try{
+            bucket.dna.visualTemplate = await IntelStore.generateVisualTemplate(bucket, selectedEditoria);
+            bucket.dna.visualTemplateError = null;
+          }catch(e){
+            bucket.dna.visualTemplate = null;
+            bucket.dna.visualTemplateError = { message: e.message || 'Falha desconhecida', failedAt: Date.now() };
+          }finally{
+            saveIntel();
+            renderWorkspace();
+          }
+        }
       });
     }
 
@@ -435,17 +673,153 @@
       if(!items || !items.length) return `<span class="bg-empty" style="padding:0">Nenhum identificado ainda.</span>`;
       return items.map(t=> `<span class="chip" style="cursor:default">${escapeHtml(t)}</span>`).join('');
     }
+    // mensagem de "não identificado" explica a causa mais provável em vez de um genérico
+    // "envie mais referências" — cada bloco depende de uma fonte diferente de referência
+    const NOT_IDENTIFIED_STRATEGY = 'Ainda não identificado — adicione legendas, briefings ou orientações adicionais com texto para a IA identificar isso.';
+    const NOT_IDENTIFIED_CAPTION = 'Ainda não identificado — adicione legendas para a IA identificar isso (briefings não entram aqui, só o texto realmente publicado).';
+    const NOT_IDENTIFIED_VISUAL = 'Ainda não identificado — envie artes, carrosséis ou vídeos para a IA analisar.';
+    const CONFIDENCE_CLASSES = { 'Alta':'ok', 'Média':'warn', 'Baixa':'muted' };
+    // "entry" é o formato { value, confidence, count } devolvido por IntelStore.withConfidence
+    function confidencePillHtml(entry){
+      if(!entry || !entry.confidence) return '';
+      const cls = CONFIDENCE_CLASSES[entry.confidence] || 'muted';
+      return ` <span class="intel-status-pill ${cls}" style="margin-left:6px;text-transform:none;letter-spacing:0">${escapeHtml(entry.confidence)} confiança · ${entry.count} ref.</span>`;
+    }
+    function renderConfEntry(elId, entry, fallback){
+      const el = $(elId); if(!el) return;
+      if(!entry || entry.value===null || entry.value===undefined){
+        el.innerHTML = `<span style="color:var(--text-faint)">${fallback || NOT_IDENTIFIED_TEXT}</span>`;
+        return;
+      }
+      const text = Array.isArray(entry.value) ? chipsHtml(entry.value) : escapeHtml(entry.value);
+      el.innerHTML = text + confidencePillHtml(entry);
+    }
+    // "Modelo visual (análise por IA)" — hierarquia/fixo/variável/paleta/tipografia/composição
+    // vindos de dna.visualTemplate (gerado por Gemini, ver IntelStore.generateVisualTemplate);
+    // dna.visualTemplateError guarda a última falha, se houver, sem invalidar o resto do DNA
+    function renderVisualTemplateSection(bucket, dna){
+      const warning = $('intelDnaVTWarning'), empty = $('intelDnaVTEmpty'), content = $('intelDnaVTContent');
+      warning.style.display = 'none';
+
+      if(dna.visualTemplateError){
+        warning.style.display = 'block';
+        warning.textContent = `Análise visual por IA não disponível: ${dna.visualTemplateError.message}. O restante do DNA acima continua válido.`;
+      }
+
+      const t = dna.visualTemplate;
+      if(!t){
+        content.style.display = 'none';
+        empty.style.display = 'block';
+        empty.textContent = bucketHasAnyImage(bucket)
+          ? (dna.visualTemplateError ? 'A análise visual por IA falhou na última tentativa — clique em "Atualizar inteligência" para tentar de novo.' : 'Análise visual por IA ainda não gerada — clique em "Atualizar inteligência" para rodar.')
+          : 'Envie ao menos uma arte/carrossel para a IA analisar o padrão visual.';
+        return;
+      }
+      empty.style.display = 'none';
+      content.style.display = 'block';
+
+      $('intelDnaVTMeta').textContent = `Analisado em ${new Date(t.generatedAt).toLocaleString('pt-BR')} · ${t.imageCount} imagem${t.imageCount===1?'':'ns'} · modelo ${t.model}`;
+
+      $('intelDnaVTHierarchy').innerHTML = (t.hierarchy||[]).length
+        ? t.hierarchy.map(h=> `<li><b>${escapeHtml(h.element)}</b> — ${escapeHtml(h.description)}</li>`).join('')
+        : `<li style="border:0;background:transparent;padding:2px 0;color:var(--text-faint)">Não identificado.</li>`;
+
+      $('intelDnaVTFixed').innerHTML = (t.fixedElements||[]).length
+        ? t.fixedElements.map(e=> `<li>${escapeHtml(e)}</li>`).join('')
+        : `<li style="border:0;background:transparent;padding:2px 0;color:var(--text-faint)">Nenhum elemento fixo identificado ainda — envie mais referências.</li>`;
+
+      $('intelDnaVTVariable').innerHTML = (t.variableElements||[]).length
+        ? t.variableElements.map(e=> `<li>${escapeHtml(e)}</li>`).join('')
+        : `<li style="border:0;background:transparent;padding:2px 0;color:var(--text-faint)">Nenhum elemento variável identificado.</li>`;
+
+      $('intelDnaVTPalette').textContent = t.colorPalette || '—';
+      $('intelDnaVTTypography').textContent = t.typography || '—';
+      $('intelDnaVTComposition').textContent = t.composition || '—';
+      $('intelDnaVTRelationRule').textContent = t.scenarioProductRule || '—';
+      $('intelDnaVTBaseInstruction').textContent = t.baseInstruction || '—';
+    }
+
     function renderDnaPanel(bucket){
       const dna = bucket.dna;
       const empty = $('intelDnaEmpty'), content = $('intelDnaContent');
       if(!dna){ empty.style.display = 'block'; content.style.display = 'none'; return; }
       empty.style.display = 'none'; content.style.display = 'block';
       $('intelDnaMeta').textContent = `Gerado em ${new Date(dna.generatedAt).toLocaleString('pt-BR')} · a partir de ${dna.referenceCount} referência${dna.referenceCount===1?'':'s'}`;
-      $('intelDnaVisualRules').innerHTML = dna.visualRules.map(r=> `<li>${escapeHtml(r)}</li>`).join('');
-      $('intelDnaContentRules').innerHTML = dna.contentRules.map(r=> `<li>${escapeHtml(r)}</li>`).join('');
-      $('intelDnaStructure').innerHTML = dna.recommendedStructure.map(r=> `<li>${escapeHtml(r)}</li>`).join('');
-      $('intelDnaWords').innerHTML = chipsHtml(dna.recurringWords.map(w=> w.word));
-      $('intelDnaCtas').innerHTML = chipsHtml(dna.ctas);
+
+      const instrEl = $('intelDnaUserInstructions');
+      if(dna.userInstructions){ instrEl.style.display = 'block'; instrEl.textContent = `Orientações informadas: ${dna.userInstructions}`; }
+      else instrEl.style.display = 'none';
+
+      // Como essa editoria funciona
+      renderConfEntry('intelDnaObjective', dna.howItWorks.objective, NOT_IDENTIFIED_STRATEGY);
+      renderConfEntry('intelDnaAudience', dna.howItWorks.audience, NOT_IDENTIFIED_STRATEGY);
+
+      // Como a marca comunica
+      renderConfEntry('intelDnaTone', dna.howBrandCommunicates.tone, NOT_IDENTIFIED_CAPTION);
+      renderConfEntry('intelDnaLanguage', dna.howBrandCommunicates.language, NOT_IDENTIFIED_CAPTION);
+
+      // Padrões visuais identificados
+      renderConfEntry('intelDnaPresentation', dna.visualStrategy.presentation, NOT_IDENTIFIED_VISUAL);
+      renderConfEntry('intelDnaVisualStyle', dna.visualStrategy.style, NOT_IDENTIFIED_VISUAL);
+      renderConfEntry('intelDnaComposition', dna.visualStrategy.composition, NOT_IDENTIFIED_VISUAL);
+      renderConfEntry('intelDnaRecurringVisual', dna.visualStrategy.recurring, NOT_IDENTIFIED_VISUAL);
+      renderConfEntry('intelDnaHierarchy', dna.visualStrategy.hierarchy, NOT_IDENTIFIED_VISUAL);
+
+      // Modelo visual (análise por IA)
+      renderVisualTemplateSection(bucket, dna);
+
+      // Padrões de conteúdo identificados
+      const structureEntry = dna.contentStrategy.textStructure;
+      $('intelDnaTextStructureConf').innerHTML = confidencePillHtml(structureEntry);
+      $('intelDnaTextStructure').innerHTML = structureEntry.value
+        ? structureEntry.value.map(r=> `<li>${escapeHtml(r)}</li>`).join('')
+        : `<li style="border:0;background:transparent;padding:2px 0;color:var(--text-faint)">${NOT_IDENTIFIED_CAPTION}</li>`;
+      renderConfEntry('intelDnaOpeningTypes', dna.contentStrategy.openingTypes, NOT_IDENTIFIED_CAPTION);
+      renderConfEntry('intelDnaCtaFormats', dna.contentStrategy.ctaFormats, NOT_IDENTIFIED_CAPTION);
+
+      // Modelos recomendados
+      const modelsEl = $('intelDnaContentModels');
+      if(!dna.contentModels.length){
+        modelsEl.innerHTML = `<div class="bg-empty">Nenhum modelo reutilizável identificado ainda — adicione mais legendas para a IA encontrar um padrão.</div>`;
+      } else {
+        modelsEl.innerHTML = dna.contentModels.map((m,i)=> `
+          <div class="bg-list-row" style="cursor:default">
+            <div class="bg-list-row-main">
+              <div class="bg-list-row-title">Modelo ${i+1}: ${escapeHtml(m.pattern)}</div>
+              <div class="bg-list-row-sub">Identificado em ${m.count} legenda${m.count===1?'':'s'} · confiança ${escapeHtml(m.confidence||'Baixa')}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // ============================================================
+    // 4. HISTÓRICO DE ATUALIZAÇÃO DA INTELIGÊNCIA — quando o DNA foi (re)gerado ao longo do
+    // tempo; a visão ao vivo das próprias peças (rede, briefing, artes por formato e legenda)
+    // fica dentro de "Artes por formato", já que só dá pra montar uma peça nova por vez
+    // ============================================================
+    function renderRefsPanel(bucket){
+      const dna = bucket.dna;
+      const empty = $('intelRefsEmpty'), content = $('intelRefsContent');
+      if(!dna){ empty.style.display = 'block'; content.style.display = 'none'; return; }
+      empty.style.display = 'none'; content.style.display = 'block';
+
+      $('intelRefsMeta').textContent = `${dna.referenceCount} referência${dna.referenceCount===1?'':'s'} usada${dna.referenceCount===1?'':'s'} na última criação/atualização, em ${new Date(dna.generatedAt).toLocaleString('pt-BR')}`;
+
+      const historyEl = $('intelRefsHistory');
+      const history = (bucket.dnaHistory || []).slice().reverse();
+      if(!history.length){
+        historyEl.innerHTML = `<div class="bg-empty">Sem histórico de atualização ainda.</div>`;
+      } else {
+        historyEl.innerHTML = history.map(h=> `
+          <div class="bg-list-row" style="cursor:default">
+            <div class="bg-list-row-main">
+              <div class="bg-list-row-title">${new Date(h.generatedAt).toLocaleString('pt-BR')}</div>
+              <div class="bg-list-row-sub">${h.referenceCount} referência${h.referenceCount===1?'':'s'} analisada${h.referenceCount===1?'':'s'}</div>
+            </div>
+          </div>
+        `).join('');
+      }
     }
 
     // ============================================================
@@ -521,6 +895,7 @@
       $('intelWorkspaceStatus').className = 'intel-status-pill ' + STATUS_CLASSES[status];
       renderTrainingPanel(bucket);
       renderDnaPanel(bucket);
+      renderRefsPanel(bucket);
       $('intelTestTitle').value = '';
       $('intelTestCaption').value = '';
       $('intelTestResult').innerHTML = '';
@@ -532,6 +907,7 @@
     setupWorkspaceNav();
     setupTrainingHandlers();
     setupTestHandlers();
+    setupLightbox();
     renderLibrary();
     renderWorkspace();
 

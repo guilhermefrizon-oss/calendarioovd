@@ -6,7 +6,7 @@
   <title>Central de Inteligência — Calendário de Postagens</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,300;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -19,7 +19,7 @@
     <div class="page-header">
       <div>
         <h1>Central de Inteligência</h1>
-        <p class="page-subtitle">A memória criativa da marca: aprende com artes, carrosséis, legendas e briefings já aprovados de cada editoria e transforma esse histórico em regras para orientar (e validar) as próximas publicações.</p>
+        <p class="page-subtitle">A memória criativa da marca: constrói, a partir de artes, carrosséis, legendas e briefings já aprovados de cada editoria, uma inteligência própria e fixa — usada depois para orientar (e validar) as próximas publicações.</p>
       </div>
       <div class="page-header-actions">
         <span id="syncStatus" class="sync-status" title="Estado da sincronização com o servidor"></span>
@@ -29,13 +29,13 @@
     <!-- 1. Biblioteca de Editorias -->
     <div class="card" style="margin-bottom:16px">
       <h3 class="fg-label" style="margin:0 0 12px">Biblioteca de Editorias</h3>
-      <div class="bg-section-desc" style="margin-bottom:10px">Selecione uma editoria para enviar referências, gerar o DNA aprendido e testar publicações. As editorias são as mesmas cadastradas em Configurações, no Calendário de Postagens.</div>
+      <div class="bg-section-desc" style="margin-bottom:10px">Selecione uma editoria para enviar referências, criar a inteligência da editoria (DNA) e testar publicações. As editorias são as mesmas cadastradas em Configurações, no Calendário de Postagens.</div>
       <div id="editoriaLibraryGrid" class="intel-editoria-grid"></div>
     </div>
 
-    <!-- Workspace da editoria selecionada: treinamento (2), DNA (3) e validação (5) -->
+    <!-- Workspace da editoria selecionada: base de conhecimento + referências utilizadas (2), DNA (3) e validação (4) -->
     <div class="card bg-layout-card">
-      <div id="intelWorkspaceEmpty" class="bg-empty" style="padding:40px 16px;text-align:center">Selecione uma editoria acima para começar a treinar a IA.</div>
+      <div id="intelWorkspaceEmpty" class="bg-empty" style="padding:40px 16px;text-align:center">Selecione uma editoria acima para configurar a base de conhecimento.</div>
 
       <div id="intelWorkspaceBody" style="display:none">
         <div class="intel-workspace-header">
@@ -45,108 +45,148 @@
 
         <div class="bg-layout">
           <div class="settings-sidebar" role="tablist">
-            <button type="button" class="settings-nav-btn active" data-panel="intelPanelTraining">Área de treinamento</button>
+            <button type="button" class="settings-nav-btn active" data-panel="intelPanelTraining">Base de conhecimento da editoria</button>
             <button type="button" class="settings-nav-btn" data-panel="intelPanelDna">DNA da editoria</button>
             <button type="button" class="settings-nav-btn" data-panel="intelPanelTest">Testar publicação</button>
           </div>
 
           <div class="settings-content">
 
-            <!-- 2. Área de treinamento -->
+            <!-- 2. Base de conhecimento da editoria -->
             <div class="settings-panel active" id="intelPanelTraining">
 
               <div class="form-group">
-                <h3 class="fg-label">Artes, carrosséis e vídeos de referência</h3>
-                <div class="bg-section-desc">Envie artes finais aprovadas e carrosséis já publicados desta editoria. Marque os padrões que se aplicam a este lote — a IA usa essas marcações (e a proporção da imagem) para identificar as regras visuais.</div>
-                <div class="bg-add-form">
-                  <div class="bg-add-form-row">
-                    <select id="intelVisualFormat">
-                      <option value="Feed único">Feed único</option>
-                      <option value="Carrossel">Carrossel</option>
-                      <option value="Stories">Stories</option>
-                      <option value="Reels/Vídeo">Reels/Vídeo</option>
-                    </select>
-                  </div>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <label class="chip"><input type="checkbox" id="intelTagRealUse" /> Produto em uso real</label>
-                    <label class="chip"><input type="checkbox" id="intelTagLowText" /> Pouco texto na peça</label>
-                    <label class="chip"><input type="checkbox" id="intelTagCta" /> CTA visível na arte</label>
-                    <label class="chip"><input type="checkbox" id="intelTagRecurring" /> Elemento recorrente (moldura/selo)</label>
-                  </div>
-                  <label class="icon-picker-upload-btn" id="intelVisualUploadBtn">
-                    <span id="intelVisualUploadBtnText">Selecionar imagens/vídeos (pode escolher vários de uma vez)</span>
-                    <input type="file" id="intelVisualUploadInput" accept="image/*,video/*" multiple style="display:none" />
-                  </label>
+                <h3 class="fg-label">Nova peça de referência</h3>
+                <div class="bg-section-desc">Monte uma peça completa — rede social, briefing de como foi pedida ao design, as artes por formato e a legenda publicada — para a IA entender o processo inteiro: como foi solicitada, como foi concebida e como foi publicada.</div>
+
+                <div class="intel-piece-step">
+                  <div class="intel-piece-step-label">1. Rede social</div>
+                  <select id="intelPieceNetwork"></select>
                 </div>
-                <div id="intelVisualsList" class="bg-list"></div>
+
+                <div class="intel-piece-step">
+                  <div class="intel-piece-step-label">2. Briefing — como você pediu essa peça para o design</div>
+                  <textarea id="intelPieceBriefing" rows="3" placeholder="Ex: Preciso de uma arte destacando a garantia de 2 anos da furadeira XPTO, tom direto, com CTA para o link na bio..."></textarea>
+                </div>
+
+                <div class="intel-piece-step">
+                  <div class="intel-piece-step-label">3. Artes por formato <span class="intel-piece-step-optional">(opcional — envie só os formatos que tiver; mais de um arquivo no mesmo formato = carrossel)</span></div>
+                  <div id="intelPieceFormats"></div>
+                </div>
+
+                <div class="intel-piece-step">
+                  <div class="intel-piece-step-label">4. Legenda publicada</div>
+                  <textarea id="intelPieceCaption" rows="3" placeholder="Cole aqui o texto que foi publicado junto com essa peça..."></textarea>
+                </div>
+
+                <div style="display:flex;justify-content:flex-end;margin-top:14px">
+                  <button type="button" id="intelPieceAdd" class="btn">+ Adicionar peça de referência</button>
+                </div>
               </div>
 
               <div class="form-group">
-                <h3 class="fg-label">Legendas utilizadas</h3>
-                <div class="bg-section-desc">Cole legendas de publicações já feitas nesta editoria — quanto mais legendas, mais precisos ficam o tom de voz e a estrutura identificados.</div>
-                <div class="bg-add-form">
-                  <textarea id="intelCaptionInput" rows="3" placeholder="Cole o texto de uma legenda já publicada..."></textarea>
-                  <div style="display:flex;justify-content:flex-end"><button type="button" id="intelCaptionAdd" class="btn small">+ Adicionar legenda</button></div>
+                <h3 class="fg-label">Peças já adicionadas</h3>
+                <div id="intelPiecesList"></div>
+              </div>
+
+              <!-- Histórico de geração do DNA (a visão ao vivo das peças fica dentro de "Artes por formato", em cada slot) -->
+              <div id="intelRefsEmpty" class="bg-empty">Nenhuma inteligência criada ainda — o histórico de atualização aparece aqui depois que a inteligência da editoria for gerada.</div>
+              <div id="intelRefsContent" style="display:none">
+                <div class="form-group">
+                  <h3 class="fg-label">Histórico de atualização</h3>
+                  <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:14px" id="intelRefsMeta"></div>
+                  <div id="intelRefsHistory" class="bg-list"></div>
                 </div>
-                <div id="intelCaptionsList" class="bg-list"></div>
               </div>
 
               <div class="form-group">
-                <h3 class="fg-label">Briefings anteriores</h3>
-                <div class="bg-section-desc">Cole o texto de um briefing já usado e/ou anexe o arquivo (PDF, doc...). Máx. 15 MB por arquivo.</div>
-                <div class="bg-add-form">
-                  <textarea id="intelBriefingInput" rows="3" placeholder="Cole o texto do briefing (opcional se for só anexar o arquivo)"></textarea>
-                  <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-                    <label class="icon-picker-upload-btn" style="margin:0;flex:1" id="intelBriefingUploadBtn">
-                      <span id="intelBriefingUploadBtnText">Anexar arquivo (opcional)</span>
-                      <input type="file" id="intelBriefingUploadInput" style="display:none" />
-                    </label>
-                    <button type="button" id="intelBriefingAdd" class="btn small" style="flex-shrink:0">+ Adicionar briefing</button>
-                  </div>
-                </div>
-                <div id="intelBriefingsList" class="bg-list"></div>
-              </div>
-
-              <div class="form-group">
-                <h3 class="fg-label">Produtos e campanhas associados</h3>
-                <div class="bg-section-desc">Contexto de produtos, linhas ou campanhas que costumam aparecer nesta editoria (opcional — usado só como referência, não entra na análise automática).</div>
-                <textarea id="intelProductsNotes" rows="3" placeholder="Ex: Linha Profissional, campanha de lançamento X..."></textarea>
+                <h3 class="fg-label">Orientações adicionais para esta editoria</h3>
+                <div class="bg-section-desc">Opcional. Instruções, restrições de tom ou contexto de produtos/campanhas que a IA deve considerar ao criar a inteligência desta editoria.</div>
+                <textarea id="intelInstructionsNotes" rows="3" placeholder="Ex: Sempre citar a garantia de 1 ano; evitar emojis; linha Profissional é o foco deste trimestre..."></textarea>
               </div>
 
               <div style="display:flex;justify-content:flex-end;gap:12px;align-items:center;flex-wrap:wrap">
                 <div id="intelAnalyzeHint" style="font-size:11.5px;color:var(--text-faint)"></div>
-                <button type="button" id="intelAnalyzeBtn" class="btn">Analisar referências</button>
+                <button type="button" id="intelAnalyzeBtn" class="btn">Criar inteligência da editoria</button>
               </div>
 
             </div>
 
             <!-- 3. DNA da Editoria -->
             <div class="settings-panel" id="intelPanelDna">
-              <div id="intelDnaEmpty" class="bg-empty">Ainda não analisado. Vá em "Área de treinamento", envie referências e clique em "Analisar referências".</div>
+              <div id="intelDnaEmpty" class="bg-empty">Inteligência ainda não criada. Vá em "Base de conhecimento da editoria", envie referências e clique em "Criar inteligência da editoria".</div>
               <div id="intelDnaContent" style="display:none">
                 <div style="font-size:11.5px;color:var(--text-faint);margin:-4px 0 14px" id="intelDnaMeta"></div>
+                <div id="intelDnaUserInstructions" class="bg-inline-warning" style="display:none;margin-bottom:14px"></div>
 
                 <div class="form-group">
-                  <h3 class="fg-label">Regras visuais identificadas</h3>
-                  <ul id="intelDnaVisualRules" class="intel-rule-list"></ul>
+                  <h3 class="fg-label">Como essa editoria funciona</h3>
+                  <div class="bg-quick-insert-label" style="margin-bottom:6px">Objetivo identificado</div>
+                  <div id="intelDnaObjective" style="font-size:15px;font-weight:700;line-height:1.45;margin-bottom:12px"></div>
+                  <div class="bg-quick-insert-row"><span class="bg-quick-insert-label">Público identificado</span><span id="intelDnaAudience"></span></div>
                 </div>
+
                 <div class="form-group">
-                  <h3 class="fg-label">Regras de conteúdo identificadas</h3>
-                  <ul id="intelDnaContentRules" class="intel-rule-list"></ul>
+                  <h3 class="fg-label">Como a marca comunica</h3>
+                  <div class="bg-quick-insert-row"><span class="bg-quick-insert-label">Tom de voz</span><span id="intelDnaTone"></span></div>
+                  <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Linguagem utilizada</span><span id="intelDnaLanguage"></span></div>
                 </div>
+
                 <div class="form-group">
-                  <h3 class="fg-label">Estrutura recomendada</h3>
-                  <ol id="intelDnaStructure" class="intel-rule-list intel-rule-list--ordered"></ol>
+                  <h3 class="fg-label">Padrões visuais identificados</h3>
+                  <div class="bg-quick-insert-row"><span class="bg-quick-insert-label">Como os produtos são apresentados</span><span id="intelDnaPresentation"></span></div>
+                  <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Estilo das imagens</span><span id="intelDnaVisualStyle"></span></div>
+                  <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Composição predominante</span><span id="intelDnaComposition"></span></div>
+                  <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Elementos recorrentes</span><span id="intelDnaRecurringVisual"></span></div>
+                  <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Hierarquia das informações</span><span id="intelDnaHierarchy"></span></div>
                 </div>
+
                 <div class="form-group">
-                  <h3 class="fg-label">Palavras e termos</h3>
-                  <div class="bg-quick-insert-row"><span class="bg-quick-insert-label">Recorrentes</span><span id="intelDnaWords"></span></div>
-                  <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">CTAs identificados</span><span id="intelDnaCtas"></span></div>
+                  <h3 class="fg-label">Modelo visual (análise por IA)</h3>
+                  <div class="bg-section-desc" style="margin-bottom:10px">Análise visual real das imagens enviadas, feita por IA (Google Gemini) — hierarquia, o que é fixo/variável entre as peças, paleta, tipografia e composição.</div>
+
+                  <div id="intelDnaVTWarning" class="bg-inline-warning" style="display:none;margin-bottom:10px"></div>
+                  <div id="intelDnaVTEmpty" class="bg-empty"></div>
+
+                  <div id="intelDnaVTContent" style="display:none">
+                    <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:12px" id="intelDnaVTMeta"></div>
+
+                    <div class="bg-quick-insert-label" style="margin-bottom:6px">Hierarquia visual</div>
+                    <ol id="intelDnaVTHierarchy" class="intel-rule-list intel-rule-list--ordered" style="margin-bottom:14px"></ol>
+
+                    <div class="bg-quick-insert-label" style="margin-bottom:6px">Elementos fixos</div>
+                    <ul id="intelDnaVTFixed" class="intel-rule-list intel-rule-list--positive" style="margin:0 0 14px"></ul>
+
+                    <div class="bg-quick-insert-label" style="margin-bottom:6px">Elementos variáveis</div>
+                    <ul id="intelDnaVTVariable" class="intel-rule-list" style="margin:0 0 14px"></ul>
+
+                    <div class="bg-quick-insert-row"><span class="bg-quick-insert-label">Paleta de cores</span><span id="intelDnaVTPalette"></span></div>
+                    <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Tipografia</span><span id="intelDnaVTTypography"></span></div>
+                    <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Composição</span><span id="intelDnaVTComposition"></span></div>
+                    <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Produto × cenário</span><span id="intelDnaVTRelationRule"></span></div>
+
+                    <div class="bg-quick-insert-label" style="margin:14px 0 6px">Orientação-base para novas peças</div>
+                    <div id="intelDnaVTBaseInstruction" style="font-size:12px;line-height:1.6;white-space:pre-wrap;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted);color:var(--text)"></div>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <h3 class="fg-label">Padrões de conteúdo identificados</h3>
+                  <div class="bg-quick-insert-row" style="margin-bottom:6px"><span class="bg-quick-insert-label">Estrutura dos textos</span><span id="intelDnaTextStructureConf"></span></div>
+                  <ol id="intelDnaTextStructure" class="intel-rule-list intel-rule-list--ordered" style="margin-bottom:14px"></ol>
+                  <div class="bg-quick-insert-row"><span class="bg-quick-insert-label">Tipos de abertura</span><span id="intelDnaOpeningTypes"></span></div>
+                  <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Formatos de CTA</span><span id="intelDnaCtaFormats"></span></div>
+                </div>
+
+                <div class="form-group">
+                  <h3 class="fg-label">Modelos recomendados</h3>
+                  <div class="bg-section-desc" style="margin-bottom:10px">Padrões reutilizáveis identificados nas legendas desta editoria — use como ponto de partida para novos textos.</div>
+                  <div id="intelDnaContentModels" class="bg-list"></div>
                 </div>
               </div>
             </div>
 
-            <!-- 5. Validação inteligente -->
+            <!-- 4. Validação inteligente -->
             <div class="settings-panel" id="intelPanelTest">
               <div class="form-group">
                 <h3 class="fg-label">Testar uma publicação</h3>
@@ -166,6 +206,14 @@
     </div>
 
   </div>
+    </div>
+  </div>
+
+  <!-- Visualização ampliada de uma arte/vídeo enviado como referência -->
+  <div id="intelLightbox" class="intel-lightbox-backdrop" style="display:none">
+    <div class="intel-lightbox-box">
+      <button type="button" id="intelLightboxClose" class="intel-lightbox-close" aria-label="Fechar">&times;</button>
+      <div id="intelLightboxContent"></div>
     </div>
   </div>
 

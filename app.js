@@ -36,6 +36,7 @@
     const selectedIds = new Set();
     // produtos selecionados no modal de criar/editar postagem: [{code,name}, ...]
     let selectedProducts = [];
+    let guidedPostStep = 1;
 
     // ============================================================
     // TEMA (claro/escuro) — aplicado o quanto antes para evitar um
@@ -1759,6 +1760,7 @@
 
     function openModal(dateStr){
       $('modalBackdrop').style.display = 'flex';
+      setGuidedPostStep(1);
       // pré-preenche a data: a recebida por parâmetro (ex: "+ Adicionar postagem" de uma coluna
       // da semana) ou, na ausência dela, o mês/dia atualmente visível no calendário
       const defaultDate = dateStr || viewDate.toISOString().slice(0,10);
@@ -1863,12 +1865,22 @@
       scheduleSyncPush(API_POSTS_KEY, ()=> state.posts);
     }
 
+    function migrateLegacyInstagramFeedPlaces(places){
+      if(Array.isArray(places)) return [...new Set(places.map(place=> place==='Feed Vertical' ? 'Feed' : place))];
+      return places==='Feed Vertical' ? 'Feed' : places;
+    }
+
     function loadState(){
       const raw = localStorage.getItem(LS_POSTS_KEY);
       if(raw){ try{ state.posts = JSON.parse(raw) || []; }catch(e){ state.posts=[]; } }
       // garante que toda postagem tenha id e status válidos
       const defaultStatus = (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho';
-      state.posts.forEach(p=>{ if(!p.id) p.id = generateId(); if(!p.status) p.status = defaultStatus; });
+      state.posts.forEach(p=>{
+        if(!p.id) p.id = generateId();
+        if(!p.status) p.status = defaultStatus;
+        if(Array.isArray(p.channels)) p.channels.forEach(c=>{ if(c.channel==='Instagram') c.places = migrateLegacyInstagramFeedPlaces(c.places); });
+        if(p.channel==='Instagram') p.place = migrateLegacyInstagramFeedPlaces(p.place);
+      });
       // atribui `order` às postagens salvas antes desse campo existir
       migratePostOrders();
     }
@@ -1883,12 +1895,12 @@
     // cada formato com as dimensões (px) e extensões de arquivo aceitas
     const NETWORK_DEFAULT_FORMATS = {
       Instagram: [
-        { name:'Feed Vertical', width:1080, height:1350, extensions:['JPG','PNG','MP4'] },
+        { name:'Feed', width:1080, height:1350, extensions:['JPG','PNG','MP4'] },
         { name:'Stories', width:1080, height:1920, extensions:['JPG','PNG','MP4'] },
         { name:'Reels', width:1080, height:1920, extensions:['MP4'] }
       ],
       Facebook: [
-        { name:'Feed', width:1200, height:630, extensions:['JPG','PNG','MP4'] },
+        { name:'Feed', width:1080, height:1350, extensions:['JPG','PNG','MP4'] },
         { name:'Stories', width:1080, height:1920, extensions:['JPG','PNG','MP4'] },
         { name:'Reels', width:1080, height:1920, extensions:['MP4'] }
       ],
@@ -1972,6 +1984,15 @@
           const defaults = NETWORK_DEFAULT_FORMATS[n.name];
           n.formats = (defaults ? defaults.map(f=>Object.assign({},f)) : null) || (legacyPlaces ? legacyPlaces.map(f=>Object.assign({},f)) : [{name:'Feed'}]);
         }
+        // migra os formatos padrão antigos sem alterar redes ou formatos personalizados
+        if(n.name==='Instagram'){
+          const legacyFeed = n.formats.find(f=>f.name==='Feed Vertical');
+          if(legacyFeed && !n.formats.some(f=>f!==legacyFeed && f.name==='Feed')) legacyFeed.name = 'Feed';
+        }
+        if(n.name==='Facebook'){
+          const feed = n.formats.find(f=>f.name==='Feed');
+          if(feed){ feed.width = 1080; feed.height = 1350; }
+        }
         // garante os campos de um formato (largura/altura/extensões), e descarta o antigo "forceType"
         n.formats.forEach(f=>{
           delete f.forceType;
@@ -1992,6 +2013,9 @@
         if(e.schedule && !Array.isArray(e.schedule.channels)){
           const { weekdays, channel, place, type } = e.schedule;
           e.schedule = { weekdays, channels: channel ? [{ channel, types: type?[type]:['Static'], places: place?[place]:[] }] : [] };
+        }
+        if(e.schedule && Array.isArray(e.schedule.channels)){
+          e.schedule.channels.forEach(c=>{ if(c.channel==='Instagram') c.places = migrateLegacyInstagramFeedPlaces(c.places); });
         }
       });
     }
@@ -2126,21 +2150,29 @@
       if(names.length===0){ box.style.display = 'none'; box.innerHTML = ''; return; }
       const editoriaName = names[0];
       const dna = INTEL.editorias[editoriaName].dna;
+      const structureVal = dna.contentStrategy.textStructure.value;
+      const structureText = structureVal ? structureVal.join(' → ') : null;
+      const objective = dna.howItWorks.objective.value;
+      const topModel = dna.contentModels && dna.contentModels[0];
       const briefingLines = [
         `Editoria: ${editoriaName}`,
-        `Estrutura recomendada: ${dna.recommendedStructure.join(' → ')}`,
+        objective ? `Objetivo identificado: ${objective}` : null,
+        structureText ? `Estrutura recomendada: ${structureText}` : null,
         dna.hooks[0] ? `Gancho de abertura sugerido: ${dna.hooks[0]}` : null,
         dna.ctas[0] ? `CTA sugerido: ${dna.ctas[0]}` : null,
+        topModel ? `Modelo recomendado: ${topModel.pattern}` : null,
         dna.recurringWords.length ? `Palavras recorrentes desta editoria: ${dna.recurringWords.slice(0,5).map(w=>w.word).join(', ')}` : null
       ].filter(Boolean).join('\n');
       box.style.display = 'flex';
       box.innerHTML = `
         <div class="intel-modal-box-title">${UI_ICONS.idea(13)} Direcionamento da IA — Central de Inteligência${names.length>1?` <span style="font-weight:400;text-transform:none">(baseado em "${escapeHtml(editoriaName)}")</span>`:''}</div>
         <ul class="intel-rule-list">
-          <li><b>Estrutura:</b> ${escapeHtml(dna.recommendedStructure.join(' → '))}</li>
+          ${objective ? `<li><b>Objetivo:</b> ${escapeHtml(objective)}</li>` : ''}
+          ${structureText ? `<li><b>Estrutura:</b> ${escapeHtml(structureText)}</li>` : ''}
           ${dna.hooks[0] ? `<li><b>Gancho:</b> ${escapeHtml(dna.hooks[0])}</li>` : ''}
           ${dna.ctas[0] ? `<li><b>CTA:</b> ${escapeHtml(dna.ctas[0])}</li>` : ''}
-          ${dna.dominantVisualFormat ? `<li><b>Formato visual predominante no histórico:</b> ${escapeHtml(dna.dominantVisualFormat)}</li>` : ''}
+          ${topModel ? `<li><b>Modelo recomendado:</b> ${escapeHtml(topModel.pattern)}</li>` : ''}
+          ${dna.visualStrategy.composition.value ? `<li><b>Composição visual predominante:</b> ${escapeHtml(dna.visualStrategy.composition.value)}</li>` : ''}
         </ul>
         <div class="intel-modal-actions">
           <button type="button" id="intelUseBriefingBtn" class="btn small">Usar como briefing para o designer</button>
@@ -2201,7 +2233,7 @@
 
     // ============================================================
     // FORMATOS POR REDE — cada rede social tem seu próprio conjunto de formatos
-    // (ex: Instagram = Feed Vertical/Stories/Reels, Twitter = Post), cada um com
+    // (ex: Instagram = Feed/Stories/Reels, Twitter = Post), cada um com
     // largura, altura (px) e extensões de arquivo aceitas.
     // ============================================================
     // união (sem duplicar nomes) de todos os formatos de todas as redes — usado em Filtros e Edição em Lote
@@ -2300,7 +2332,7 @@
             <div class="net-row-formats">
               <div class="net-row-formats-list" style="display:flex;flex-direction:column;gap:6px"></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <input type="text" class="net-new-format-name" placeholder="Nome do formato (ex: Feed Vertical)" style="flex:2;min-width:140px" />
+                <input type="text" class="net-new-format-name" placeholder="Nome do formato (ex: Carrossel)" style="flex:2;min-width:140px" />
                 <input type="number" class="net-new-format-width" placeholder="Largura (px)" min="1" style="flex:1;min-width:90px" />
                 <input type="number" class="net-new-format-height" placeholder="Altura (px)" min="1" style="flex:1;min-width:90px" />
                 <input type="text" class="net-new-format-ext" placeholder="Extensões (ex: JPG, PNG, MP4)" style="flex:1;min-width:150px" />
@@ -2459,7 +2491,7 @@
           panel.className = 'sched-net-config'; panel.dataset.net = netName;
           panel.style.cssText = 'padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)';
           panel.innerHTML = `
-            <div style="font-weight:600;font-size:12px;margin-bottom:4px">${escapeHtml(netName)}</div>
+            <div style="font-weight:700;font-size:12px;margin-bottom:4px">${escapeHtml(netName)}</div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Tipo</div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
               <label class="chip"><input type="checkbox" class="sched-type" value="Static" ${cfg.types.includes('Static')?'checked':''}/> Estático</label>
@@ -2890,6 +2922,7 @@
       refreshModalDynamic();
       renderIntelValidation(null);
       $('modalBackdrop').style.display = 'flex';
+      setGuidedPostStep(1);
     }
 
     function closeEditState(){
@@ -3171,6 +3204,30 @@
     // LIGAÇÃO DOS DEMAIS BOTÕES DA TOOLBAR (exportar, seleção,
     // lote, filtros) E FECHAMENTO DOS MODAIS
     // ============================================================
+    function closeToolbarMoreMenu(){
+      const wrap = $('toolbarMoreWrap'), menu = $('toolbarMoreMenu'), btn = $('toolbarMoreBtn');
+      if(wrap) wrap.classList.remove('open');
+      if(menu) menu.classList.remove('open');
+      if(btn) btn.setAttribute('aria-expanded','false');
+    }
+    if($('toolbarMoreBtn') && $('toolbarMoreMenu')){
+      $('toolbarMoreBtn').addEventListener('click', ev=>{
+        ev.stopPropagation();
+        const willOpen = !$('toolbarMoreMenu').classList.contains('open');
+        closeToolbarMoreMenu();
+        if(willOpen){
+          $('toolbarMoreWrap').classList.add('open');
+          $('toolbarMoreMenu').classList.add('open');
+          $('toolbarMoreBtn').setAttribute('aria-expanded','true');
+        }
+      });
+      $('toolbarMoreMenu').addEventListener('click', ev=> ev.stopPropagation());
+      ['exportBriefingBtn','exportCsvBtn','resetMonthBtn'].forEach(id=>{
+        const action = $(id); if(action) action.addEventListener('click', closeToolbarMoreMenu);
+      });
+      document.addEventListener('click', closeToolbarMoreMenu);
+      document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') closeToolbarMoreMenu(); });
+    }
     const _exportCsvBtn = $('exportCsvBtn'); if(_exportCsvBtn) _exportCsvBtn.addEventListener('click', exportCSV);
     if($('exportBriefingBtn')) $('exportBriefingBtn').addEventListener('click', exportBriefing);
     const _resetMonthBtn = $('resetMonthBtn'); if(_resetMonthBtn) _resetMonthBtn.addEventListener('click', resetMonth);
@@ -3235,8 +3292,76 @@
     });
 
     // ============================================================
+    // FLUXO GUIADO DO MODAL DE POSTAGEM
+    // O formulário e o preview originais são reaproveitados; o preview permanece
+    // visível na lateral e continua sendo atualizado em tempo real.
+    function setGuidedPostStep(step){
+
+      const modal = document.querySelector('#modalBackdrop .modal--guided-post');
+      if(!modal) return;
+      guidedPostStep = Math.max(1, Math.min(3, Number(step)||1));
+      modal.querySelectorAll('[data-guided-step]').forEach(group=>{
+        group.hidden = Number(group.dataset.guidedStep) !== guidedPostStep;
+      });
+      modal.querySelectorAll('[data-guided-step-target]').forEach(btn=>{
+        const active = Number(btn.dataset.guidedStepTarget) === guidedPostStep;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-current', active ? 'step' : 'false');
+      });
+      const back = $('guidedPostBack'), next = $('guidedPostNext'), save = $('saveModal');
+      if(back) back.hidden = guidedPostStep === 1;
+      if(next) next.hidden = guidedPostStep === 3;
+      if(save) save.hidden = guidedPostStep !== 3;
+      const body = modal.querySelector('.modal-body');
+      if(body) body.scrollTop = 0;
+    }
+
+    function setupGuidedPostFlow(){
+
+      const modal = document.querySelector('#modalBackdrop .modal');
+      const body = modal && modal.querySelector('.modal-body');
+      const grid = body && body.querySelector('.grid-2');
+      const preview = grid && grid.querySelector('[data-guided-preview]');
+      const footer = modal && modal.querySelector('.modal-footer');
+      const save = $('saveModal');
+      if(!modal || !body || !grid || !preview || !footer || !save) return;
+
+      modal.classList.add('modal--guided-post');
+      footer.classList.add('guided-post-footer');
+
+      const nav = document.createElement('div');
+      nav.className = 'guided-flow-nav';
+      nav.innerHTML = `<div class="guided-flow-steps"><button type="button" class="guided-step-btn" data-guided-step-target="1"><span class="guided-step-number">1</span>Planejamento</button><button type="button" class="guided-step-btn" data-guided-step-target="2"><span class="guided-step-number">2</span>Conteúdo</button><button type="button" class="guided-step-btn" data-guided-step-target="3"><span class="guided-step-number">3</span>Entrega</button></div>`;
+      body.insertBefore(nav, grid);
+
+      const layout = document.createElement('div');
+      layout.className = 'guided-post-layout';
+      const formPanel = document.createElement('div');
+      formPanel.className = 'guided-form-panel';
+      const previewPanel = document.createElement('aside');
+      previewPanel.className = 'guided-preview-panel';
+      body.insertBefore(layout, grid);
+      formPanel.appendChild(grid);
+      previewPanel.appendChild(preview);
+      layout.append(formPanel, previewPanel);
+
+      const back = document.createElement('button');
+      back.type = 'button'; back.id = 'guidedPostBack'; back.className = 'btn ghost'; back.textContent = 'Voltar';
+      const next = document.createElement('button');
+      next.type = 'button'; next.id = 'guidedPostNext'; next.className = 'btn'; next.textContent = 'Próximo';
+      footer.insertBefore(back, save);
+      footer.insertBefore(next, save);
+
+      nav.querySelectorAll('[data-guided-step-target]').forEach(btn=> btn.addEventListener('click', ()=> setGuidedPostStep(btn.dataset.guidedStepTarget)));
+      back.addEventListener('click', ()=> setGuidedPostStep(guidedPostStep-1));
+      next.addEventListener('click', ()=> setGuidedPostStep(guidedPostStep+1));
+      setGuidedPostStep(1);
+    }
+
+    // ============================================================
     // INICIALIZAÇÃO DA APLICAÇÃO
     // ============================================================
+    setupGuidedPostFlow();
     // carrega configurações e postagens persistidas
     loadSettings();
     renderAllDynamicUI();

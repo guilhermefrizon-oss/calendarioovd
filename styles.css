@@ -31,6 +31,7 @@
     /* Reset global e layout base da página */
     *{box-sizing:border-box}
     body{font-family:var(--base-font-family);background:var(--bg);margin:0;padding:0;color:var(--text);-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+    button,input,select,textarea,option{font-family:var(--base-font-family)}
     .container{max-width:1900px;margin:0 auto}
 
     /* Shell do portal: sidebar fixa à esquerda (menu de ferramentas + seletor de marca,
@@ -139,10 +140,10 @@
             pra se destacar dos labels de campo comuns
        H4 · reservado para um 4º nível (subtítulo dentro de uma seção), ainda sem uso hoje —
             definido aqui pra já nascer consistente quando alguma tela precisar dele */
-    h1,h2,h3,h4{margin:0;font-family:'Lato',sans-serif;color:var(--text)}
+    h1,h2,h3,h4{margin:0;font-family:var(--base-font-family);color:var(--text)}
     h1{font-size:23px;font-weight:900;letter-spacing:-.01em}
     h2{font-size:17px;font-weight:900;letter-spacing:-.005em}
-    h3{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-ink)}
+    h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-ink)}
     h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint)}
 
     /* Cabeçalho da página: título + ações "Buscar"/"Configurações"/"Nova postagem" */
@@ -205,6 +206,7 @@
     .btn svg{flex-shrink:0}
     .btn:hover{background:var(--accent-hover);box-shadow:var(--shadow-sm)}
     .btn:active{transform:translateY(1px)}
+    .btn:disabled{opacity:.55;cursor:not-allowed;pointer-events:none}
     .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border);font-weight:700}
     .btn.ghost:hover{background:var(--surface-muted);border-color:var(--border-strong)}
     /* variante "small", usada tanto para botões compactos com texto (Cancelar, Aplicar) quanto para
@@ -222,6 +224,20 @@
     .toolbar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .toolbar-row + .toolbar-row{margin-top:10px}
     .toolbar-spacer{flex:1}
+    /* Ações secundárias da toolbar: exportações e reset ficam agrupados para preservar
+       a leitura dos filtros e das redes como controles principais do calendário. */
+    .toolbar-more-wrap{position:relative;flex-shrink:0}
+    .toolbar-more-caret{display:inline-flex;align-items:center;color:var(--text-faint);transition:transform .15s}
+    .toolbar-more-wrap.open .toolbar-more-caret{transform:rotate(180deg)}
+    .toolbar-more-menu{position:absolute;top:calc(100% + 6px);right:0;display:none;flex-direction:column;min-width:210px;padding:6px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);z-index:50}
+    .toolbar-more-menu.open{display:flex}
+    .toolbar-more-item{width:100%;display:flex;align-items:center;gap:9px;padding:8px 10px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--text);font:700 12.5px var(--base-font-family);text-align:left;cursor:pointer;white-space:nowrap}
+    .toolbar-more-item svg{flex-shrink:0;color:var(--muted)}
+    .toolbar-more-item:hover{background:var(--surface-muted)}
+    .toolbar-more-item.danger{color:var(--danger)}
+    .toolbar-more-item.danger svg{color:var(--danger)}
+    .toolbar-more-item.danger:hover{background:var(--danger-bg)}
+    .toolbar-more-separator{height:1px;background:var(--border);margin:5px 4px}
     .month-nav{display:flex;align-items:center;gap:8px}
     .month-label-wrap{position:relative}
     .month-label{min-width:160px;text-align:center;font-weight:700;font-size:14px;background:transparent;border:1px solid transparent;color:var(--text);font-family:inherit;cursor:pointer;padding:5px 8px;border-radius:var(--radius-sm);display:inline-flex;align-items:center;justify-content:center;gap:4px;transition:background .12s,border-color .12s}
@@ -242,7 +258,7 @@
     .month-summary-dropdown-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px}
     .ms-list{display:flex;flex-direction:column;gap:9px;margin-top:12px}
     .ms-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px}
-    .ms-row-label{display:flex;align-items:center;gap:7px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+    .ms-row-label{display:flex;align-items:center;gap:7px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
     .ms-row-count{flex:0 0 auto;font-weight:700;color:var(--muted)}
 
     /* Popover de seleção rápida de mês dentro do ano, ancorado abaixo do rótulo (que mostra o ano
@@ -301,10 +317,10 @@
     .status-filter-chip.active{background:var(--st-weak,var(--accent-weak));border-color:var(--st-color,var(--accent-ink));color:var(--st-color,var(--accent-ink))}
 
     /* Chips (pílulas de rádio/checkbox usadas em vários modais) */
-    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card);font-size:12.5px;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s;color:var(--text)}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card);font-family:var(--base-font-family);font-size:12.5px;font-weight:700;line-height:1.25;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s;color:var(--text)}
     .chip:hover{border-color:var(--border-strong)}
     .chip input{margin:0}
-    .chip:has(input:checked){background:var(--accent-weak);border-color:var(--accent-ink);color:var(--accent-ink);font-weight:700}
+    .chip:has(input:checked){background:var(--accent-weak);border-color:var(--accent-ink);color:var(--accent-ink)}
     .chip button{margin-left:2px;padding:3px 6px;font-size:11px;border-radius:8px}
     .dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
 
@@ -327,13 +343,13 @@
     /* largura fixa baseada em 3 colunas por linha (não usa 1fr) — se não, um grupo com só
        1 ou 2 formatos esticaria o(s) chip(s) pra preencher a linha toda */
     .format-net-group-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(0,calc((100% - 16px)/3)));gap:8px}
-    .format-chip{display:flex;align-items:flex-start;gap:7px;padding:7px 11px;border-radius:12px;border:1px solid var(--border);background:var(--card);cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s}
+    .format-chip{display:flex;align-items:flex-start;gap:7px;padding:7px 11px;border-radius:12px;border:1px solid var(--border);background:var(--card);font-family:var(--base-font-family);cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s}
     .format-chip:hover{border-color:var(--border-strong)}
     .format-chip:has(input:checked){background:var(--accent-weak);border-color:var(--accent-ink);color:var(--accent-ink)}
     .format-chip input{margin:2px 0 0}
     .format-chip-icon{display:inline-flex;align-items:center;margin-top:1px}
     .format-chip-body{display:flex;flex-direction:column;gap:1px;line-height:1.25}
-    .format-chip-name{font-size:12.5px;font-weight:700;color:var(--text)}
+    .format-chip-name{font-size:12.5px;font-weight:700;line-height:1.25;color:var(--text)}
     .format-chip:has(input:checked) .format-chip-name{color:var(--accent-ink)}
     .format-chip-dims{font-size:10.5px;font-weight:400;color:var(--muted)}
     .format-chip:has(input:checked) .format-chip-dims{color:var(--accent-ink);opacity:.75}
@@ -479,6 +495,63 @@
     .icon-picker-upload-btn svg{flex-shrink:0}
     .icon-picker-upload-preview{width:18px;height:18px;border-radius:50%;flex-shrink:0}
 
+
+    /* Títulos de seção maiores dentro do workspace da Central de Inteligência (Nova peça de
+       referência, Peças já adicionadas, Orientações adicionais etc.) */
+    #intelWorkspaceBody .fg-label{font-size:15px}
+
+    /* Assistente de "nova peça de referência" — os 4 passos (rede → briefing → artes por
+       formato → legenda) usados pra montar uma unidade completa de conhecimento da editoria */
+    .intel-piece-step{margin-top:16px}
+    .intel-piece-step:first-child{margin-top:0}
+    .intel-piece-step-label{font-size:12px;font-weight:700;color:var(--text);margin-bottom:7px}
+    .intel-piece-step-optional{font-weight:400;color:var(--text-faint)}
+    /* Fileira de módulos em linha única (artes por formato e peças já adicionadas
+       reaproveitam exatamente o mesmo padrão de card) */
+    #intelPieceFormats{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:stretch;gap:12px;overflow-x:auto;padding-bottom:4px}
+    .intel-format-slot{display:flex;flex-direction:column;flex:1 1 0;min-width:200px;border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;background:var(--surface-muted);transition:background .12s,border-color .12s}
+    .intel-format-slot--piece{flex:0 0 240px;min-width:0}
+
+    /* Peças já adicionadas — seccionadas por rede social e, dentro de cada rede, por formato
+       (a mesma peça pode aparecer em mais de um formato se tiver artes em vários); os formatos
+       ficam lado a lado na mesma linha horizontal, igual em "Artes por formato" */
+    #intelPiecesList{display:flex;flex-direction:column;gap:16px}
+    .intel-pieces-network-section{border-top:1px solid var(--border);padding-top:12px}
+    .intel-pieces-network-section:first-child{border-top:0;padding-top:0}
+    .intel-pieces-network-label{font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px}
+    .intel-pieces-format-rowset{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:stretch;gap:12px;overflow-x:auto;padding-bottom:4px}
+    .intel-pieces-format-group{display:flex;flex-direction:column;flex:1 1 0;min-width:220px;border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;background:var(--surface-muted)}
+    .intel-pieces-format-stack{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+    .intel-pieces-format-stack .intel-format-slot--piece{flex:none;width:100%}
+    .intel-format-slot.dragover{background:var(--accent-weak);border-color:var(--accent-ink)}
+    .intel-format-slot-body{display:flex;gap:12px;align-items:flex-start}
+    .intel-format-slot-header{text-align:left;font-size:15px;font-weight:700;color:var(--text)}
+    .intel-format-slot-dims{display:block;text-align:left;font-style:italic;font-weight:400;font-size:11.5px;color:var(--text-faint);margin-top:2px}
+    .intel-format-info{display:flex;flex-direction:column;min-width:0}
+    .intel-module-link{margin-top:auto;padding-top:10px;font-size:12.5px;font-weight:600;color:var(--accent-ink);text-decoration:underline;cursor:pointer;width:fit-content;background:none;border:0}
+    .intel-module-link:hover{opacity:.8}
+    .intel-format-previews{display:flex;flex-wrap:wrap;gap:10px;flex-shrink:0}
+
+    /* Campo de arrastar/selecionar mostrado só quando o formato ainda não tem referência */
+    .intel-format-empty-drop{display:flex;align-items:center;justify-content:center;text-align:center;margin-top:10px;min-height:64px;padding:12px 14px;border:2px dashed var(--border-strong);border-radius:var(--radius-md);background:var(--card);color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.4;cursor:pointer;transition:background .12s,border-color .12s,color .12s}
+    .intel-format-empty-drop:hover{background:var(--accent-weak);border-color:var(--accent-ink);color:var(--accent-ink)}
+
+    /* Preview de cada arte enviada — miniatura de proporção fixa 4:5 (não varia com o tamanho
+       do arquivo enviado); a dimensão real do formato aparece como texto no título do slot */
+    .intel-preview-box{position:relative;width:120px;aspect-ratio:4/5;border-radius:var(--radius-md);overflow:hidden;cursor:pointer;border:1px solid var(--border);background:var(--card);flex-shrink:0}
+    .intel-preview-box--empty{display:flex;align-items:center;justify-content:center;border-style:dashed;background:var(--card);color:var(--text-faint);cursor:default}
+    .intel-preview-box img{width:100%;height:100%;object-fit:cover;display:block}
+    .intel-preview-video-badge{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface-muted);color:var(--muted)}
+    .intel-preview-remove{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s}
+    .intel-preview-remove:hover{background:rgba(0,0,0,.8)}
+
+    /* Lightbox — clique numa arte pra ver maior: cantos arredondados, fundo escurecido, X pra fechar */
+    .intel-lightbox-backdrop{position:fixed;inset:0;background:var(--backdrop,rgba(0,0,0,.72));display:flex;align-items:center;justify-content:center;z-index:500;padding:40px}
+    .intel-lightbox-box{position:relative;max-width:min(720px,90vw);max-height:90vh;border-radius:var(--radius-lg);overflow:hidden;background:var(--card);box-shadow:var(--shadow-lg)}
+    .intel-lightbox-box img,.intel-lightbox-box video{display:block;max-width:100%;max-height:90vh;object-fit:contain}
+    .intel-lightbox-close{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:0;font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;transition:background .12s}
+    .intel-lightbox-close:hover{background:rgba(0,0,0,.78)}
+
     /* Modal genérico: fundo escurecido (backdrop) + caixa central, usado por todos os modais.
        Estrutura em 3 partes empilhadas (header/body/footer) numa coluna flex — o header (título +
        ações) e o footer (botões) ficam fixos, só o body rola. O "overflow:hidden" no .modal (em
@@ -545,6 +618,27 @@
     .format-row-meta{color:var(--muted);flex:1}
     /* modal de criar/editar postagem: blocos empilhados numa coluna só, um abaixo do outro */
     .grid-2{display:grid;grid-template-columns:1fr;gap:16px}
+
+    /* Fluxo guiado do modal de postagem. O próprio bloco de preview é movido, sem ser
+       recriado, para permanecer visível na lateral durante todas as etapas. */
+    .modal.modal--guided-post{max-width:1120px}
+    .guided-flow-nav{display:flex;align-items:center;gap:14px;padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+    .guided-flow-steps{display:flex;align-items:center;gap:6px;flex:1}
+    .guided-step-btn{display:flex;align-items:center;gap:7px;padding:6px 9px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--muted);font:700 12.5px var(--base-font-family);cursor:pointer}
+    .guided-step-btn:hover{background:var(--surface-muted);color:var(--text)}
+    .guided-step-btn.active{background:var(--accent-weak);color:var(--accent-ink)}
+    .guided-step-number{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--surface-muted);border:1px solid var(--border);font-size:10.5px;color:var(--muted)}
+    .guided-step-btn.active .guided-step-number{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+    .guided-post-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+    .guided-form-panel{min-width:0}
+    .guided-form-panel .grid-2{display:block}
+    .guided-form-panel .grid-2 > div{display:contents}
+    .modal--guided-post [data-guided-step][hidden]{display:none}
+    .modal--guided-post .guided-post-footer [hidden]{display:none!important}
+    .guided-preview-panel{position:sticky;top:0;min-width:0}
+    .guided-preview-panel .form-group{margin-bottom:0}
+    .guided-preview-panel #mBriefingPreview{max-height:48vh;overflow-y:auto}
+    .guided-post-footer #cancelModal{margin-right:auto}
     /* telas estreitas: o menu de Configurações vira uma barra horizontal de abas acima do conteúdo */
     @media (max-width:640px){
       .settings-layout{flex-direction:column;gap:10px}
@@ -608,7 +702,7 @@
 
     /* Pré-visualização do briefing: título como cabeçalho, campos em linhas rotuladas
        (label + valor) em vez de um parágrafo corrido, e o conteúdo isolado num bloco à parte */
-    .bp-title{font-weight:800;font-size:14px;color:var(--text);margin-bottom:8px;line-height:1.3}
+    .bp-title{font-weight:700;font-size:14px;color:var(--text);margin-bottom:8px;line-height:1.3}
     .bp-meta{display:flex;flex-direction:column;gap:5px}
     .bp-row{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;line-height:1.5}
     .bp-row-label{flex:0 0 auto;font-weight:700;color:var(--accent-ink);white-space:nowrap;padding-top:1px}
