@@ -1,5 +1,7 @@
 (function(){
 'use strict';
+// Tema (claro/escuro) e cor de destaque já vêm aplicados pelo portal-shell.js (primeiro
+// script da página, com acesso à marca ativa e ao tema Personalizado) — nada a fazer aqui.
 var $=function(s){return document.querySelector(s)}, $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
 var canvases={feed:$('#feedCanvas'),story:$('#storyCanvas')};
 var templates={

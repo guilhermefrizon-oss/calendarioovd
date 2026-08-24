@@ -21,7 +21,7 @@
     // Mês inicial exibido (contexto atual do projeto). Navegação livre a partir daqui.
     let viewDate = new Date(2026,7,18);
     let activeTabs = []; // redes selecionadas no filtro rápido da toolbar; vazio = "Todas"
-    let currentView = 'month'; // 'month' | 'week' | 'list'
+    let currentView = 'month'; // 'month' | 'biweek' | 'week' | 'list'
     // alturas das células do dia capturadas por buildCalendar() logo antes de reconstruir o grid;
     // render() consome isso no final pra animar a troca de altura das linhas (ver ambas as funções)
     let pendingRowHeights = null;
@@ -36,138 +36,11 @@
     const selectedIds = new Set();
     // produtos selecionados no modal de criar/editar postagem: [{code,name}, ...]
     let selectedProducts = [];
+    // imagens de referência anexadas no modal de criar/editar postagem (campo "Referências
+    // salvas em:"): [{id,name,width,height,dataUrl}, ...] — refletem na pré-visualização do
+    // briefing e são embutidas no .docx exportado
+    let editingReferenceImages = [];
     let guidedPostStep = 1;
-
-    // ============================================================
-    // TEMA (claro/escuro) — aplicado o quanto antes para evitar um
-    // "flash" da tela clara antes do tema salvo ser lido. A opção fica
-    // dentro de Configurações > Aparência e é aplicada imediatamente.
-    // ============================================================
-    const THEME_KEY = 'calendar_theme_v1';
-    function applyTheme(theme){
-      document.documentElement.setAttribute('data-theme', theme);
-      const el = document.querySelector(`input[name="sTheme"][value="${theme}"]`);
-      if(el) el.checked = true;
-    }
-    function setTheme(theme){
-      localStorage.setItem(THEME_KEY, theme);
-      applyTheme(theme);
-      applyColorTheme(getColorTheme());
-    }
-    applyTheme(localStorage.getItem(THEME_KEY) || 'light');
-
-    // ============================================================
-    // COR DO TEMA — paleta de destaque (accent) do calendário. Cada
-    // opção traz uma cor para o modo escuro e outra para o modo claro;
-    // ao trocar, recalcula --accent/--accent-ink/--accent-hover/
-    // --accent-weak/--on-accent na hora, sem precisar de "Salvar".
-    // ============================================================
-    const COLOR_THEME_KEY = 'calendar_color_theme_v1';
-    const CUSTOM_COLOR_KEY = 'calendar_color_theme_custom_v1';
-    const COLOR_THEMES = [
-      { id:'dourado',  name:'Dourado',   dark:'#F6BE00', light:'#F6BE00' },
-      { id:'azul',     name:'Azul',      dark:'#2f6fed', light:'#7fb0f2' },
-      { id:'cinza',    name:'Cinza',     dark:'#6b6b70', light:'#a8a8ae' },
-      { id:'petroleo', name:'Petróleo',  dark:'#3c5878', light:'#8fa8c4' },
-      { id:'ardosia',  name:'Ardósia',   dark:'#3e4f63', light:'#8898a8' },
-      { id:'esverdeado',name:'Esverdeado',dark:'#3f5a52', light:'#a0b4ac' },
-      { id:'turquesa', name:'Turquesa',  dark:'#0f9488', light:'#5fd6c4' },
-      { id:'verde',    name:'Verde',     dark:'#2f8a3a', light:'#8fd68a' },
-      { id:'oliva',    name:'Oliva',     dark:'#5a6a3a', light:'#b0c090' },
-      { id:'laranja',  name:'Laranja',   dark:'#d9720f', light:'#f5b878' },
-      { id:'marrom',   name:'Marrom',    dark:'#8a5a3a', light:'#d0ac8c' },
-      { id:'vinho',    name:'Vinho',     dark:'#a8264a', light:'#f0a0be' },
-      { id:'rose',     name:'Rosé',      dark:'#7a4650', light:'#cfa8ae' },
-      { id:'magenta',  name:'Magenta',   dark:'#a52a92', light:'#f0a8e4' },
-      { id:'roxo',     name:'Roxo',      dark:'#6a3fa0', light:'#c4a8f0' },
-    ];
-    function getColorTheme(){ return localStorage.getItem(COLOR_THEME_KEY) || 'dourado'; }
-    function hexToRgbObj(hex){
-      const h = (hex||'#000000').replace('#','');
-      const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
-      const n = parseInt(full,16) || 0;
-      return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
-    }
-    function rgbToHex(r,g,b){
-      return '#'+[r,g,b].map(v=> Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
-    }
-    // mistura hex com withHex; amount 0..1 = quanto de withHex entra na mistura
-    function mixHex(hex, withHex, amount){
-      const a = hexToRgbObj(hex), b = hexToRgbObj(withHex);
-      return rgbToHex(a.r+(b.r-a.r)*amount, a.g+(b.g-a.g)*amount, a.b+(b.b-a.b)*amount);
-    }
-    // luminância relativa (WCAG) — usada pra decidir se um texto claro ou escuro
-    // fica mais legível em cima de uma cor de destaque
-    function relLuminance(hex){
-      const { r, g, b } = hexToRgbObj(hex);
-      const chan = v=>{ v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); };
-      return 0.2126*chan(r) + 0.7152*chan(g) + 0.0722*chan(b);
-    }
-    // razão de contraste WCAG entre duas luminâncias relativas
-    function contrastRatio(l1, l2){ const a = Math.max(l1,l2), b = Math.min(l1,l2); return (a+0.05)/(b+0.05); }
-    // escolhe #1a1a1a ou #ffffff, o que der mais contraste em cima da cor de fundo dada
-    function pickOnColor(hex){
-      const l = relLuminance(hex);
-      return contrastRatio(l,0) >= contrastRatio(l,1) ? '#1a1a1a' : '#ffffff';
-    }
-    function applyColorTheme(id){
-      let dark, light;
-      if(id === 'custom'){
-        const hex = localStorage.getItem(CUSTOM_COLOR_KEY) || '#F6BE00';
-        dark = hex; light = hex;
-      } else {
-        const palette = COLOR_THEMES.find(p=>p.id===id) || COLOR_THEMES[0];
-        dark = palette.dark; light = palette.light;
-      }
-      const mode = document.documentElement.getAttribute('data-theme') || 'light';
-      const accent = mode === 'dark' ? dark : light;
-      const root = document.documentElement.style;
-      root.setProperty('--accent', accent);
-      root.setProperty('--accent-hover', mixHex(accent, '#000000', 0.15));
-      root.setProperty('--accent-weak', hexToRgba(accent, 0.16));
-      root.setProperty('--on-accent', pickOnColor(accent));
-      // contraste mínimo ~4.5:1 contra fundo branco corresponde a luminância <= ~0.18
-      const ink = mode === 'dark'
-        ? dark
-        : (relLuminance(dark) <= 0.18 ? dark : mixHex(dark, '#000000', 0.4));
-      root.setProperty('--accent-ink', ink);
-    }
-    function setColorTheme(id){
-      localStorage.setItem(COLOR_THEME_KEY, id);
-      applyColorTheme(id);
-      renderColorThemeGrid();
-    }
-    function renderColorThemeGrid(){
-      const grid = $('colorThemeGrid'); if(!grid) return;
-      const current = getColorTheme();
-      const customHex = localStorage.getItem(CUSTOM_COLOR_KEY) || '#F6BE00';
-      const checkSvg = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
-      const swatches = COLOR_THEMES.map(p=>{
-        const selected = current === p.id;
-        return `<button type="button" class="color-swatch${selected?' selected':''}" data-color-theme="${p.id}" title="${escapeHtml(p.name)}" style="--sw-dark:${p.dark};--sw-light:${p.light}">${selected? `<span class="color-swatch-check">${checkSvg}</span>` : ''}</button>`;
-      }).join('');
-      const customSelected = current === 'custom';
-      const customSwatch = `<button type="button" class="color-swatch color-swatch-custom${customSelected?' selected':''}" data-color-theme="custom" title="Personalizada" style="--sw-dark:${customHex};--sw-light:${customHex}">${customSelected? `<span class="color-swatch-check">${checkSvg}</span>` : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-4 12.5-12.5a2.12 2.12 0 0 1 3 3L6 21l-4 1Z"/><path d="m14.5 5.5 4 4"/></svg>'}<input type="color" id="customColorInput" value="${customHex}" title="Escolher cor personalizada" /></button>`;
-      grid.innerHTML = swatches + customSwatch;
-      grid.querySelectorAll('.color-swatch:not(.color-swatch-custom)').forEach(btn=>{
-        btn.addEventListener('click', ()=> setColorTheme(btn.dataset.colorTheme));
-      });
-      const customInput = $('customColorInput');
-      if(customInput){
-        customInput.addEventListener('click', ev=> ev.stopPropagation());
-        // 'input' dispara continuamente enquanto o usuário arrasta no seletor nativo de cor:
-        // só aplica ao vivo (sem recriar o grid, senão o picker aberto pode fechar no meio do
-        // arraste). O grid só é re-renderizado em 'change', quando a escolha é confirmada.
-        customInput.addEventListener('input', ()=>{
-          localStorage.setItem(CUSTOM_COLOR_KEY, customInput.value);
-          localStorage.setItem(COLOR_THEME_KEY, 'custom');
-          applyColorTheme('custom');
-        });
-        customInput.addEventListener('change', ()=> renderColorThemeGrid());
-      }
-    }
-    applyColorTheme(getColorTheme());
-    renderColorThemeGrid();
 
     // ============================================================
     // HELPERS DE COR E EXIBIÇÃO — cores de tags/status, ícones de rede,
@@ -402,6 +275,20 @@
       return [];
     }
 
+    // postagem com todos os campos essenciais preenchidos? Usado pelo ícone de completo/pendência
+    // ao lado do contador de cada dia. Título, Produto(s) — ou marcada como "sem produto", pra
+    // institucionais/anúncios — Onde salvar a arte e Conteúdo da publicação contam; Imagem de
+    // referência e Referências ficam de fora por serem materiais de apoio opcionais, não algo
+    // que toda postagem precisa ter.
+    function isPostComplete(post){
+      const title = (post.title||'').trim();
+      if(!title || title==='Untitled') return false;
+      if(!getPostProducts(post).length && !post.noProduct) return false;
+      if(!(post.artsLink||'').trim()) return false;
+      if(!(post.notes||'').trim()) return false;
+      return true;
+    }
+
     function renderSelectedProducts(){
       const wrap = $('selectedProductsList'); if(!wrap) return;
       wrap.innerHTML = '';
@@ -618,11 +505,29 @@
       return `<div class="bp-row"><span class="bp-row-label">${escapeHtml(label)}</span><span class="bp-row-value${truncate?' bp-row-value--clip':''}"${truncate?` title="${escapeHtml(value)}"`:''}>${escapeHtml(value)}</span></div>`;
     }
 
+    // mesma linha rotulada de um link/local salvo, mas com o valor virando hyperlink de verdade
+    // (abre em nova aba) — usado em Salvar em, Referências salvas em e Imagem
+    function bpLinkRow(label, value){
+      const href = resolveLinkHref(value);
+      const valueHtml = href
+        ? `<a class="bp-row-value bp-row-value--clip bp-row-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(value)}">${escapeHtml(value)}</a>`
+        : `<span class="bp-row-value bp-row-value--clip" title="${escapeHtml(value)}">${escapeHtml(value)}</span>`;
+      return `<div class="bp-row"><span class="bp-row-label">${escapeHtml(label)}</span>${valueHtml}</div>`;
+    }
+
     // mesma linha rotulada, mas com o valor em lista (um item por linha) em vez de texto corrido
     // — usado em Produto(s), pra ficar fácil de ler quando há mais de um produto na postagem
     function bpListRow(label, items){
       const li = items.map(item=> `<li>${escapeHtml(item)}</li>`).join('');
       return `<div class="bp-row"><span class="bp-row-label">${escapeHtml(label)}</span><ul class="bp-row-list">${li}</ul></div>`;
+    }
+
+    // mesma linha rotulada, mas com o valor em miniaturas de imagem — usado nas imagens de
+    // referência anexadas em "Referências salvas em:" (refletem no briefing e são exportadas
+    // junto no .docx)
+    function bpImagesRow(label, images){
+      const thumbs = images.map(img=> `<img class="bp-ref-thumb" src="${img.dataUrl}" alt="${escapeHtml(img.name||'')}" />`).join('');
+      return `<div class="bp-row"><span class="bp-row-label">${escapeHtml(label)}</span><div class="bp-row-images">${thumbs}</div></div>`;
     }
 
     // linha divisória entre o cabeçalho (título + campos) e o Conteúdo — feita de caracteres de
@@ -634,10 +539,11 @@
     // prevista para, Formatos, Salvar em, Referências salvas em, Produto(s), Imagem, Observações
     // e Conteúdo — compartilhada entre a pré-visualização ao vivo do modal (a partir dos campos
     // do formulário) e a exportação de briefing (a partir de um post já salvo)
-    function buildBriefingPlainLines({ title, dateLabel, formatsText, hasFormats, artsLink, referencesLink, productItems, imageLink, imageNotes, content }){
+    function buildBriefingPlainLines({ title, dateLabel, formatsText, hasFormats, artsLink, referencesLink, productItems, imageLink, imageNotes, referenceImages, content }){
+      referenceImages = referenceImages || [];
       const plainLines = [];
       if(title) plainLines.push(title);
-      if(title && (dateLabel || hasFormats || artsLink || referencesLink || productItems.length || imageLink || imageNotes)) plainLines.push(BRIEFING_SEPARATOR);
+      if(title && (dateLabel || hasFormats || artsLink || referencesLink || productItems.length || imageLink || imageNotes || referenceImages.length)) plainLines.push(BRIEFING_SEPARATOR);
       if(dateLabel) plainLines.push(`Publicação prevista para ${dateLabel}`);
       if(hasFormats) plainLines.push(`Formatos: ${formatsText}`);
       if(artsLink) plainLines.push(`Salvar em: ${artsLink}`);
@@ -648,6 +554,7 @@
       }
       if(imageLink) plainLines.push(`Imagem: ${imageLink}`);
       if(imageNotes) plainLines.push(`Observações: ${imageNotes}`);
+      if(referenceImages.length) plainLines.push(`Imagens de referência anexadas: ${referenceImages.length}`);
       if(content){
         if(plainLines.length) plainLines.push(BRIEFING_SEPARATOR);
         plainLines.push(`Conteúdo:\n${content}`);
@@ -655,9 +562,10 @@
       return plainLines;
     }
 
-    // mesmo texto de briefing (título, formatos, links, produto(s), imagem, observações e
-    // conteúdo) de uma postagem já salva em state.posts — usado na exportação em lote
-    function buildPostBriefingText(post){
+    // campos do briefing (título, formatos, links, produto(s), imagem, observações e conteúdo)
+    // de uma postagem já salva em state.posts — usado na exportação em lote (hoje em .docx);
+    // no mesmo formato de objeto que buildBriefingPlainLines já espera da pré-visualização ao vivo
+    function computePostBriefingFields(post){
       const title = (post.title||'').trim();
       const dateLabel = post.date ? formatDatePt(post.date) : '';
       const entries = postChannelEntries(post);
@@ -668,13 +576,13 @@
         : joinPt(checkedPlaces);
       const products = getPostProducts(post);
       const productItems = products.map(p=> [p.code, p.name].filter(Boolean).join(' – '));
-      const plainLines = buildBriefingPlainLines({
+      return {
         title, dateLabel, formatsText, hasFormats: checkedPlaces.length>0,
         artsLink: (post.artsLink||'').trim(), referencesLink: (post.referencesLink||'').trim(),
         productItems, imageLink: (post.imageLink||'').trim(), imageNotes: (post.imageNotes||'').trim(),
+        referenceImages: Array.isArray(post.referenceImages) ? post.referenceImages : [],
         content: (post.notes||'').trim()
-      });
-      return plainLines.join('\n');
+      };
     }
 
     // pré-visualização do texto do briefing, abaixo de Conteúdo da publicação — consolida
@@ -706,7 +614,7 @@
       const productItems = selectedProducts.map(p=> [p.code, p.name].filter(Boolean).join(' – '));
 
       // texto puro pro botão de copiar — uma frase natural por campo, na mesma ordem da exibição
-      const plainLines = buildBriefingPlainLines({ title, dateLabel, formatsText, hasFormats: checkedPlaces.length>0, artsLink, referencesLink, productItems, imageLink, imageNotes, content });
+      const plainLines = buildBriefingPlainLines({ title, dateLabel, formatsText, hasFormats: checkedPlaces.length>0, artsLink, referencesLink, productItems, imageLink, imageNotes, referenceImages: editingReferenceImages, content });
       currentBriefingText = plainLines.join('\n');
 
       if(plainLines.length===0){
@@ -719,11 +627,12 @@
       const metaRows = [];
       if(dateLabel) metaRows.push(bpRow('Publicação prevista', dateLabel));
       if(checkedPlaces.length) metaRows.push(bpRow('Formatos', formatsText));
-      if(artsLink) metaRows.push(bpRow('Salvar em', artsLink, true));
-      if(referencesLink) metaRows.push(bpRow('Referências salvas em', referencesLink, true));
+      if(artsLink) metaRows.push(bpLinkRow('Salvar em', artsLink));
+      if(referencesLink) metaRows.push(bpLinkRow('Referências salvas em', referencesLink));
       if(productItems.length) metaRows.push(bpListRow('Produto(s)', productItems));
-      if(imageLink) metaRows.push(bpRow('Imagem', imageLink, true));
+      if(imageLink) metaRows.push(bpLinkRow('Imagem', imageLink));
       if(imageNotes) metaRows.push(bpRow('Observações', imageNotes));
+      if(editingReferenceImages.length) metaRows.push(bpImagesRow('Imagens de referência', editingReferenceImages));
 
       let html = '';
       if(title) html += `<div class="bp-title">${escapeHtml(title)}</div>`;
@@ -1061,6 +970,12 @@
         el.title = 'Ver todas as postagens deste dia';
         el.addEventListener('click', (ev)=>{ ev.stopPropagation(); openDayPosts(dateStr); });
       });
+      // clicar em qualquer área do card do dia (fora de um post específico, que já abre a edição
+      // dele) também abre "Postagens do dia" — mesmo destino do clique na data/contador acima.
+      // Cards de postagem, o badge "+N" e o "+ Adicionar postagem" já param a propagação nos
+      // próprios cliques, então não disparam este handler também.
+      cell.style.cursor = 'pointer';
+      cell.addEventListener('click', ()=> openDayPosts(dateStr));
       // permite soltar uma postagem arrastada nesta célula
       cell.addEventListener('dragover', ev=>{ ev.preventDefault(); cell.classList.add('drag-over'); });
       cell.addEventListener('dragleave', ev=>{ cell.classList.remove('drag-over'); });
@@ -1116,25 +1031,31 @@
       grid.innerHTML = '';
       const YEAR = viewDate.getFullYear();
       const MONTH = viewDate.getMonth();
-      const first = new Date(YEAR, MONTH, 1);
-      const last = new Date(YEAR, MONTH + 1, 0);
-      const total = last.getDate();
-      const startDay = first.getDay(); // 0 (Sun) - 6 (Sat)
-      // número de semanas realmente necessário para exibir o mês (4, 5 ou 6), em vez de sempre fixar 6
-      const cells = Math.ceil((startDay + total) / 7) * 7;
+      const total = new Date(YEAR, MONTH + 1, 0).getDate();
       const tStr = todayStr();
+      // visão Quinzena reaproveita esta mesma grade (#grid), mas só desenha as semanas que
+      // realmente têm algum dia da metade do mês selecionada (1–15 ou 16–fim) — as semanas
+      // inteiramente da outra quinzena somem da grade, em vez de aparecer como linha de células
+      // vazias (só sobra a folga necessária pra alinhar a primeira/última semana ao dia da semana,
+      // igual à visão mensal já faz nas bordas do mês)
+      const rangeStart = currentView==='biweek' ? fortnightBounds(viewDate).startDay : 1;
+      const rangeEnd = currentView==='biweek' ? fortnightBounds(viewDate).endDay : total;
+      const rangeStartDow = new Date(YEAR, MONTH, rangeStart).getDay(); // 0 (Sun) - 6 (Sat)
+      // número de semanas realmente necessário pra cobrir o intervalo (mês inteiro ou só a
+      // quinzena), em vez de sempre fixar 6
+      const cells = Math.ceil((rangeStartDow + (rangeEnd - rangeStart + 1)) / 7) * 7;
       for(let i=0;i<cells;i++){
         const cell = document.createElement('div');
         cell.className = 'day';
-        const dayIndex = i - startDay + 1;
-        if(dayIndex>0 && dayIndex<=total){
+        const dayIndex = i - rangeStartDow + rangeStart;
+        if(dayIndex>=rangeStart && dayIndex<=rangeEnd){
           const dateStr = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-${String(dayIndex).padStart(2,'0')}`;
           cell.dataset.date = dateStr;
           if(dateStr===tStr) cell.classList.add('today');
           // nome da data comemorativa (feriado ou data comercial), quando o dia corresponder a uma
           const holidayName = commemorativeDateName(dateStr);
           const holidayHtml = holidayName ? `<span class="holiday-name" title="${escapeHtml(holidayName)}">${escapeHtml(holidayName)}</span>` : '';
-          cell.innerHTML = `<div class="day-head"><span class="date">${dayIndex}</span>${holidayHtml}<span class="day-count"></span></div><div class="posts"></div>`;
+          cell.innerHTML = `<div class="day-head"><span class="date">${dayIndex}</span>${holidayHtml}<span class="day-count-wrap"><span class="day-status-icon" style="display:none"></span><span class="day-count"></span></span></div><div class="posts"></div>`;
           // clicar no número do dia ou no contador (0/3, 1/3...) abre o popup com todas as
           // postagens daquela data — igual ao badge "+N", mas funciona mesmo com 0, 1, 2 ou 3
           // postagens (quando não há badge "+N" porque tudo já cabe na célula)
@@ -1156,6 +1077,27 @@
       return d;
     }
 
+    // quinzena (metade do mês) que contém `date`: dia 1–15 ou dia 16–fim do mês — convenção
+    // fixa alinhada ao calendário (igual "1ª/2ª quinzena" do uso comum), não uma janela rolante
+    // de 14 dias a partir de qualquer data. Usada tanto pela visão Quinzena quanto pelo preset
+    // "Quinzenal" do modal de exportação de briefing.
+    function fortnightBounds(date){
+      const y = date.getFullYear(), m = date.getMonth();
+      const totalDays = new Date(y, m+1, 0).getDate();
+      const half = date.getDate() <= 15 ? 0 : 1;
+      const startDay = half===0 ? 1 : 16;
+      const endDay = half===0 ? 15 : totalDays;
+      return { half, startDay, endDay, startDate: new Date(y,m,startDay), endDate: new Date(y,m,endDay) };
+    }
+    // avança (dir>0) ou retorna (dir<0) uma quinzena a partir de viewDate, respeitando a virada
+    // de mês/ano nos dois sentidos
+    function stepFortnight(dir){
+      const { half } = fortnightBounds(viewDate);
+      const y = viewDate.getFullYear(), m = viewDate.getMonth();
+      if(dir>0) viewDate = half===0 ? new Date(y,m,16) : new Date(y,m+1,1);
+      else viewDate = half===1 ? new Date(y,m,1) : new Date(y,m-1,16);
+    }
+
     // ============================================================
     // VISÃO SEMANAL — 7 colunas (Dom→Sáb) com as postagens só daquela semana, cada uma com um
     // "+ Adicionar postagem" no rodapé pra criar já com a data daquele dia preenchida. Diferente
@@ -1175,7 +1117,7 @@
         if(dateStr===tStr) cell.classList.add('today');
         const holidayName = commemorativeDateName(dateStr);
         const holidayHtml = holidayName ? `<span class="holiday-name" title="${escapeHtml(holidayName)}">${escapeHtml(holidayName)}</span>` : '';
-        cell.innerHTML = `<div class="week-day-head"><div class="week-day-top-row"><span class="week-day-label">${WEEKDAY_ABBR[i]}</span><span class="day-count"></span></div><span class="date">${d.getDate()}</span>${holidayHtml}</div><div class="posts"></div><button type="button" class="week-day-add">+ Adicionar postagem</button>`;
+        cell.innerHTML = `<div class="week-day-head"><div class="week-day-top-row"><span class="week-day-label">${WEEKDAY_ABBR[i]}</span><span class="day-count-wrap"><span class="day-status-icon" style="display:none"></span><span class="day-count"></span></span></div><span class="date">${d.getDate()}</span>${holidayHtml}</div><div class="posts"></div><button type="button" class="week-day-add">+ Adicionar postagem</button>`;
         attachDayCellInteractions(cell, dateStr);
         cell.querySelector('.week-day-add').addEventListener('click', (ev)=>{ ev.stopPropagation(); closeEditState(); openModal(dateStr); });
         grid.appendChild(cell);
@@ -1204,6 +1146,13 @@
         const endLabel = `${end.getDate()} de ${end.toLocaleString('pt-BR',{month:'long'})} de ${end.getFullYear()}`;
         const startLabel = sameMonth ? `${start.getDate()}` : `${start.getDate()} de ${start.toLocaleString('pt-BR',{month:'long'})}`;
         $('monthLabelText').textContent = `${startLabel} – ${endLabel}`;
+        return;
+      }
+      if(currentView==='biweek'){
+        // quinzena nunca cruza mês, então o rótulo é só "1 – 15 de agosto de 2026" ou "16 – 31 de..."
+        const { startDay, endDay } = fortnightBounds(viewDate);
+        const monthYear = viewDate.toLocaleString('pt-BR',{month:'long',year:'numeric'});
+        $('monthLabelText').textContent = `${startDay} – ${endDay} de ${monthYear}`;
         return;
       }
       const monthLabel = viewDate.toLocaleString('pt-BR',{month:'long',year:'numeric'});
@@ -1351,6 +1300,7 @@
       if(Array.isArray(post.place)) copy.place = post.place.slice();
       if(Array.isArray(post.editoria)) copy.editoria = post.editoria.slice();
       if(Array.isArray(post.products)) copy.products = post.products.map(x=>Object.assign({},x));
+      if(Array.isArray(post.referenceImages)) copy.referenceImages = post.referenceImages.map(x=>Object.assign({},x));
       state.posts.push(copy);
       saveState(); buildCalendar(); render();
       pushUndo({ type:'create', posts:[copy.id] }); redoStack = [];
@@ -1424,7 +1374,7 @@
         if(!draggedPost) return;
         reorderPost(draggedPost, p, before);
       });
-      div.addEventListener('click', (ev)=>{ if(selectMode){ ev.stopPropagation(); const cb = div.querySelector('.select-checkbox'); if(cb){ cb.checked = !cb.checked; if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); } return; } openEditModal(p.id); });
+      div.addEventListener('click', (ev)=>{ ev.stopPropagation(); if(selectMode){ const cb = div.querySelector('.select-checkbox'); if(cb){ cb.checked = !cb.checked; if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); } return; } openEditModal(p.id); });
       if(selectMode){ const cb = document.createElement('input'); cb.type='checkbox'; cb.className='select-checkbox'; cb.checked = selectedIds.has(p.id); cb.addEventListener('click', (ev)=>{ ev.stopPropagation(); if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); }); div.appendChild(cb); }
       else { const { btn } = buildCardMenu(p, 'event-menu-btn'); div.appendChild(btn); }
       return div;
@@ -1502,18 +1452,41 @@
     // RENDERIZAÇÃO PRINCIPAL — alterna entre Mês/Lista e desenha
     // as postagens filtradas nas células, badges e resumo da IA
     // ============================================================
-    // alterna a visão ativa entre "month" (grade), "week" (colunas da semana) e "list" (lista)
+    // alterna a visão ativa entre "month" (grade), "biweek" (grade, só a quinzena), "week"
+    // (colunas da semana) e "list" (lista). "month" e "biweek" reaproveitam a mesma #grid — só
+    // muda o intervalo de dias desenhado em buildCalendar() — por isso ela é reconstruída aqui
+    // sempre que uma dessas duas vira a visão ativa (a grade pode estar com o conteúdo da outra)
     function setView(v){
       currentView = v;
-      $('grid').style.display = v==='month' ? 'grid' : 'none';
-      $('weekdayHeader').style.display = v==='month' ? 'grid' : 'none';
+      $('grid').style.display = (v==='month'||v==='biweek') ? 'grid' : 'none';
+      $('weekdayHeader').style.display = (v==='month'||v==='biweek') ? 'grid' : 'none';
       $('weekView').style.display = v==='week' ? 'block' : 'none';
       $('listView').style.display = v==='list' ? 'flex' : 'none';
       document.querySelectorAll('#viewToggle button').forEach(b=> b.classList.toggle('active', b.dataset.view===v));
+      if(v==='month' || v==='biweek') buildCalendar();
       updateMonthLabelText();
       render();
     }
 
+    // triângulo de alerta (cantos arredondados, amarelo, "!" preto) desenhado à mão: o polígono
+    // é preenchido E contornado na mesma cor com stroke-linejoin="round", o que arredonda os
+    // cantos sem precisar de path/clip-path complicado
+    const DAY_STATUS_PENDING_SVG = '<svg viewBox="0 0 24 24"><polygon points="12,3 22,20 2,20" fill="#FBBF24" stroke="#FBBF24" stroke-width="3" stroke-linejoin="round"/><line x1="12" y1="10" x2="12" y2="15" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="18" r="1.15" fill="#1a1a1a"/></svg>';
+    // ícone de atenção/completo ao lado do contador de cada dia: triângulo amarelo se algum card
+    // do dia (os mesmos que aparecem na célula, já filtrados) tiver campos essenciais faltando,
+    // círculo verde com check se todos estiverem completos; some inteiramente quando não há cards
+    function updateDayStatusIcon(cell, list){
+      const icon = cell.querySelector('.day-status-icon'); if(!icon) return;
+      if(!list.length){ icon.style.display = 'none'; return; }
+      const allComplete = list.every(isPostComplete);
+      icon.style.display = 'flex';
+      icon.classList.toggle('is-complete', allComplete);
+      icon.classList.toggle('is-pending', !allComplete);
+      icon.title = allComplete ? 'Todos os campos preenchidos' : 'Campos pendentes de preenchimento';
+      icon.innerHTML = allComplete
+        ? '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+        : DAY_STATUS_PENDING_SVG;
+    }
     function render(){
       // visão semanal: reconstrói as 7 colunas da semana visível (viewDate) toda vez — é
       // barato (só 7 células) e mantém render() como o único ponto que precisa saber disso,
@@ -1545,6 +1518,7 @@
           mb.textContent = `+${more}`;
         }
         else { if(mb) mb.remove(); }
+        updateDayStatusIcon(cell, list);
       });
 
       // colunas da visão semanal: sem limite de cards (há bastante espaço vertical), então
@@ -1555,6 +1529,7 @@
           const postsEl = cell.querySelector('.posts');
           const list = sortByOrder(postsMap[date] || []);
           list.forEach(p=>{ postsEl.appendChild(createEventElement(p)); });
+          updateDayStatusIcon(cell, list);
         });
       }
 
@@ -1769,12 +1744,15 @@
       $('mTitle').value=''; $('mNotes').value=''; $('mProductName').value='';
       $('mBriefingLink').value=''; $('mReferencesLink').value=''; $('mArtsLink').value='';
       $('mImageLink').value=''; $('mImageNotes').value='';
+      if($('mNoProduct')) $('mNoProduct').checked = false;
       document.querySelectorAll('.mNet').forEach(n=>n.checked=false); document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false);
       // formato depende da(s) rede(s) escolhida(s) — sem rede marcada, não há formato para pré-selecionar
       renderModalFormatsUI();
       document.querySelector('input[name="mType"][value="Static"]').checked = true;
       selectedProducts = [];
       renderSelectedProducts();
+      editingReferenceImages = [];
+      renderReferenceImages();
       hideProductSuggestions();
       setModalMultiChannelState(false, null);
       // postagem nova ainda não existe — não há o que duplicar/excluir
@@ -1806,6 +1784,7 @@
       const nets = Array.from(document.querySelectorAll('.mNet:checked')).map(n=>n.value);
       const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
       const products = selectedProducts.slice();
+      const noProduct = $('mNoProduct') ? $('mNoProduct').checked : false;
       if(nets.length===0){ alert('Selecione pelo menos uma rede'); return; }
       if(place.length===0){ alert('Selecione pelo menos um formato'); return; }
       if(isEditing && editingId){
@@ -1817,7 +1796,8 @@
         const dateChanged = post.date !== date;
         post.title = title; post.date = date; post.notes = notes;
         post.briefingLink = briefingLink; post.referencesLink = referencesLink; post.artsLink = artsLink;
-        post.imageLink = imageLink; post.imageNotes = imageNotes;
+        post.imageLink = imageLink; post.imageNotes = imageNotes; post.noProduct = noProduct;
+        post.referenceImages = editingReferenceImages.slice();
         post.editoria = editorias; post.products = products; delete post.productCode; delete post.productName;
         // redes, formato e tipo são sempre reconstruídos a partir do que está marcado no modal —
         // mesmo numa postagem vinda do agendamento de uma editoria (que por padrão pode ter uma
@@ -1839,7 +1819,9 @@
       const p = {
         id: generateId(), title, date, channel: nets[0], place: place.slice(), type,
         channels: nets.map(net=>({ channel: net, types: [type], places: place.slice() })),
-        status: defaultStatus, notes, briefingLink, referencesLink, artsLink, imageLink, imageNotes, collab: false, color: null, editoria: editorias, products: products.slice(), order: nextOrderForDate(date)
+        status: defaultStatus, notes, briefingLink, referencesLink, artsLink, imageLink, imageNotes,
+        referenceImages: editingReferenceImages.slice(),
+        noProduct, collab: false, color: null, editoria: editorias, products: products.slice(), order: nextOrderForDate(date)
       };
       state.posts.push(p);
       saveState();
@@ -1852,8 +1834,10 @@
       // limpa o modal para a próxima criação
       $('mTitle').value=''; $('mNotes').value=''; $('mBriefingLink').value=''; $('mReferencesLink').value=''; $('mArtsLink').value='';
       $('mImageLink').value=''; $('mImageNotes').value='';
+      if($('mNoProduct')) $('mNoProduct').checked = false;
       document.querySelectorAll('.mNet').forEach(n=>n.checked=false);
       document.querySelectorAll('.mEditoria').forEach(e=>e.checked=false); $('mProductName').value=''; selectedProducts=[]; renderSelectedProducts();
+      editingReferenceImages = []; renderReferenceImages();
       renderModalFormatsUI();
     }
 
@@ -1915,6 +1899,8 @@
     };
     const DEFAULT_SETTINGS = {
       TARGET: 3,
+      // meta semanal de vídeos (0 = sem meta definida) — informativa, editada em Configurações > Metas
+      videoWeeklyTarget: 2,
       networks: [
         { name:'Instagram', shortName:'IG', color:'#E4405F', formats: NETWORK_DEFAULT_FORMATS.Instagram.map(f=>Object.assign({},f)) },
         { name:'Facebook', shortName:'FB', color:'#1877F2', formats: NETWORK_DEFAULT_FORMATS.Facebook.map(f=>Object.assign({},f)) },
@@ -2291,10 +2277,20 @@
     let openNetworkFormats = null;
     // nome da rede cujos campos (nome/nome curto/ícone) estão em modo de edição — mesma lógica de persistência
     let editingNetworkName = null;
-    // nome da editoria atualmente em modo de edição inline na tela de Configurações (ou null)
+    // nome da editoria atualmente em modo de edição inline na tela de Configurações (ou null) —
+    // sempre igual a openEditoriaSchedule: nome/cor e dias fixos/formatos abrem e fecham juntos,
+    // pelo mesmo ícone de lápis (ou clicando no chip de dias fixos/redes, quando há um)
     let editingEditoriaName = null;
     // nome da editoria cujo painel de "dias fixos e formatos" está aberto para edição (ou null)
     let openEditoriaSchedule = null;
+    // abre (ou fecha, se já aberto) o modo de edição completo de uma editoria — nome/cor e dias
+    // fixos/redes juntos, sempre pelo mesmo gatilho: o ícone de lápis ou o chip de agendamento
+    function toggleEditoriaEdit(name){
+      const isOpen = editingEditoriaName === name && openEditoriaSchedule === name;
+      editingEditoriaName = isOpen ? null : name;
+      openEditoriaSchedule = isOpen ? null : name;
+      renderAllDynamicUI();
+    }
     // handle do buildScheduleEditor() ativo no formulário de "+ Adicionar" editoria
     let newEditoriaScheduleEditor = null;
 
@@ -2558,9 +2554,8 @@
                 <input type="color" class="ed-edit-color" value="${e.color||'#F6BE00'}" title="Cor da editoria" style="flex-shrink:0" />
                 <input type="text" class="ed-edit-name" value="${escapeHtml(e.name)}" title="Nome da editoria" style="flex:2;min-width:110px" />
               </div>` +
-            (hasSchedule ? `<span class="chip" style="font-size:11px" title="Repete em dias fixos">${UI_ICONS.calendar(12)} ${escapeHtml(scheduleLabel)} · ${escapeHtml(channelsLabel)}</span><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}">Aplicar ao mês visível</button>` : '') +
-            `<button type="button" class="net-row-formats-toggle ed-schedule-toggle">${hasSchedule?'Editar datas/formatos':'+ Datas e formatos'} <span class="settings-caret">${UI_ICONS.chevronDown(11)}</span></button>
-              <button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome/cor">${UI_ICONS.edit(13)}</button>
+            (hasSchedule ? `<button type="button" class="chip ed-schedule-chip" style="font-size:11px" title="Repete em dias fixos — clique para editar datas e redes">${UI_ICONS.calendar(12)} ${escapeHtml(scheduleLabel)} · ${escapeHtml(channelsLabel)}</button><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}" aria-label="Aplicar ao mês vigente" title="Aplicar ao mês vigente">${UI_ICONS.check(13)}</button>` : '') +
+            `<button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome, cor, datas e formatos">${UI_ICONS.edit(13)}</button>
               <button type="button" class="btn ghost small" data-editoria="${escapeHtml(e.name)}" aria-label="Remover editoria">${UI_ICONS.x(13)}</button>
             </div>
             <div class="net-row-formats">
@@ -2578,27 +2573,23 @@
             schedEditor = buildScheduleEditor(row.querySelector('.ed-schedule-editor'), e.schedule);
           }
 
-          // abre/fecha o painel de dias fixos + redes/tipos/formatos dessa editoria
-          row.querySelector('.ed-schedule-toggle').addEventListener('click', ()=>{
-            openEditoriaSchedule = (openEditoriaSchedule === e.name) ? null : e.name;
-            renderAllDynamicUI();
-          });
-
-          // salva o agendamento editado e fecha o painel — se nada ficou totalmente configurado
-          // (dia + rede + tipo + formato), remove o agendamento da editoria em vez de salvar
-          // algo incompleto
+          // salva o agendamento editado e fecha a edição (nome/cor + dias fixos/formatos, que
+          // abrem e fecham juntos) — se nada ficou totalmente configurado (dia + rede + tipo +
+          // formato), remove o agendamento da editoria em vez de salvar algo incompleto
           const saveBtn = row.querySelector('.ed-schedule-save');
           if(saveBtn) saveBtn.addEventListener('click', ()=>{
             const value = schedEditor ? schedEditor.getValue() : null;
             e.schedule = value || undefined;
             openEditoriaSchedule = null;
+            editingEditoriaName = null;
             saveSettings(); renderAllDynamicUI(); render();
           });
 
-          row.querySelector('.ed-edit-toggle').addEventListener('click', ()=>{
-            editingEditoriaName = (editingEditoriaName === e.name) ? null : e.name;
-            row.classList.toggle('editing');
-          });
+          // ícone de lápis: abre/fecha a edição completa da editoria (nome, cor, dias fixos e
+          // redes) — mesmo gatilho do chip de agendamento, quando ele existe
+          row.querySelector('.ed-edit-toggle').addEventListener('click', ()=> toggleEditoriaEdit(e.name));
+          const schedChip = row.querySelector('.ed-schedule-chip');
+          if(schedChip) schedChip.addEventListener('click', ()=> toggleEditoriaEdit(e.name));
 
           // edita a cor da editoria
           row.querySelector('.ed-edit-color').addEventListener('change', (ev)=>{ e.color = ev.target.value; saveSettings(); renderAllDynamicUI(); render(); });
@@ -2620,8 +2611,17 @@
           });
           nameInput.addEventListener('keydown', ev=>{ if(ev.key==='Enter') nameInput.blur(); });
         });
-        list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.editoria; APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); }));
-        list.querySelectorAll('button[data-apply]').forEach(bt=> bt.addEventListener('click', ()=> applyEditoriaSchedule(bt.dataset.apply)));
+        list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{
+          const v=bt.dataset.editoria;
+          if(!confirm(`Remover a editoria "${v}"? As postagens já criadas com ela não são apagadas, só deixam de ter essa categoria disponível pra reatribuir. Essa ação não pode ser desfeita com Ctrl+Z.`)) return;
+          APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI();
+        }));
+        list.querySelectorAll('button[data-apply]').forEach(bt=> bt.addEventListener('click', ()=>{
+          const name = bt.dataset.apply;
+          const monthLabel = $('monthLabelText') ? $('monthLabelText').textContent : `${viewDate.getMonth()+1}/${viewDate.getFullYear()}`;
+          if(!confirm(`Aplicar a editoria "${name}" a todos os dias fixos configurados em ${monthLabel}? Isso cria (ou atualiza, se já existirem) os cards desses dias.`)) return;
+          applyEditoriaSchedule(name);
+        }));
       }
     }
 
@@ -2864,6 +2864,7 @@
     function openSettings(){
       closeAllIconPickers();
       $('sTarget').value = TARGET;
+      $('sVideoWeeklyTarget').value = APP_SETTINGS.videoWeeklyTarget;
       $('settingsBackdrop').style.display = 'flex';
     }
 
@@ -2871,6 +2872,7 @@
 
     function saveSettingsHandler(){
       TARGET = parseInt($('sTarget').value,10) || TARGET;
+      APP_SETTINGS.videoWeeklyTarget = Math.max(0, parseInt($('sVideoWeeklyTarget').value,10) || 0);
       saveSettings(); buildCalendar(); render(); closeSettings();
     }
 
@@ -2890,6 +2892,9 @@
       $('mArtsLink').value = post.artsLink || '';
       $('mImageLink').value = post.imageLink || '';
       $('mImageNotes').value = post.imageNotes || '';
+      editingReferenceImages = Array.isArray(post.referenceImages) ? post.referenceImages.slice() : [];
+      renderReferenceImages();
+      if($('mNoProduct')) $('mNoProduct').checked = !!post.noProduct;
       const entries = postChannelEntries(post);
       const heterogeneous = isHeterogeneousChannels(entries);
       const entryChannels = entries.map(c=>c.channel);
@@ -3078,7 +3083,6 @@
     // ============================================================
     // LIGAÇÃO DOS BOTÕES E CAMPOS PRINCIPAIS DA TOOLBAR/MODAIS
     // ============================================================
-    document.querySelectorAll('input[name="sTheme"]').forEach(el=> el.addEventListener('change', ()=>{ setTheme(el.value); }));
     $('openAdd').addEventListener('click', ()=>{ closeEditState(); openModal(); });
     $('openSettings').addEventListener('click', openSettings);
     $('cancelSettings').addEventListener('click', closeSettings);
@@ -3089,11 +3093,13 @@
     document.getElementById('prevMonth').addEventListener('click', ()=>{
       if($('monthYearPicker').classList.contains('open')){ stepPickerYear(-1); return; }
       if(currentView==='week'){ viewDate.setDate(viewDate.getDate()-7); updateMonthLabelText(); render(); return; }
+      if(currentView==='biweek'){ stepFortnight(-1); buildCalendar(); render(); return; }
       viewDate.setMonth(viewDate.getMonth()-1); buildCalendar(); render();
     });
     document.getElementById('nextMonth').addEventListener('click', ()=>{
       if($('monthYearPicker').classList.contains('open')){ stepPickerYear(1); return; }
       if(currentView==='week'){ viewDate.setDate(viewDate.getDate()+7); updateMonthLabelText(); render(); return; }
+      if(currentView==='biweek'){ stepFortnight(1); buildCalendar(); render(); return; }
       viewDate.setMonth(viewDate.getMonth()+1); buildCalendar(); render();
     });
     // busca de postagens: a lupa vira uma barra grande no lugar de Configurações/Nova postagem
@@ -3145,6 +3151,60 @@
     if($('mDate')) $('mDate').addEventListener('input', refreshModalDynamic);
     if($('mArtsLink')) $('mArtsLink').addEventListener('input', refreshModalDynamic);
     if($('mReferencesLink')) $('mReferencesLink').addEventListener('input', refreshModalDynamic);
+    // ============================================================
+    // IMAGENS DE REFERÊNCIA (campo "Referências salvas em:") — upload local, redimensionado e
+    // recomprimido em JPEG no próprio navegador (canvas), pra não inflar demais o payload
+    // sincronizado com o servidor (state.posts inteiro vai num único JSON a cada salvamento).
+    // As miniaturas refletem na pré-visualização do briefing (bpImagesRow) e são embutidas de
+    // verdade no .docx exportado (docxEmbedImage).
+    // ============================================================
+    function readImageFileCompressed(file){
+      return new Promise((resolve, reject)=>{
+        const reader = new FileReader();
+        reader.onerror = ()=> reject(reader.error);
+        reader.onload = ()=>{
+          const img = new Image();
+          img.onerror = ()=> reject(new Error('Não foi possível ler a imagem'));
+          img.onload = ()=>{
+            const MAX_W = 1000;
+            const scale = Math.min(1, MAX_W / img.naturalWidth);
+            const w = Math.max(1, Math.round(img.naturalWidth * scale));
+            const h = Math.max(1, Math.round(img.naturalHeight * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve({ id: generateId(), name: file.name, width: w, height: h, dataUrl: canvas.toDataURL('image/jpeg', 0.82) });
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    function renderReferenceImages(){
+      const wrap = $('mReferenceImagesList'); if(!wrap) return;
+      wrap.innerHTML = editingReferenceImages.map(img=>
+        `<div class="ref-image-thumb"><img src="${img.dataUrl}" alt="${escapeHtml(img.name||'')}" /><button type="button" class="ref-image-remove" data-id="${img.id}" aria-label="Remover imagem" title="Remover imagem">${UI_ICONS.x(11)}</button></div>`
+      ).join('');
+    }
+    if($('mReferenceImagesBtn') && $('mReferenceImagesInput')){
+      $('mReferenceImagesBtn').addEventListener('click', ()=> $('mReferenceImagesInput').click());
+      $('mReferenceImagesInput').addEventListener('change', async (ev)=>{
+        const files = Array.from(ev.target.files||[]).filter(f=> f.type.startsWith('image/'));
+        for(const file of files){
+          try{ editingReferenceImages.push(await readImageFileCompressed(file)); }
+          catch(e){ /* arquivo ilegível como imagem — ignora e segue com os demais */ }
+        }
+        ev.target.value = '';
+        renderReferenceImages();
+        refreshModalDynamic();
+      });
+    }
+    if($('mReferenceImagesList')) $('mReferenceImagesList').addEventListener('click', ev=>{
+      const btn = ev.target.closest('.ref-image-remove'); if(!btn) return;
+      editingReferenceImages = editingReferenceImages.filter(img=> img.id!==btn.dataset.id);
+      renderReferenceImages();
+      refreshModalDynamic();
+    });
     if($('mImageLink')) $('mImageLink').addEventListener('input', refreshModalDynamic);
     if($('mImageNotes')) $('mImageNotes').addEventListener('input', refreshModalDynamic);
     if($('mNotes')) $('mNotes').addEventListener('input', refreshModalDynamic);
@@ -3180,26 +3240,343 @@
 
 
     // ============================================================
-    // EXPORTAÇÃO DE BRIEFING — junta o briefing de todas as postagens
-    // num único arquivo de texto, agrupado por data (ordem cronológica)
-    // e, dentro de cada data, na mesma ordem manual do calendário
+    // EXPORTAÇÃO DE BRIEFING EM .DOCX — junta o briefing de todas as postagens num único
+    // Word, agrupado por data (ordem cronológica, uma página por data) e, dentro de cada data,
+    // na mesma ordem manual do calendário. Sem nenhuma lib externa: um .docx é só um zip com
+    // XMLs dentro (OOXML WordprocessingML) — o empacotador de zip abaixo é o mesmo escrito à
+    // mão que o Editor de Posts usa pro pacote Feed+Story (post-editor.js/makeZip), só que
+    // como cópia independente aqui (cada arquivo do projeto é autocontido, sem módulo
+    // compartilhado — mesmo padrão do resto do app).
     // ============================================================
-    // linha bem mais grossa que o BRIEFING_SEPARATOR (usado dentro do briefing de uma única
-    // postagem), pra marcar claramente a troca de data quando várias postagens são concatenadas
-    const BRIEFING_DATE_SEPARATOR = '═'.repeat(40);
-    function exportBriefing(){
-      if(!state.posts || state.posts.length===0){ alert('Nenhuma postagem para exportar'); return; }
+    const DOCX_CRC_TABLE = (()=>{ const t=[]; for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+    function docxZipCrc(bytes){ let crc=0xffffffff; for(let i=0;i<bytes.length;i++) crc=DOCX_CRC_TABLE[(crc^bytes[i])&255]^(crc>>>8); return (crc^0xffffffff)>>>0; }
+    function docxZipHeader(size){ const bytes=new Uint8Array(size), view=new DataView(bytes.buffer); return { bytes, u16:(o,v)=>view.setUint16(o,v,true), u32:(o,v)=>view.setUint32(o,v>>>0,true) }; }
+    function docxZipDate(){ const d=new Date(), year=Math.max(1980,d.getFullYear()); return { time:(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1), date:((year-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate() }; }
+    // monta um .zip "stored" (sem compressão, mais simples e suficiente pro tamanho de um
+    // briefing em texto) a partir de {name, data:Uint8Array}[] — mesma mecânica de central
+    // directory/end-of-central-directory de post-editor.js/makeZip
+    function makeStoredZip(files, mimeType){
+      const encoder = new TextEncoder(), stamp = docxZipDate(), locals=[], centrals=[];
+      let offset = 0;
+      files.forEach(file=>{
+        const name = encoder.encode(file.name), data = file.data, crc = docxZipCrc(data);
+        const local = docxZipHeader(30);
+        local.u32(0,0x04034b50); local.u16(4,20); local.u16(6,0x800); local.u16(8,0);
+        local.u16(10,stamp.time); local.u16(12,stamp.date); local.u32(14,crc);
+        local.u32(18,data.length); local.u32(22,data.length); local.u16(26,name.length); local.u16(28,0);
+        locals.push(local.bytes, name, data);
+        const central = docxZipHeader(46);
+        central.u32(0,0x02014b50); central.u16(4,20); central.u16(6,20); central.u16(8,0x800); central.u16(10,0);
+        central.u16(12,stamp.time); central.u16(14,stamp.date); central.u32(16,crc);
+        central.u32(20,data.length); central.u32(24,data.length); central.u16(28,name.length);
+        central.u16(30,0); central.u16(32,0); central.u16(34,0); central.u16(36,0); central.u32(38,0); central.u32(42,offset);
+        centrals.push(central.bytes, name);
+        offset += 30 + name.length + data.length;
+      });
+      const centralSize = centrals.reduce((total,part)=> total+part.length, 0);
+      const end = docxZipHeader(22);
+      end.u32(0,0x06054b50); end.u16(4,0); end.u16(6,0); end.u16(8,files.length); end.u16(10,files.length);
+      end.u32(12,centralSize); end.u32(16,offset); end.u16(20,0);
+      return new Blob(locals.concat(centrals,[end.bytes]), { type: mimeType });
+    }
+
+    // escapa texto pra dentro de um elemento XML (não é usado dentro de atributos aqui)
+    function escapeXml(s){ return String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+    // resolve o texto de um campo de link/local pra um href utilizável (pelo hyperlink do
+    // .docx e pela pré-visualização no navegador): URLs com protocolo passam direto, caminhos
+    // de rede (\\servidor\pasta) e caminhos locais (C:\pasta) viram URIs file://, e qualquer
+    // outro texto é tratado como domínio/URL sem protocolo (ex: "drive.google.com/...")
+    function resolveLinkHref(raw){
+      const v = String(raw==null?'':raw).trim();
+      if(!v) return '';
+      if(/^(https?|ftp|file):\/\//i.test(v)) return v;
+      if(/^\\\\/.test(v)) return 'file:' + v.replace(/\\/g,'/');
+      if(/^[a-zA-Z]:[\\/]/.test(v)) return 'file:///' + v.replace(/\\/g,'/');
+      return 'https://' + v.replace(/^\/+/, '');
+    }
+    // fonte padrão do documento inteiro: Calibri 11pt (w:sz em meios-ponto, 22 = 11pt) — todo
+    // docxRun/docxHyperlinkRun usa este mesmo tamanho, exceto onde explicitamente sobrescrito
+    const DOCX_RFONTS = '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>';
+    // um <w:r> (run) com o texto formatado; quebras de linha internas viram <w:br/>, não parágrafos novos
+    function docxRun(text, opts){
+      opts = opts || {};
+      const props = [DOCX_RFONTS, `<w:sz w:val="${opts.size||22}"/><w:szCs w:val="${opts.size||22}"/>`];
+      if(opts.bold) props.push('<w:b/><w:bCs/>');
+      if(opts.underline) props.push('<w:u w:val="single"/>');
+      if(opts.color) props.push(`<w:color w:val="${opts.color}"/>`);
+      if(opts.highlight) props.push(`<w:highlight w:val="${opts.highlight}"/>`);
+      const lines = String(text==null?'':text).split('\n');
+      const body = lines.map((line,i)=> (i?'<w:br/>':'') + `<w:t xml:space="preserve">${escapeXml(line)}</w:t>`).join('');
+      return `<w:r><w:rPr>${props.join('')}</w:rPr>${body}</w:r>`;
+    }
+    // próximo r:id livre da lista de relacionamentos do document.xml (compartilhada entre
+    // hyperlinks e imagens embutidas de uma mesma exportação — precisa ser único no arquivo)
+    function nextDocxRelId(assets){ return 'rId' + (assets.rels.length + 1); }
+    // um <w:hyperlink> (link ou local salvo, ex: "Salvar em", "Referências salvas em", "Imagem")
+    // com a aparência padrão de link do Word (azul sublinhado); registra o relacionamento
+    // externo em assets.rels, resolvido depois em docxDocumentRelsXml
+    function docxHyperlinkRun(text, href, assets){
+      const url = resolveLinkHref(href);
+      if(!url) return docxRun(text);
+      const id = nextDocxRelId(assets);
+      assets.rels.push({ id, type:'hyperlink', target: url });
+      const props = [DOCX_RFONTS, '<w:sz w:val="22"/><w:szCs w:val="22"/>', '<w:color w:val="0563C1"/>', '<w:u w:val="single"/>'];
+      const lines = String(text==null?'':text).split('\n');
+      const body = lines.map((line,i)=> (i?'<w:br/>':'') + `<w:t xml:space="preserve">${escapeXml(line)}</w:t>`).join('');
+      return `<w:hyperlink r:id="${id}" w:history="1"><w:r><w:rPr>${props.join('')}</w:rPr>${body}</w:r></w:hyperlink>`;
+    }
+    // decodifica uma dataURL (base64) em bytes, pra gravar como mídia dentro do .docx
+    function dataUrlToBytes(dataUrl){
+      const idx = String(dataUrl||'').indexOf(',');
+      const b64 = idx>=0 ? dataUrl.slice(idx+1) : dataUrl;
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+    // parágrafo com uma imagem de referência embutida (inline), em tamanho fixo de exibição
+    // (respeitando a proporção original e sem ampliar imagens pequenas); grava o binário em
+    // assets.media e o relacionamento em assets.rels
+    function docxEmbedImage(img, assets){
+      const bytes = dataUrlToBytes(img.dataUrl);
+      const mediaIndex = assets.media.length + 1;
+      const mediaName = `media/image${mediaIndex}.jpg`;
+      assets.media.push({ name: mediaName, data: bytes });
+      const id = nextDocxRelId(assets);
+      assets.rels.push({ id, type:'image', target: mediaName });
+      const widthPx = img.width || 800, heightPx = img.height || 600;
+      const maxWidthEmu = 3600000; // ~9,4cm
+      const cx = Math.min(maxWidthEmu, Math.round(widthPx * 9525));
+      const cy = Math.round(cx * (heightPx / widthPx));
+      const picId = mediaIndex + 100;
+      const safeName = escapeXml(img.name || `imagem-${mediaIndex}`);
+      const drawing = `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">`+
+        `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>`+
+        `<wp:docPr id="${picId}" name="${safeName}"/>`+
+        `<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>`+
+        `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">`+
+        `<pic:pic><pic:nvPicPr><pic:cNvPr id="${picId}" name="${safeName}"/><pic:cNvPicPr/></pic:nvPicPr>`+
+        `<pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`+
+        `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>`+
+        `</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>`;
+      return `<w:p><w:pPr><w:spacing w:after="120"/></w:pPr><w:r>${drawing}</w:r></w:p>`;
+    }
+    function docxParagraph(runsXml, pPrExtraXml){
+      return `<w:p>${pPrExtraXml?`<w:pPr>${pPrExtraXml}</w:pPr>`:''}${runsXml}</w:p>`;
+    }
+    // parágrafo vazio com só uma linha fina embaixo — a versão em Word do BRIEFING_SEPARATOR
+    function docxRuleParagraph(){
+      return `<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="C9C9C9"/></w:pBdr><w:spacing w:after="200"/></w:pPr></w:p>`;
+    }
+    // cabeçalho de cada data agrupada (equivalente ao BRIEFING_DATE_SEPARATOR do .txt): uma
+    // linha em destaque com borda dupla embaixo; cada data (exceto a primeira) começa em página nova
+    function docxDateHeadingXml(dateLabel, pageBreakBefore){
+      const pPr = (pageBreakBefore?'<w:pageBreakBefore/>':'') + '<w:pBdr><w:bottom w:val="double" w:sz="6" w:space="4" w:color="1A1A1A"/></w:pBdr><w:spacing w:after="220"/>';
+      return docxParagraph(docxRun(dateLabel.toUpperCase(), { bold:true }), pPr);
+    }
+    // parágrafos de uma postagem — mesmos campos e ordem de buildBriefingPlainLines (Título,
+    // Publicação prevista para, Formatos, Salvar em, Referências salvas em, Produto(s),
+    // Imagem, Observações e Conteúdo), só que como XML do Word em vez de texto puro. `assets`
+    // acumula os relacionamentos (hyperlinks/imagens) e a mídia embutida de toda a exportação.
+    // Título em maiúsculas, negrito, sublinhado e com destaque em amarelo; links preenchidos
+    // (Salvar em, Referências salvas em, Imagem) viram hyperlinks de verdade.
+    function buildPostBriefingDocxXml(post, assets){
+      const f = computePostBriefingFields(post);
+      const hasMeta = f.dateLabel || f.hasFormats || f.artsLink || f.referencesLink || f.productItems.length || f.imageLink || f.imageNotes || f.referenceImages.length;
+      let xml = '';
+      if(f.title){
+        // linha divisória embutida no próprio parágrafo do título (borda inferior), em vez de
+        // um parágrafo vazio separado — evita pular uma linha em branco entre título e metadados
+        const titleBorder = hasMeta ? '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="4" w:color="C9C9C9"/></w:pBdr>' : '';
+        xml += docxParagraph(docxRun(f.title.toUpperCase(), { bold:true, underline:true, highlight:'yellow' }), titleBorder + '<w:spacing w:after="120"/>');
+      }
+      if(f.dateLabel) xml += docxParagraph(docxRun('Publicação prevista para ', { bold:true }) + docxRun(f.dateLabel), '<w:spacing w:after="80"/>');
+      if(f.hasFormats) xml += docxParagraph(docxRun('Formatos: ', { bold:true }) + docxRun(f.formatsText), '<w:spacing w:after="80"/>');
+      if(f.artsLink) xml += docxParagraph(docxRun('Salvar em: ', { bold:true }) + docxHyperlinkRun(f.artsLink, f.artsLink, assets), '<w:spacing w:after="80"/>');
+      if(f.referencesLink) xml += docxParagraph(docxRun('Referências salvas em: ', { bold:true }) + docxHyperlinkRun(f.referencesLink, f.referencesLink, assets), '<w:spacing w:after="80"/>');
+      if(f.productItems.length){
+        xml += docxParagraph(docxRun('Produto(s):', { bold:true }), '<w:spacing w:after="40"/>');
+        f.productItems.forEach(item=>{ xml += docxParagraph(docxRun('•  '+item), '<w:ind w:left="260"/><w:spacing w:after="40"/>'); });
+      }
+      if(f.imageLink) xml += docxParagraph(docxRun('Imagem: ', { bold:true }) + docxHyperlinkRun(f.imageLink, f.imageLink, assets), '<w:spacing w:after="80"/>');
+      if(f.imageNotes) xml += docxParagraph(docxRun('Observações: ', { bold:true }) + docxRun(f.imageNotes), '<w:spacing w:after="80"/>');
+      if(f.referenceImages.length){
+        xml += docxParagraph(docxRun('Imagens de referência:', { bold:true }), '<w:spacing w:after="80"/>');
+        f.referenceImages.forEach(img=>{ xml += docxEmbedImage(img, assets); });
+      }
+      if(f.content){
+        if(xml) xml += docxRuleParagraph();
+        xml += docxParagraph(docxRun('Conteúdo:', { bold:true }), '<w:spacing w:after="80"/>');
+        xml += docxParagraph(docxRun(f.content), '<w:spacing w:after="80"/>');
+      }
+      // respiro extra no fim de cada postagem, pra separar da próxima dentro do mesmo dia
+      xml += '<w:p><w:pPr><w:spacing w:after="200"/></w:pPr></w:p>';
+      return xml;
+    }
+    function docxDocumentXml(bodyXml){
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n`+
+        `<w:document `+
+        `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" `+
+        `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" `+
+        `xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" `+
+        `xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" `+
+        `xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${bodyXml}`+
+        `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>`+
+        `</w:body></w:document>`;
+    }
+    // Relationships do word/document.xml — um por hyperlink (externo) ou imagem embutida
+    function docxDocumentRelsXml(rels){
+      const items = rels.map(r=>{
+        const type = r.type==='hyperlink'
+          ? 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink'
+          : 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        const targetMode = r.type==='hyperlink' ? ' TargetMode="External"' : '';
+        return `<Relationship Id="${r.id}" Type="${type}" Target="${escapeXml(r.target)}"${targetMode}/>`;
+      }).join('');
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n`+
+        `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items}</Relationships>`;
+    }
+    // `assets` (opcional) traz { rels, media } acumulados por buildPostBriefingDocxXml/
+    // docxHyperlinkRun/docxEmbedImage: os hyperlinks e as imagens de referência embutidas
+    function makeBriefingDocx(bodyXml, assets){
+      assets = assets || { rels: [], media: [] };
+      const now = new Date().toISOString().replace(/\.\d+Z$/,'Z');
+      const encoder = new TextEncoder();
+      const hasImages = assets.media.length > 0;
+      const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n`+
+        `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`+
+        `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`+
+        `<Default Extension="xml" ContentType="application/xml"/>`+
+        (hasImages ? `<Default Extension="jpg" ContentType="image/jpeg"/>` : '')+
+        `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>`+
+        `<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>`+
+        `<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>`+
+        `</Types>`;
+      const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n`+
+        `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`+
+        `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>`+
+        `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>`+
+        `<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>`+
+        `</Relationships>`;
+      const coreXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n`+
+        `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">`+
+        `<dc:title>Briefing</dc:title><dc:creator>Calendário de Postagens</dc:creator><cp:lastModifiedBy>Calendário de Postagens</cp:lastModifiedBy>`+
+        `<dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified>`+
+        `</cp:coreProperties>`;
+      const appXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n`+
+        `<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Calendário de Postagens</Application></Properties>`;
+      const files = [
+        { name:'[Content_Types].xml', data: encoder.encode(contentTypesXml) },
+        { name:'_rels/.rels', data: encoder.encode(relsXml) },
+        { name:'docProps/core.xml', data: encoder.encode(coreXml) },
+        { name:'docProps/app.xml', data: encoder.encode(appXml) },
+        { name:'word/document.xml', data: encoder.encode(docxDocumentXml(bodyXml)) }
+      ];
+      if(assets.rels.length) files.push({ name:'word/_rels/document.xml.rels', data: encoder.encode(docxDocumentRelsXml(assets.rels)) });
+      assets.media.forEach(m=> files.push({ name:'word/'+m.name, data: m.data }));
+      return makeStoredZip(files, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    }
+    // baixa um Blob binário (usado pelo .docx — download() só serve pra texto puro/CSV)
+    function downloadBlob(name, blob){
+      const a = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=> URL.revokeObjectURL(url), 1200);
+    }
+    // gera e baixa o .docx só com as postagens cuja data (YYYY-MM-DD) cai entre startStr e endStr,
+    // inclusive nos dois extremos — chamado pelo botão "Exportar .docx" do modal de período
+    function exportBriefingForRange(startStr, endStr){
+      const posts = state.posts.filter(p=> p.date && p.date>=startStr && p.date<=endStr);
+      if(!posts.length){ alert('Nenhuma postagem no período selecionado.'); return; }
       const byDate = {};
-      state.posts.forEach(p=>{ if(p.date) (byDate[p.date] = byDate[p.date] || []).push(p); });
+      posts.forEach(p=>{ (byDate[p.date] = byDate[p.date] || []).push(p); });
       const dateKeys = Object.keys(byDate).sort();
-      const sections = dateKeys.map(dateStr=>{
+      const assets = { rels: [], media: [] };
+      let body = '';
+      dateKeys.forEach((dateStr, idx)=>{
         const [y,m,d] = dateStr.split('-').map(Number);
         const dateLabel = new Date(y, m-1, d).toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
-        const postsTexts = sortByOrder(byDate[dateStr]).map(p=> buildPostBriefingText(p));
-        return [BRIEFING_DATE_SEPARATOR, dateLabel.toUpperCase(), BRIEFING_DATE_SEPARATOR, ...postsTexts].join('\n\n');
+        body += docxDateHeadingXml(dateLabel, idx>0);
+        sortByOrder(byDate[dateStr]).forEach(p=>{ body += buildPostBriefingDocxXml(p, assets); });
       });
-      download(`briefing-${todayStr()}.txt`, sections.join('\n\n\n'));
+      downloadBlob(`briefing-${startStr}_a_${endStr}.docx`, makeBriefingDocx(body, assets));
     }
+
+    // ============================================================
+    // MODAL "EXPORTAR BRIEFING" — escolhe o período antes de gerar o .docx. Os presets
+    // (Semanal/Quinzenal/Mensal/Bimestral/Trimestral/Semestral/Anual) só preenchem De/Até como
+    // ponto de partida — quem de fato decide o que entra no arquivo são os dois campos de data,
+    // que continuam livres pra edição manual depois de qualquer preset.
+    // ============================================================
+    // intervalo [Date,Date] de um preset, ancorado no mês/ano de `anchor` (a visão aberta no
+    // calendário no momento); bimestre/trimestre/semestre/ano seguem blocos fixos de calendário
+    // (jan-fev, mar-abr... / jan-mar, abr-jun... / jan-jun, jul-dez / jan-dez), não uma janela
+    // rolante a partir de `anchor` — é como "1º bimestre"/"2º trimestre" são entendidos no dia a dia
+    function periodPresetRange(preset, anchor){
+      const y = anchor.getFullYear(), m = anchor.getMonth();
+      switch(preset){
+        case 'week': { const s = getWeekStart(anchor); const e = new Date(s); e.setDate(e.getDate()+6); return [s,e]; }
+        case 'biweek': { const fb = fortnightBounds(anchor); return [fb.startDate, fb.endDate]; }
+        case 'bimonth': { const start = Math.floor(m/2)*2; return [new Date(y,start,1), new Date(y,start+2,0)]; }
+        case 'quarter': { const start = Math.floor(m/3)*3; return [new Date(y,start,1), new Date(y,start+3,0)]; }
+        case 'semester': { const start = m<6?0:6; return [new Date(y,start,1), new Date(y,start+6,0)]; }
+        case 'year': return [new Date(y,0,1), new Date(y,11,31)];
+        default: return [new Date(y,m,1), new Date(y,m+1,0)]; // 'month'
+      }
+    }
+    function applyExportPreset(preset){
+      const [s,e] = periodPresetRange(preset, viewDate);
+      $('exportStartDate').value = ymd(s);
+      $('exportEndDate').value = ymd(e);
+      updateExportPeriodSummary();
+    }
+    const EXPORT_PERIOD_PRESETS = ['week','biweek','month','bimonth','quarter','semester','year'];
+    // descobre se o intervalo De/Até atual corresponde exatamente a algum preset — usando a
+    // própria data De como âncora (não viewDate), pra funcionar com qualquer mês/ano digitado à
+    // mão, não só o que estava visível no calendário quando o modal abriu. Sem correspondência
+    // exata, o período é "Personalizado".
+    function detectPeriodPreset(startStr, endStr){
+      if(!startStr || !endStr) return 'custom';
+      const [y,m,d] = startStr.split('-').map(Number);
+      const anchor = new Date(y, m-1, d);
+      for(const preset of EXPORT_PERIOD_PRESETS){
+        const [s,e] = periodPresetRange(preset, anchor);
+        if(ymd(s)===startStr && ymd(e)===endStr) return preset;
+      }
+      return 'custom';
+    }
+    function setExportPeriodSelect(preset){
+      const select = $('exportPeriodPreset'); if(!select) return;
+      select.value = preset;
+    }
+    // feedback ao vivo abaixo dos campos de data: quantas postagens caem no período escolhido,
+    // pra dar pra conferir antes de baixar (e avisar se a ordem das datas ficou invertida) —
+    // também mantém o dropdown de período em sincronia com as datas atuais
+    function updateExportPeriodSummary(){
+      const el = $('exportPeriodSummary'); if(!el) return;
+      const startStr = $('exportStartDate').value, endStr = $('exportEndDate').value;
+      setExportPeriodSelect(detectPeriodPreset(startStr, endStr));
+      if(!startStr || !endStr){ el.textContent = ''; return; }
+      if(startStr > endStr){ el.textContent = 'A data final precisa ser igual ou depois da inicial.'; return; }
+      const count = state.posts.filter(p=> p.date && p.date>=startStr && p.date<=endStr).length;
+      el.textContent = `${formatDatePt(startStr)} até ${formatDatePt(endStr)} — ${count} postage${count===1?'m':'ns'} no período`;
+    }
+    // preset já selecionado ao abrir o modal: acompanha a visão do calendário aberta no momento
+    // (mês, quinzena ou semana); Lista (ou qualquer outra) cai no mensal, o padrão mais comum
+    function defaultExportPreset(){
+      if(currentView==='week') return 'week';
+      if(currentView==='biweek') return 'biweek';
+      return 'month';
+    }
+    function openExportBriefingModal(){
+      if(!state.posts || state.posts.length===0){ alert('Nenhuma postagem para exportar'); return; }
+      const preset = defaultExportPreset();
+      setExportPeriodSelect(preset);
+      applyExportPreset(preset);
+      $('exportBriefingBackdrop').style.display = 'flex';
+    }
+    function closeExportBriefingModal(){ $('exportBriefingBackdrop').style.display = 'none'; }
     // ============================================================
     // LIGAÇÃO DOS DEMAIS BOTÕES DA TOOLBAR (exportar, seleção,
     // lote, filtros) E FECHAMENTO DOS MODAIS
@@ -3229,7 +3606,7 @@
       document.addEventListener('keydown', ev=>{ if(ev.key==='Escape') closeToolbarMoreMenu(); });
     }
     const _exportCsvBtn = $('exportCsvBtn'); if(_exportCsvBtn) _exportCsvBtn.addEventListener('click', exportCSV);
-    if($('exportBriefingBtn')) $('exportBriefingBtn').addEventListener('click', exportBriefing);
+    if($('exportBriefingBtn')) $('exportBriefingBtn').addEventListener('click', openExportBriefingModal);
     const _resetMonthBtn = $('resetMonthBtn'); if(_resetMonthBtn) _resetMonthBtn.addEventListener('click', resetMonth);
     const _toggleSelectBtn = $('toggleSelect'); if(_toggleSelectBtn) _toggleSelectBtn.addEventListener('click', toggleSelectMode);
     const _bulkEditBtn = $('bulkEditBtn'); if(_bulkEditBtn) _bulkEditBtn.addEventListener('click', openBulkEdit);
@@ -3273,6 +3650,28 @@
     wireModalDismiss('settingsBackdrop', closeSettings);
     wireModalDismiss('bulkEditBackdrop', closeBulkEdit);
     wireModalDismiss('filtersBackdrop', closeFilters);
+    wireModalDismiss('exportBriefingBackdrop', closeExportBriefingModal);
+    if($('cancelExportBriefing')) $('cancelExportBriefing').addEventListener('click', closeExportBriefingModal);
+    if($('exportPeriodPreset')) $('exportPeriodPreset').addEventListener('change', ()=>{
+      const preset = $('exportPeriodPreset').value;
+      if(preset==='custom'){
+        // sem intervalo próprio: limpa De/Até pra obrigar a escolher as duas datas na mão
+        $('exportStartDate').value = '';
+        $('exportEndDate').value = '';
+        updateExportPeriodSummary();
+        return;
+      }
+      applyExportPreset(preset);
+    });
+    if($('exportStartDate')) $('exportStartDate').addEventListener('input', updateExportPeriodSummary);
+    if($('exportEndDate')) $('exportEndDate').addEventListener('input', updateExportPeriodSummary);
+    if($('confirmExportBriefing')) $('confirmExportBriefing').addEventListener('click', ()=>{
+      const startStr = $('exportStartDate').value, endStr = $('exportEndDate').value;
+      if(!startStr || !endStr){ alert('Escolha as duas datas do período.'); return; }
+      if(startStr > endStr){ alert('A data final precisa ser igual ou depois da inicial.'); return; }
+      exportBriefingForRange(startStr, endStr);
+      closeExportBriefingModal();
+    });
     wireModalDismiss('dayPostsBackdrop', closeDayPosts, '#dayPostsCloseBtn');
     // botão "+" do modal "Postagens do dia" — cria uma postagem nova já com a data do dia aberto
     if($('dayPostsAddBtn')) $('dayPostsAddBtn').addEventListener('click', ()=>{

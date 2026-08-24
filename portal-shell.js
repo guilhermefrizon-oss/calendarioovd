@@ -24,14 +24,44 @@
   }
 
   // ============================================================
-  // MARCA ATIVA — resolvida já no topo do arquivo, de forma síncrona
+  // MARCA ATIVA — resolvida já no topo do arquivo, de forma síncrona (precisa vir ANTES da
+  // seção de TEMA logo abaixo: cada marca pode ter uma cor de destaque própria, então é preciso
+  // saber qual é a marca ativa antes de aplicar o tema pela primeira vez, pra não haver flash)
   // ============================================================
   const BRANDS_KEY = 'portal_brands_v1';
   const ACTIVE_BRAND_KEY = 'portal_active_brand_v1';
   const COLLAPSE_KEY = 'portal_sidebar_collapsed_v1';
   // a marca "default" é a base de dados que já existia antes do portal (posts/settings/guia
-  // sem sufixo) — por isso ela nunca é migrada, só vira a primeira entrada da lista
-  const DEFAULT_BRANDS = [{ id:'default', name:'Vonder', shortName:'VD', photo:null }];
+  // sem sufixo) — por isso ela nunca é migrada, só vira a primeira entrada da lista. As demais
+  // marcas do grupo já vêm pré-cadastradas aqui, com id fixo (não gerado por generateBrandId())
+  // pra que qualquer navegador/computador que abra o portal pela primeira vez monte a mesma
+  // lista, com os mesmos ids — essencial pro sufixo de isolamento (posts__{id}, settings__{id})
+  // bater entre máquinas diferentes antes da lista ainda ter sido sincronizada pelo servidor.
+  // Cada marca tem calendário, editorias, catálogo de produtos e metas 100% independentes —
+  // isso já vem de graça do sufixo por marca que app.js aplica em toda chave de
+  // localStorage/api.php (ver BRAND_SUFFIX no topo de app.js).
+  // themeColor/themeColorInk = tema pré-definido da marca (ver seção TEMA logo abaixo): dois
+  // tons — destaque (botões/links) e ênfase (rótulos/textos em destaque) — a partir da
+  // identidade visual de cada marca. Fixo por marca (o grid de cores não grava mais aqui) —
+  // quem quiser uma cor diferente da identidade oficial usa o tema "Personalizado" em
+  // Configurações, que vale globalmente sem alterar este valor — ver getThemeSource().
+  // onAccent (opcional) = cor do texto sobre botões da cor de destaque, quando a marca precisa
+  // de algo diferente do que o cálculo automático de contraste escolheria (ex: TOOLMIX pediu
+  // fonte branca nos botões laranja mesmo o preto tendo contraste técnico maior) — ver applyColorTheme().
+  // GRUPO OVD usa a mesma identidade da VONDER (é o grupo por trás da marca) — pra diferenciar
+  // sem herdar o amarelo da Vonder (a 1ª sugestão foi um dourado mais escuro, mas não agradou),
+  // o destaque é um cinza claro neutro, sem tom de cor — reconhecível como "o grupo" (mais
+  // institucional/neutro) em vez de "a marca" (mais vibrante/amarela).
+  const DEFAULT_BRANDS = [
+    { id:'default', name:'VONDER', shortName:'VD', photo:'icons/icon_vonder.jpg', themeColor:{ dark:'#F6BE00', light:'#F6BE00' }, themeColorInk:'#000000' },
+    { id:'ferramentas-gerais', name:'FERRAMENTAS GERAIS', shortName:'FG', photo:'icons/icon_ferramentas_gerais.png', themeColor:{ dark:'#004E32', light:'#004E32' }, themeColorInk:'#0A6C43' },
+    { id:'osten-ferragens', name:'OSTEN FERRAGENS', shortName:'OF', photo:'icons/icon_osten_ferragens.jpg', themeColor:{ dark:'#ED8B00', light:'#ED8B00' }, themeColorInk:'#2E2E2E' },
+    { id:'dismatal', name:'DISMATAL', shortName:'DM', photo:'icons/icon_dismatal.jpg', themeColor:{ dark:'#FFED00', light:'#FFED00' }, themeColorInk:'#000000' },
+    { id:'toolmix', name:'TOOLMIX', shortName:'TM', photo:'icons/icon_toolmix.jpg', themeColor:{ dark:'#F26522', light:'#F26522' }, themeColorInk:'#FFFFFF', onAccent:'#FFFFFF' },
+    { id:'dwt', name:'DWT', shortName:'DWT', photo:'icons/icon_dwt.jpg', themeColor:{ dark:'#285C4D', light:'#285C4D' }, themeColorInk:'#AB2328' },
+    { id:'nove54', name:'NOVE54', shortName:'N54', photo:'icons/icon_nove54.jpg', themeColor:{ dark:'#BD1D1D', light:'#BD1D1D' }, themeColorInk:'#000000' },
+    { id:'grupo-ovd', name:'GRUPO OVD', shortName:'GOVD', photo:'icons/icon_grupo_ovd.jpg', themeColor:{ dark:'#A6A6A6', light:'#A6A6A6' }, themeColorInk:'#000000' }
+  ];
 
   // paleta de fundo do avatar quando a marca não tem foto — escolhida por hash do id, só
   // pra dar alguma variedade visual entre marcas sem foto (não é mais configurável pelo usuário)
@@ -96,6 +126,150 @@
   }
 
   // ============================================================
+  // TEMA (claro/escuro) e cor de destaque — aplicado o quanto antes (portal-shell.js é o
+  // primeiro script de cada página, e é o único que ainda aplica essas chaves — app.js não
+  // mexe nisso, e post-editor.js/intelligence-center.js pararam de reaplicar por conta própria
+  // pra não sobrescrever o resultado já correto deste arquivo) pra evitar flash. O botão
+  // "Configurações" no rodapé da sidebar abre um modal próprio (só a aba Aparência por
+  // enquanto) que grava nessas chaves.
+  // Duas fontes possíveis pra cor de destaque, escolhidas por THEME_SOURCE_KEY (padrão "brand")
+  // — ver getThemeSource()/setThemeSource():
+  // - "brand": usa activeBrand().themeColor/themeColorInk, a identidade pré-setada de cada
+  //   marca (ver DEFAULT_BRANDS acima) — troca de marca troca de cor automaticamente, e cada
+  //   marca sempre volta pra própria cor ao reativar esta fonte.
+  // - "custom": ignora a marca ativa e usa COLOR_THEME_KEY/CUSTOM_COLOR_KEY (grid de cores ou
+  //   cor livre, escolhidos em Configurações) — a mesma cor vale em qualquer marca que o
+  //   usuário acessar depois, respeitando o modo claro/escuro selecionado.
+  // ============================================================
+  const THEME_KEY = 'calendar_theme_v1';
+  const COLOR_THEME_KEY = 'calendar_color_theme_v1';
+  const CUSTOM_COLOR_KEY = 'calendar_color_theme_custom_v1';
+  const THEME_SOURCE_KEY = 'calendar_theme_source_v1'; // 'brand' (padrão) | 'custom'
+  const COLOR_THEMES = [
+    { id:'dourado',  name:'Dourado',   dark:'#F6BE00', light:'#F6BE00' },
+    { id:'azul',     name:'Azul',      dark:'#2f6fed', light:'#7fb0f2' },
+    { id:'cinza',    name:'Cinza',     dark:'#6b6b70', light:'#a8a8ae' },
+    { id:'petroleo', name:'Petróleo',  dark:'#3c5878', light:'#8fa8c4' },
+    { id:'ardosia',  name:'Ardósia',   dark:'#3e4f63', light:'#8898a8' },
+    { id:'esverdeado',name:'Esverdeado',dark:'#3f5a52', light:'#a0b4ac' },
+    { id:'turquesa', name:'Turquesa',  dark:'#0f9488', light:'#5fd6c4' },
+    { id:'verde',    name:'Verde',     dark:'#2f8a3a', light:'#8fd68a' },
+    { id:'oliva',    name:'Oliva',     dark:'#5a6a3a', light:'#b0c090' },
+    { id:'laranja',  name:'Laranja',   dark:'#d9720f', light:'#f5b878' },
+    { id:'marrom',   name:'Marrom',    dark:'#8a5a3a', light:'#d0ac8c' },
+    { id:'vinho',    name:'Vinho',     dark:'#a8264a', light:'#f0a0be' },
+    { id:'rose',     name:'Rosé',      dark:'#7a4650', light:'#cfa8ae' },
+    { id:'magenta',  name:'Magenta',   dark:'#a52a92', light:'#f0a8e4' },
+    { id:'roxo',     name:'Roxo',      dark:'#6a3fa0', light:'#c4a8f0' },
+  ];
+  function hexToRgbObj(hex){
+    const h = (hex||'#000000').replace('#','');
+    const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
+    const n = parseInt(full,16) || 0;
+    return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+  }
+  function rgbToHex(r,g,b){
+    return '#'+[r,g,b].map(v=> Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+  }
+  function mixHex(hex, withHex, amount){
+    const a = hexToRgbObj(hex), b = hexToRgbObj(withHex);
+    return rgbToHex(a.r+(b.r-a.r)*amount, a.g+(b.g-a.g)*amount, a.b+(b.b-a.b)*amount);
+  }
+  function relLuminance(hex){
+    const { r, g, b } = hexToRgbObj(hex);
+    const chan = v=>{ v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); };
+    return 0.2126*chan(r) + 0.7152*chan(g) + 0.0722*chan(b);
+  }
+  function contrastRatio(l1, l2){ const a = Math.max(l1,l2), b = Math.min(l1,l2); return (a+0.05)/(b+0.05); }
+  function pickOnColor(hex){
+    const l = relLuminance(hex);
+    return contrastRatio(l,0) >= contrastRatio(l,1) ? '#1a1a1a' : '#ffffff';
+  }
+  function hexToRgba(hex, alpha){
+    const h = (hex||'#F6BE00').replace('#','');
+    const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
+    const n = parseInt(full,16) || 0xF6BE00;
+    return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${alpha})`;
+  }
+  function getColorTheme(){ return localStorage.getItem(COLOR_THEME_KEY) || 'dourado'; }
+  function getThemeSource(){ return localStorage.getItem(THEME_SOURCE_KEY) || 'brand'; }
+  function applyTheme(theme){
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  function applyColorTheme(id){
+    // fonte "brand": marca ativa manda na cor (identidade pré-setada, ver DEFAULT_BRANDS na
+    // seção MARCA ATIVA acima). Fonte "custom": ignora a marca e usa sempre a escolha global,
+    // pra valer em qualquer marca que o usuário acessar — ver getThemeSource()/THEME_SOURCE_KEY
+    const b = activeBrand();
+    const brandTheme = getThemeSource()==='brand' ? (b && b.themeColor) : null;
+    let dark, light, inkOverride = null;
+    if(brandTheme){
+      dark = brandTheme.dark; light = brandTheme.light;
+      inkOverride = b.themeColorInk || null;
+    } else if(id === 'custom'){
+      const hex = localStorage.getItem(CUSTOM_COLOR_KEY) || '#F6BE00';
+      dark = hex; light = hex;
+    } else {
+      const palette = COLOR_THEMES.find(p=>p.id===id) || COLOR_THEMES[0];
+      dark = palette.dark; light = palette.light;
+    }
+    const mode = document.documentElement.getAttribute('data-theme') || 'light';
+    const accent = mode === 'dark' ? dark : light;
+    const root = document.documentElement.style;
+    root.setProperty('--accent', accent);
+    root.setProperty('--accent-hover', mixHex(accent, '#000000', 0.15));
+    root.setProperty('--accent-weak', hexToRgba(accent, 0.16));
+    root.setProperty('--on-accent', (brandTheme && b.onAccent) || pickOnColor(accent));
+    // no escuro, a ênfase (--accent-ink, usada em texto/ícone sobre fundo escuro — ex: item
+    // ativo do menu lateral, botão ativo de Mês/Quinzena/Semana) sempre usa a própria cor de
+    // destaque em vez da cor de ênfase da marca: um tom claro (como o amarelo da Vonder) lê bem
+    // sobre fundo escuro, mas a cor de ênfase de várias marcas é um tom escuro/preto (pensado
+    // pra contrastar em fundo CLARO) — usá-la também no escuro deixava o texto quase invisível.
+    // no claro, --accent-ink também é sempre texto sobre fundo claro (menu lateral, rótulos) —
+    // por isso só usa a ênfase da marca se ela própria for escura o bastante pra ler; uma ênfase
+    // clara (ex: branco da TOOLMIX, pensada pra ler sobre o botão laranja, não sobre fundo
+    // branco) cai pro mesmo tom escurecido do destaque usado quando não há ênfase definida.
+    const inkFallback = relLuminance(dark) <= 0.18 ? dark : mixHex(dark, '#000000', 0.4);
+    const inkOverrideLegible = inkOverride && contrastRatio(relLuminance(inkOverride), 1) >= 3;
+    const ink = mode === 'dark'
+      ? dark
+      : (inkOverrideLegible ? inkOverride : inkFallback);
+    root.setProperty('--accent-ink', ink);
+  }
+  // visual-editor.html tem sua própria aba Aparência (dentro de #settingsBackdrop, controlada
+  // por app.js) com os mesmos dados — reflete a troca lá também, senão o radio/grid daquele
+  // modal fica desatualizado até a próxima vez que a página carregar
+  function syncLegacySettingsUi(){
+    const theme = localStorage.getItem(THEME_KEY) || 'light';
+    const legacyRadio = document.querySelector(`#settingsBackdrop input[name="sTheme"][value="${theme}"]`);
+    if(legacyRadio) legacyRadio.checked = true;
+    if(typeof window.renderColorThemeGrid === 'function') window.renderColorThemeGrid();
+  }
+  function setTheme(theme){
+    localStorage.setItem(THEME_KEY, theme);
+    applyTheme(theme);
+    applyColorTheme(getColorTheme());
+    syncLegacySettingsUi();
+  }
+  function setColorTheme(id){
+    // só é chamado com a fonte "custom" ativa (o grid fica oculto na fonte "brand" — ver
+    // renderPortalColorGrid) — grava sempre numa chave global, nunca na marca ativa, pra essa
+    // escolha valer em qualquer marca que o usuário acessar depois (ver applyColorTheme acima)
+    localStorage.setItem(COLOR_THEME_KEY, id);
+    applyColorTheme(id);
+    if(portalSettingsModalEl) renderPortalColorGrid();
+    syncLegacySettingsUi();
+  }
+  function setThemeSource(src){
+    localStorage.setItem(THEME_SOURCE_KEY, src);
+    applyColorTheme(getColorTheme());
+    if(portalSettingsModalEl) renderPortalColorGrid();
+    syncLegacySettingsUi();
+  }
+  applyTheme(localStorage.getItem(THEME_KEY) || 'light');
+  applyColorTheme(getColorTheme());
+
+  // ============================================================
   // SINCRONIZAÇÃO DA LISTA DE MARCAS (api.php?k=brands) — mesma mecânica de sync de chave
   // única que intelligence-data.js já usa pra "intel" (fetch/push/versão otimista)
   // ============================================================
@@ -139,6 +313,49 @@
       }catch(e){ /* offline — fica salvo só neste navegador, sem travar a UI */ }
     }, 700);
   }
+  // completa a lista já carregada (local ou do servidor) com marcas padrão novas que ainda não
+  // existiam nela, por id — mesma lógica de "somar sem sobrescrever" que app.js/loadSettings()
+  // já usa pra editorias/redes: preserva qualquer customização (nome, foto) de marcas
+  // existentes, só acrescenta as que faltam. Assim, uma marca nova do grupo aparece pra quem já
+  // tinha uma lista salva (deste navegador ou vinda do servidor), sem precisar recriar tudo pela
+  // UI de "Nova marca". A renomeação "Vonder" → "VONDER" só é aplicada se o nome ainda for
+  // exatamente o valor padrão anterior — não sobrescreve um nome que alguém já tenha customizado.
+  (function mergeDefaultBrands(){
+    let changed = false;
+    let activeChanged = false;
+    const defaultEntry = BRANDS.find(b=>b.id==='default');
+    if(defaultEntry && defaultEntry.name==='Vonder'){ defaultEntry.name = 'VONDER'; changed = true; }
+    // correções pontuais de sugestões anteriores que não agradaram — só substitui se a cor
+    // ainda for exatamente a sugestão antiga (não mexe se alguém já tiver escolhido outra pelo
+    // seletor): GRUPO OVD saiu do dourado escuro pro cinza claro, TOOLMIX ganhou ênfase branca,
+    // FERRAMENTAS GERAIS trocou a ênfase vermelha por um verde escuro
+    const govdEntry = BRANDS.find(b=>b.id==='grupo-ovd');
+    if(govdEntry && govdEntry.themeColor && govdEntry.themeColor.light==='#C09400'){ govdEntry.themeColor = { dark:'#A6A6A6', light:'#A6A6A6' }; changed = true; if(govdEntry.id===ACTIVE_ID) activeChanged = true; }
+    const toolmixEntry = BRANDS.find(b=>b.id==='toolmix');
+    if(toolmixEntry && toolmixEntry.themeColorInk==='#3C3C3B'){ toolmixEntry.themeColorInk = '#FFFFFF'; changed = true; if(toolmixEntry.id===ACTIVE_ID) activeChanged = true; }
+    const fgEntry = BRANDS.find(b=>b.id==='ferramentas-gerais');
+    if(fgEntry && fgEntry.themeColorInk==='#E42313'){ fgEntry.themeColorInk = '#0A6C43'; changed = true; if(fgEntry.id===ACTIVE_ID) activeChanged = true; }
+    DEFAULT_BRANDS.forEach(def=>{
+      const existing = BRANDS.find(b=>b.id===def.id);
+      if(!existing){
+        BRANDS.push(Object.assign({}, def));
+        changed = true;
+        if(def.id===ACTIVE_ID) activeChanged = true;
+        return;
+      }
+      // preenche a cor/foto pré-definida em quem ainda não tinha uma (sem sobrescrever o que
+      // o usuário já tenha customizado) — mesma lógica de "completar sem sobrescrever"
+      if(existing.themeColor==null && def.themeColor){ existing.themeColor = def.themeColor; changed = true; if(existing.id===ACTIVE_ID) activeChanged = true; }
+      if(existing.themeColorInk==null && def.themeColorInk){ existing.themeColorInk = def.themeColorInk; changed = true; if(existing.id===ACTIVE_ID) activeChanged = true; }
+      if(existing.onAccent==null && def.onAccent){ existing.onAccent = def.onAccent; changed = true; if(existing.id===ACTIVE_ID) activeChanged = true; }
+      if(existing.photo==null && def.photo){ existing.photo = def.photo; changed = true; }
+    });
+    if(changed) saveBrands(BRANDS);
+    // se a marca atualmente ativa ganhou uma cor pré-definida agora (lista carregada antes
+    // desta atualização do portal-shell.js), reaplica o tema pra não precisar recarregar a
+    // página pra ver a cor certa
+    if(activeChanged) applyColorTheme(getColorTheme());
+  })();
   async function syncPullBrands(){
     if(!SYNC_ENABLED || brandPopoverOpen) return;
     try{
@@ -361,6 +578,121 @@
   }
 
   // ============================================================
+  // MODAL "CONFIGURAÇÕES" DO PORTAL — aberto pelo botão no rodapé da sidebar, em toda
+  // página. Por enquanto só tem a aba Aparência (mesma funcionalidade da aba Aparência de
+  // Configurações do calendário); a estrutura de abas já fica pronta pra receber mais seções
+  // depois. IDs próprios (prefixo "portal") pra não colidir com o #settingsBackdrop que
+  // visual-editor.html/app.js já tem na própria tela.
+  // ============================================================
+  let portalSettingsModalEl = null;
+  function renderPortalColorGrid(){
+    const grid = $('portalColorThemeGrid'); if(!grid) return;
+    const hint = $('portalThemeSourceHint');
+    if(getThemeSource() !== 'custom'){
+      // fonte "brand": grid escondido — a cor vem da identidade pré-setada da marca ativa,
+      // sem opção de escolha aqui (ver applyColorTheme/DEFAULT_BRANDS)
+      grid.innerHTML = '';
+      if(hint) hint.textContent = 'Cada marca usa a cor da própria identidade visual.';
+      return;
+    }
+    if(hint) hint.textContent = 'Essa cor vale em qualquer marca que você acessar, no modo claro e escuro selecionado.';
+    const current = getColorTheme();
+    const customHex = localStorage.getItem(CUSTOM_COLOR_KEY) || '#F6BE00';
+    const checkSvg = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    const swatches = COLOR_THEMES.map(p=>{
+      const selected = current === p.id;
+      return `<button type="button" class="color-swatch${selected?' selected':''}" data-color-theme="${p.id}" title="${escapeHtml(p.name)}" style="--sw-dark:${p.dark};--sw-light:${p.light}">${selected? `<span class="color-swatch-check">${checkSvg}</span>` : ''}</button>`;
+    }).join('');
+    const customSelected = current === 'custom';
+    const customSwatch = `<button type="button" class="color-swatch color-swatch-custom${customSelected?' selected':''}" data-color-theme="custom" title="Personalizada" style="--sw-dark:${customHex};--sw-light:${customHex}">${customSelected? `<span class="color-swatch-check">${checkSvg}</span>` : svgIcon('<path d="m2 22 1-4 12.5-12.5a2.12 2.12 0 0 1 3 3L6 21l-4 1Z"/><path d="m14.5 5.5 4 4"/>', 16)}<input type="color" id="portalCustomColorInput" value="${customHex}" title="Escolher cor personalizada" /></button>`;
+    grid.innerHTML = swatches + customSwatch;
+    grid.querySelectorAll('.color-swatch:not(.color-swatch-custom)').forEach(btn=>{
+      btn.addEventListener('click', ()=> setColorTheme(btn.dataset.colorTheme));
+    });
+    const customInput = $('portalCustomColorInput');
+    if(customInput){
+      customInput.addEventListener('click', ev=> ev.stopPropagation());
+      // ao vivo, enquanto arrasta o seletor: só reflete a cor na tela (sem gravar ainda, pra
+      // não gravar um valor por pixel arrastado) — a gravação de fato acontece só no "change",
+      // quando o usuário solta o seletor
+      customInput.addEventListener('input', ()=>{
+        localStorage.setItem(CUSTOM_COLOR_KEY, customInput.value);
+        localStorage.setItem(COLOR_THEME_KEY, 'custom');
+        applyColorTheme('custom');
+      });
+      customInput.addEventListener('change', ()=> renderPortalColorGrid());
+    }
+  }
+  function buildPortalSettingsModal(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.id = 'portalSettingsBackdrop';
+    backdrop.innerHTML = `<div class="modal modal--wide" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2>Configurações</h2>
+        <div class="modal-header-actions">
+          <button type="button" class="modal-close" aria-label="Fechar">${svgIcon('<path d="M18 6 6 18"/><path d="M6 6l12 12"/>', 15)}</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="settings-layout">
+          <div class="settings-sidebar" role="tablist">
+            <button type="button" class="settings-nav-btn active" data-panel="portalSecAparencia">Aparência</button>
+          </div>
+          <div class="settings-content">
+            <div class="settings-panel active" id="portalSecAparencia">
+              <label>Modo</label>
+              <div style="display:flex;gap:8px">
+                <label class="chip"><input type="radio" name="portalSTheme" value="light" /> Claro</label>
+                <label class="chip"><input type="radio" name="portalSTheme" value="dark" /> Escuro</label>
+              </div>
+              <label style="margin-top:10px">Tema de cor</label>
+              <div style="display:flex;gap:8px">
+                <label class="chip"><input type="radio" name="portalThemeSource" value="brand" /> Por marca</label>
+                <label class="chip"><input type="radio" name="portalThemeSource" value="custom" /> Personalizado</label>
+              </div>
+              <div id="portalThemeSourceHint" style="font-size:11.5px;color:var(--text-faint);margin-top:6px"></div>
+              <div id="portalColorThemeGrid" class="color-theme-grid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(backdrop);
+    const close = ()=>{ backdrop.style.display = 'none'; };
+    backdrop.addEventListener('click', ev=>{ if(ev.target===backdrop) close(); });
+    backdrop.querySelector('.modal-close').addEventListener('click', close);
+    // aba lateral escopada a este modal — não usa document.querySelectorAll pra não
+    // interferir (nem sofrer interferência) do menu de Configurações do calendário, que já
+    // faz sua própria troca de aba de forma global em app.js
+    backdrop.querySelectorAll('.settings-nav-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('.settings-nav-btn').forEach(b=> b.classList.remove('active'));
+        backdrop.querySelectorAll('.settings-panel').forEach(p=> p.classList.remove('active'));
+        btn.classList.add('active');
+        const panel = backdrop.querySelector('#'+btn.dataset.panel); if(panel) panel.classList.add('active');
+      });
+    });
+    backdrop.querySelectorAll('input[name="portalSTheme"]').forEach(el=>{
+      el.addEventListener('change', ()=> setTheme(el.value));
+    });
+    backdrop.querySelectorAll('input[name="portalThemeSource"]').forEach(el=>{
+      el.addEventListener('change', ()=> setThemeSource(el.value));
+    });
+    return backdrop;
+  }
+  function openPortalSettingsModal(){
+    if(!portalSettingsModalEl) portalSettingsModalEl = buildPortalSettingsModal();
+    const current = localStorage.getItem(THEME_KEY) || 'light';
+    const radio = portalSettingsModalEl.querySelector(`input[name="portalSTheme"][value="${current}"]`);
+    if(radio) radio.checked = true;
+    const sourceRadio = portalSettingsModalEl.querySelector(`input[name="portalThemeSource"][value="${getThemeSource()}"]`);
+    if(sourceRadio) sourceRadio.checked = true;
+    renderPortalColorGrid();
+    portalSettingsModalEl.style.display = 'flex';
+  }
+
+  // ============================================================
   // RECOLHER/EXPANDIR A SIDEBAR — estado persistido, aplicado como classe no <aside>
   // ============================================================
   let sidebarCollapsed = localStorage.getItem(COLLAPSE_KEY) === '1';
@@ -400,12 +732,16 @@
       <div>
         ${renderNavHtml()}
       </div>
+      <div style="margin-top:auto">
+        <button type="button" class="portal-nav-item" id="portalSettingsBtn">${svgIcon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>')}<span>Configurações</span></button>
+      </div>
     `;
     renderBrandTrigger();
     renderCollapseBtn();
     applyCollapsedClass();
     $('portalBrandTrigger').addEventListener('click', ()=>{ brandPopoverOpen ? closeBrandPopover() : openBrandPopover(); });
     $('portalCollapseBtn').addEventListener('click', toggleSidebarCollapsed);
+    $('portalSettingsBtn').addEventListener('click', openPortalSettingsModal);
   }
 
   renderSidebar();

@@ -13,82 +13,13 @@
     const MAX_FILE_BYTES = 15 * 1024 * 1024;
 
     // ============================================================
-    // TEMA (claro/escuro) e cor de destaque — lido das mesmas chaves de localStorage do
-    // calendário para a tela manter a aparência consistente
+    // TEMA (claro/escuro) e cor de destaque já vêm aplicados pelo portal-shell.js (primeiro
+    // script da página, com acesso à marca ativa e ao tema Personalizado) — nada a fazer aqui.
     // ============================================================
-    const THEME_KEY = 'calendar_theme_v1';
-    const COLOR_THEME_KEY = 'calendar_color_theme_v1';
-    const CUSTOM_COLOR_KEY = 'calendar_color_theme_custom_v1';
-    const COLOR_THEMES = [
-      { id:'dourado',  dark:'#F6BE00', light:'#F6BE00' },
-      { id:'azul',     dark:'#2f6fed', light:'#7fb0f2' },
-      { id:'cinza',    dark:'#6b6b70', light:'#a8a8ae' },
-      { id:'petroleo', dark:'#3c5878', light:'#8fa8c4' },
-      { id:'ardosia',  dark:'#3e4f63', light:'#8898a8' },
-      { id:'esverdeado',dark:'#3f5a52', light:'#a0b4ac' },
-      { id:'turquesa', dark:'#0f9488', light:'#5fd6c4' },
-      { id:'verde',    dark:'#2f8a3a', light:'#8fd68a' },
-      { id:'oliva',    dark:'#5a6a3a', light:'#b0c090' },
-      { id:'laranja',  dark:'#d9720f', light:'#f5b878' },
-      { id:'marrom',   dark:'#8a5a3a', light:'#d0ac8c' },
-      { id:'vinho',    dark:'#a8264a', light:'#f0a0be' },
-      { id:'rose',     dark:'#7a4650', light:'#cfa8ae' },
-      { id:'magenta',  dark:'#a52a92', light:'#f0a8e4' },
-      { id:'roxo',     dark:'#6a3fa0', light:'#c4a8f0' },
-    ];
-    function hexToRgbObj(hex){
-      const h = (hex||'#000000').replace('#','');
-      const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
-      const n = parseInt(full,16) || 0;
-      return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
-    }
+    // usada fora de tema, em averageColorFromCanvas mais adiante
     function rgbToHex(r,g,b){
       return '#'+[r,g,b].map(v=> Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
     }
-    function mixHex(hex, withHex, amount){
-      const a = hexToRgbObj(hex), b = hexToRgbObj(withHex);
-      return rgbToHex(a.r+(b.r-a.r)*amount, a.g+(b.g-a.g)*amount, a.b+(b.b-a.b)*amount);
-    }
-    function relLuminance(hex){
-      const { r, g, b } = hexToRgbObj(hex);
-      const chan = v=>{ v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); };
-      return 0.2126*chan(r) + 0.7152*chan(g) + 0.0722*chan(b);
-    }
-    function contrastRatio(l1, l2){ const a = Math.max(l1,l2), b = Math.min(l1,l2); return (a+0.05)/(b+0.05); }
-    function pickOnColor(hex){
-      const l = relLuminance(hex);
-      return contrastRatio(l,0) >= contrastRatio(l,1) ? '#1a1a1a' : '#ffffff';
-    }
-    function hexToRgba(hex, alpha){
-      const h = (hex||'#F6BE00').replace('#','');
-      const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
-      const n = parseInt(full,16) || 0xF6BE00;
-      const r=(n>>16)&255,g=(n>>8)&255,b=n&255;
-      return `rgba(${r},${g},${b},${alpha})`;
-    }
-    function applyColorTheme(id){
-      let dark, light;
-      if(id === 'custom'){
-        const hex = localStorage.getItem(CUSTOM_COLOR_KEY) || '#F6BE00';
-        dark = hex; light = hex;
-      } else {
-        const palette = COLOR_THEMES.find(p=>p.id===id) || COLOR_THEMES[0];
-        dark = palette.dark; light = palette.light;
-      }
-      const mode = document.documentElement.getAttribute('data-theme') || 'light';
-      const accent = mode === 'dark' ? dark : light;
-      const root = document.documentElement.style;
-      root.setProperty('--accent', accent);
-      root.setProperty('--accent-hover', mixHex(accent, '#000000', 0.15));
-      root.setProperty('--accent-weak', hexToRgba(accent, 0.16));
-      root.setProperty('--on-accent', pickOnColor(accent));
-      const ink = mode === 'dark'
-        ? dark
-        : (relLuminance(dark) <= 0.18 ? dark : mixHex(dark, '#000000', 0.4));
-      root.setProperty('--accent-ink', ink);
-    }
-    document.documentElement.setAttribute('data-theme', localStorage.getItem(THEME_KEY) || 'light');
-    applyColorTheme(localStorage.getItem(COLOR_THEME_KEY) || 'dourado');
 
     // ============================================================
     // ÍCONES — mesmo padrão de app.js (SVG outline, herda currentColor)
