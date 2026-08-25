@@ -277,20 +277,12 @@
   let syncVersion = 0;
   let syncPushTimer = null;
   async function syncFetchBrands(){
-    const res = await fetch('api.php?k=brands', { cache:'no-store' });
-    if(!res.ok) throw new Error('sync fetch '+res.status);
-    return res.json();
+    return SyncBackend.get('brands');
   }
   async function syncPushBrands(value){
-    const res = await fetch('api.php?k=brands', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ v:value, expected_updated_at: syncVersion })
-    });
-    const data = await res.json().catch(()=>({}));
-    if(res.status===409) return { conflict:true, server:data };
-    if(!res.ok) throw new Error('sync push '+res.status);
-    syncVersion = data.updated_at;
+    const result = await SyncBackend.put('brands', value, syncVersion);
+    if(result.conflict) return { conflict:true, server:result.server };
+    syncVersion = result.updated_at;
     return { conflict:false };
   }
   function saveBrands(list){

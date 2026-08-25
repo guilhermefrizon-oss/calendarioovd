@@ -124,21 +124,13 @@
   }
 
   async function fetchServer(){
-    const res = await fetch(`api.php?k=${API_KEY}`, { cache:'no-store' });
-    if(!res.ok) throw new Error('intel fetch '+res.status);
-    return res.json(); // { v, updated_at }
+    return SyncBackend.get(API_KEY); // { v, updated_at }
   }
 
   async function pushServer(value, expectedVersion){
-    const res = await fetch(`api.php?k=${API_KEY}`, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ v:value, expected_updated_at: expectedVersion })
-    });
-    const data = await res.json().catch(()=>({}));
-    if(res.status===409) return { conflict:true, server:data };
-    if(!res.ok) throw new Error('intel push '+res.status);
-    return { conflict:false, updated_at:data.updated_at };
+    const result = await SyncBackend.put(API_KEY, value, expectedVersion);
+    if(result.conflict) return { conflict:true, server:result.server };
+    return { conflict:false, updated_at:result.updated_at };
   }
 
   function getBucket(data, editoriaName){

@@ -2097,20 +2097,12 @@
       });
     }
     async function syncFetch(key){
-      const res = await fetch(`api.php?k=${key}`, { cache:'no-store' });
-      if(!res.ok) throw new Error('sync fetch '+res.status);
-      return res.json();
+      return SyncBackend.get(key);
     }
     async function syncPush(key, value){
-      const res = await fetch(`api.php?k=${key}`, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ v:value, expected_updated_at: syncVersions[key] })
-      });
-      const data = await res.json().catch(()=>({}));
-      if(res.status===409) return { conflict:true, server:data };
-      if(!res.ok) throw new Error('sync push '+res.status);
-      syncVersions[key] = data.updated_at;
+      const result = await SyncBackend.put(key, value, syncVersions[key]);
+      if(result.conflict) return { conflict:true, server:result.server };
+      syncVersions[key] = result.updated_at;
       return { conflict:false };
     }
     // agenda o envio pro servidor com um pequeno atraso, pra juntar várias chamadas
