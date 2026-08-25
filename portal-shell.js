@@ -295,12 +295,19 @@
       try{
         const result = await syncPushBrands(BRANDS);
         if(result.conflict){
-          // outra pessoa salvou a lista de marcas primeiro: adota a versão do servidor
-          BRANDS = result.server.v;
-          window.PortalBrand.list = BRANDS;
-          localStorage.setItem(BRANDS_KEY, JSON.stringify(BRANDS));
-          syncVersion = result.server.updated_at;
-          if(!brandPopoverOpen) renderBrandTrigger();
+          if(result.server.v === null){
+            // chave ainda vazia no servidor: não apaga a lista local, só adota a versão
+            // e reagenda o envio pra essa cópia acabar subindo
+            syncVersion = result.server.updated_at;
+            saveBrands(BRANDS);
+          } else {
+            // outra pessoa salvou a lista de marcas primeiro: adota a versão do servidor
+            BRANDS = result.server.v;
+            window.PortalBrand.list = BRANDS;
+            localStorage.setItem(BRANDS_KEY, JSON.stringify(BRANDS));
+            syncVersion = result.server.updated_at;
+            if(!brandPopoverOpen) renderBrandTrigger();
+          }
         }
       }catch(e){ /* offline — fica salvo só neste navegador, sem travar a UI */ }
     }, 700);

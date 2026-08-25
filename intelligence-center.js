@@ -134,13 +134,20 @@
         try{
           const result = await IntelStore.pushServer(INTEL, syncVersion);
           if(result.conflict){
-            INTEL = IntelStore.normalize(result.server.v);
-            IntelStore.writeLocal(INTEL);
-            syncVersion = result.server.updated_at;
-            renderLibrary();
-            renderWorkspace();
-            setSyncStatus('Atualizado com mudanças de outra pessoa', 'warn');
-            alert('Outra pessoa salvou uma alteração enquanto você editava. Os dados foram atualizados com a versão mais recente do servidor — se sua última ação não aparecer, refaça-a.');
+            // server.v===null = chave ainda vazia no servidor: não apaga o aprendizado local,
+            // só adota a versão e reagenda o envio pra essa cópia acabar subindo
+            if(result.server.v === null){
+              syncVersion = result.server.updated_at;
+              scheduleSyncPush();
+            } else {
+              INTEL = IntelStore.normalize(result.server.v);
+              IntelStore.writeLocal(INTEL);
+              syncVersion = result.server.updated_at;
+              renderLibrary();
+              renderWorkspace();
+              setSyncStatus('Atualizado com mudanças de outra pessoa', 'warn');
+              alert('Outra pessoa salvou uma alteração enquanto você editava. Os dados foram atualizados com a versão mais recente do servidor — se sua última ação não aparecer, refaça-a.');
+            }
           } else {
             syncVersion = result.updated_at;
             setSyncStatus('Sincronizado com o servidor', 'ok');

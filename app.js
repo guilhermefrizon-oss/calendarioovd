@@ -2115,14 +2115,23 @@
         try{
           const result = await syncPush(key, getValue());
           if(result.conflict){
-            // outra pessoa salvou primeiro: adota a versão do servidor em vez de sobrescrever
-            const storageKey = key===API_POSTS_KEY ? LS_POSTS_KEY : LS_SETTINGS_KEY;
-            localStorage.setItem(storageKey, JSON.stringify(result.server.v));
-            if(key===API_POSTS_KEY) loadState(); else loadSettings();
-            syncVersions[key] = result.server.updated_at;
-            if(!anyModalOpen()){ renderAllDynamicUI(); buildCalendar(); render(); }
-            setSyncStatus('Atualizado com mudanças de outra pessoa', 'warn');
-            alert('Outra pessoa salvou uma alteração enquanto você editava. Os dados foram atualizados com a versão mais recente do servidor — se sua última ação não aparecer, refaça-a.');
+            // outra pessoa salvou primeiro: adota a versão do servidor em vez de sobrescrever.
+            // server.v===null significa "nada salvo no servidor ainda" (chave vazia/nunca
+            // gravada) — nesse caso NÃO apaga os dados locais (senão uma corrida com o servidor
+            // vazio zeraria o calendário à toa); só adota a versão e reagenda o envio, pra essa
+            // cópia local acabar subindo pro servidor no próximo ciclo
+            if(result.server.v === null){
+              syncVersions[key] = result.server.updated_at;
+              scheduleSyncPush(key, getValue);
+            } else {
+              const storageKey = key===API_POSTS_KEY ? LS_POSTS_KEY : LS_SETTINGS_KEY;
+              localStorage.setItem(storageKey, JSON.stringify(result.server.v));
+              if(key===API_POSTS_KEY) loadState(); else loadSettings();
+              syncVersions[key] = result.server.updated_at;
+              if(!anyModalOpen()){ renderAllDynamicUI(); buildCalendar(); render(); }
+              setSyncStatus('Atualizado com mudanças de outra pessoa', 'warn');
+              alert('Outra pessoa salvou uma alteração enquanto você editava. Os dados foram atualizados com a versão mais recente do servidor — se sua última ação não aparecer, refaça-a.');
+            }
           } else {
             setSyncStatus('Sincronizado com o servidor', 'ok');
           }
