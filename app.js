@@ -33,6 +33,16 @@
     const filters = { editorias: [], places: [], types: [], statuses: [], collab: 'any' };
     // produtos selecionados no modal de criar/editar postagem: [{code,name}, ...]
     let selectedProducts = [];
+    // texto exato ("Pauta: ...") da última pauta sugerida inserida no campo de conteúdo — se
+    // ainda estiver lá quando o usuário escolhe outra pauta, ela é substituída em vez de duplicada
+    // (ver renderContentSuggestions()); zerado ao remover produto ou limpar o conteúdo
+    let lastInsertedPautaBlock = null;
+    // índice em selectedProducts pendente de remoção enquanto o modal de confirmação
+    // (#removeProductConfirmBackdrop) está aberto — ver openRemoveProductConfirm()
+    let pendingProductRemovalIdx = null;
+    // catálogo mestre de produtos (data/catalog-vonder.json, via CatalogProvider) — carregado
+    // à parte do catálogo manual em APP_SETTINGS.catalog; os dois alimentam productCandidates()
+    let masterCatalog = [];
     // imagens de referência anexadas no modal de criar/editar postagem (campo "Referências
     // salvas em:"): [{id,name,width,height,dataUrl}, ...] — refletem na pré-visualização do
     // briefing e são embutidas no .docx exportado
@@ -290,8 +300,59 @@
         chip.innerHTML = `${img}<div class="pc-body"><span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}</div><button type="button" class="pc-remove" data-idx="${idx}" aria-label="Remover produto">${UI_ICONS.x(12)}</button>`;
         wrap.appendChild(chip);
       });
-      wrap.querySelectorAll('.pc-remove').forEach(bt=> bt.addEventListener('click', ()=>{ const i = parseInt(bt.dataset.idx,10); selectedProducts.splice(i,1); renderSelectedProducts(); }));
+      wrap.querySelectorAll('.pc-remove').forEach(bt=> bt.addEventListener('click', ()=>{
+        const i = parseInt(bt.dataset.idx,10);
+        // se já tem conteúdo escrito, remover o produto também apaga esse conteúdo (as pautas e a
+        // legenda geradas eram sobre ele) — por ser destrutivo, passa por confirmação antes
+        if(($('mNotes').value||'').trim()){ openRemoveProductConfirm(i); return; }
+        removeSelectedProduct(i);
+      }));
       refreshModalDynamic();
+    }
+
+    // remove o produto pelo índice e reseta pautas/legenda em uso — chamada direto quando não há
+    // conteúdo a perder, ou depois de confirmar em openRemoveProductConfirm()
+    function removeSelectedProduct(idx, clearContent){
+      selectedProducts.splice(idx,1);
+      if(clearContent) $('mNotes').value = '';
+      lastInsertedPautaBlock = null;
+      renderSelectedProducts();
+    }
+
+    function openRemoveProductConfirm(idx){
+      pendingProductRemovalIdx = idx;
+      $('removeProductConfirmBackdrop').style.display = 'flex';
+    }
+    function closeRemoveProductConfirm(){
+      $('removeProductConfirmBackdrop').style.display = 'none';
+      pendingProductRemovalIdx = null;
+    }
+    function wireRemoveProductConfirm(){
+      const backdrop = $('removeProductConfirmBackdrop'); if(!backdrop) return;
+      $('removeProductConfirmOk').addEventListener('click', ()=>{
+        const idx = pendingProductRemovalIdx;
+        closeRemoveProductConfirm();
+        if(idx!==null) removeSelectedProduct(idx, true);
+      });
+      $('removeProductConfirmCancel').addEventListener('click', closeRemoveProductConfirm);
+      $('removeProductConfirmCloseBtn').addEventListener('click', closeRemoveProductConfirm);
+      backdrop.addEventListener('click', ev=>{ if(ev.target===backdrop) closeRemoveProductConfirm(); });
+    }
+
+    // ============================================================
+    // LIMPAR CONTEÚDO — botão que zera o campo Texto (legenda/pautas usadas) de propósito, sem
+    // depender de remover produto pra isso
+    // ============================================================
+    function wireClearContentBtn(){
+      const btn = $('clearContentBtn'); if(!btn) return;
+      btn.addEventListener('click', ()=>{
+        const notes = $('mNotes');
+        if(!notes.value.trim()) return;
+        if(!confirm('Limpar todo o conteúdo escrito neste campo?')) return;
+        notes.value = '';
+        lastInsertedPautaBlock = null;
+        refreshModalDynamic();
+      });
     }
 
     // ============================================================
@@ -351,6 +412,13 @@
       const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
 
       const candidates = [];
+      // candidato com destaque real do catálogo (quando o produto selecionado tem esse dado) —
+      // entra primeiro na lista pra concorrer com prioridade contra os templates genéricos
+      const details = primarySelectedProductDetails();
+      if(details && details.destaques){
+        const highlight = firstSentence(details.destaques, 70);
+        if(highlight) candidates.push(`${productPhrase}: ${highlight}`);
+      }
       editorias.forEach(ed=>{ if(EDITORIA_TITLE_TEMPLATES[ed]) candidates.push(EDITORIA_TITLE_TEMPLATES[ed](productPhrase)); });
       const netTpl = NETWORK_TITLE_TEMPLATES[nets[0]];
       if(netTpl) candidates.push(netTpl(productPhrase));
@@ -386,36 +454,89 @@
     // cada editoria tem exatamente 3 pautas fixas — manchetes/ideias já prontas pra virar o
     // ponto de partida do post (não uma instrução de como montá-lo), pensadas pro objetivo
     // específico daquela editoria
+    // specsPreview: junta 1-3 pares "Rótulo: valor" da ficha técnica pra caber numa pauta curta
+    function specsPreview(qualificacaoTecnica, limit){
+      return parseTechSpecs(qualificacaoTecnica).slice(0, limit||3).map(s=>`${s.label}: ${s.value}`).join(' · ');
+    }
+    function pickRandom(list){ return list[Math.floor(Math.random()*list.length)]; }
+
+    // ============================================================
+    // GANCHOS DE COPY — cada dado real do produto (destaque/aplicação/embalagem/specs) pode virar
+    // conteúdo de vários jeitos (pergunta, curiosidade, contraste, prova técnica) em vez de sempre
+    // virar "Rótulo: valor" cru. hookFor() sorteia uma dessas formas a cada chamada, então clicar
+    // em "gerar outras opções" também varia a abordagem, não só o texto de fundo.
+    // ============================================================
+    const HOOK_FORMULAS = {
+      destaque: [
+        (p,text) => `Você sabia? ${text} — e é por isso que o ${p} se destaca.`,
+        (p,text) => `O detalhe que faz diferença no ${p}: ${text}`,
+        (p,text) => `Por dentro do ${p}: ${text}`,
+        (p,text) => `${p} tem um diferencial que passa despercebido — ${text}`
+      ],
+      aplicacao: [
+        (p,text) => `Pra que serve o ${p}, na prática? ${text}`,
+        (p,text) => `${text} É exatamente pra isso que o ${p} existe.`,
+        (p,text) => `A dúvida que mais recebemos sobre o ${p}: ${text}`,
+        (p,text) => `Onde o ${p} entra na sua rotina: ${text}`
+      ],
+      embalagem: [
+        (p,text) => `Tudo o que acompanha o ${p}, numa caixa só: ${text}`,
+        (p,text) => `Antes de comprar o ${p}, veja o que vem junto: ${text}`,
+        (p,text) => `${p} completo, sem pegadinha — vem com: ${text}`,
+        (p,text) => `Desembalando o ${p}: ${text}`
+      ],
+      specs: [
+        (p,text) => `Os números por trás do ${p}: ${text}`,
+        (p,text) => `${p} em ficha técnica — o que pesa na hora de escolher: ${text}`,
+        (p,text) => `Compare antes de decidir: o ${p} traz ${text}`,
+        (p,text) => `Especificações que fazem diferença no ${p}: ${text}`
+      ]
+    };
+    // sorteia um gancho de copy pro texto real informado; retorna null se não houver dado (o
+    // chamador cai pro texto genérico original nesse caso)
+    function hookFor(kind, p, text){
+      if(!text) return null;
+      return pickRandom(HOOK_FORMULAS[kind])(p, text);
+    }
+
+    // cada template abaixo recebe (p, d) — p é a frase do produto (sempre disponível) e d são os
+    // dados ricos do catálogo mestre (destaques/aplicações/ficha técnica), ou null quando o
+    // produto não veio do catálogo mestre (cadastro manual) ou não tem esse campo preenchido.
+    // Nesse caso a função cai pro texto genérico original.
+    // toda função abaixo referencia ${p} (nunca um texto fixo igual pra qualquer produto) — com
+    // dado real do catálogo mestre disponível, prioriza um campo diferente por posição (embalagem,
+    // ficha técnica, aplicações...) pra que produtos diferentes gerem pautas de fato diferentes, e
+    // usa hookFor() pra variar a abordagem em vez de só despejar "Rótulo: valor"
     const CONTENT_SUGGESTIONS_BY_EDITORIA = {
       'Informativo': [
-        p => `Como escolher a ferramenta certa para cada tipo de reparo`,
-        p => `5 curiosidades técnicas sobre o ${p} que poucas pessoas conhecem`,
-        p => `Perguntas frequentes: como usar e conservar o ${p} corretamente`
+        (p,d) => hookFor('embalagem', p, d && d.conteudoEmbalagem) || `Como escolher o ${p} certo para cada necessidade`,
+        (p,d) => hookFor('specs', p, d && specsPreview(d.qualificacaoTecnica)) || `5 curiosidades técnicas sobre o ${p} que poucas pessoas conhecem`,
+        (p,d) => hookFor('aplicacao', p, d && d.aplicacoes) || `Perguntas frequentes: como usar e conservar o ${p} corretamente`
       ],
       'Destaques': [
-        p => `Os mais vendidos da semana — e por que os profissionais confiam neles`,
+        (p,d) => hookFor('specs', p, d && specsPreview(d.qualificacaoTecnica)) || `Os mais vendidos da semana — e por que os profissionais confiam no ${p}`,
         p => `${p}: qual versão combina com a sua necessidade`,
-        p => `Bastidores da qualidade: como o ${p} é testado antes de chegar até você`
+        (p,d) => hookFor('destaque', p, d && firstSentence(d.destaques,110)) || `Bastidores da qualidade: como o ${p} é testado antes de chegar até você`
       ],
       'Lançamentos': [
-        p => `Chegou o ${p}: a novidade que resolve um problema comum`,
+        (p,d) => (d && d.destaques) ? `Chegou o ${p}: ${firstSentence(d.destaques,90)}` : `Chegou o ${p}: a novidade que resolve um problema comum`,
         p => `Antes e depois: o que muda no seu trabalho com o ${p}`,
-        p => `5 motivos para conhecer o ${p} hoje`
+        (p,d) => hookFor('aplicacao', p, d && d.aplicacoes) || `5 motivos para conhecer o ${p} hoje`
       ],
       'Dica VONDER': [
-        p => `Como usar o ${p} com segurança e eficiência`,
-        p => `O erro comum que reduz a vida útil do ${p} (e como evitar)`,
-        p => `Truque rápido: economize tempo usando o ${p} desta forma`
+        (p,d) => hookFor('aplicacao', p, d && d.aplicacoes) || `Como usar o ${p} com segurança e eficiência`,
+        (p,d) => hookFor('specs', p, d && specsPreview(d.qualificacaoTecnica,2)) || `O erro comum que reduz a vida útil do ${p} (e como evitar)`,
+        (p,d) => hookFor('embalagem', p, d && d.conteudoEmbalagem) || `Truque rápido: economize tempo usando o ${p} desta forma`
       ],
       'Trend': [
         p => `Como a tendência do momento também cabe na rotina de quem usa ${p}`,
         p => `O desafio/meme do momento, adaptado pro dia a dia com o ${p}`,
-        p => `Nossa opinião sobre o assunto que está em alta no setor`
+        p => `Nossa opinião sobre a tendência do momento, e como ela se conecta com o ${p}`
       ],
       'Personalizado': [
-        p => `[Defina aqui] o tema específico desta campanha personalizada`,
-        p => `Conteúdo alinhado a uma data ou ação comercial específica — descreva o motivo aqui`,
-        p => `Colaboração ou parceria com conteúdo sob medida — descreva o parceiro/contexto aqui`
+        p => `[Defina aqui] o tema específico desta campanha personalizada com o ${p}`,
+        p => `Conteúdo alinhado a uma data ou ação comercial específica para o ${p} — descreva o motivo aqui`,
+        p => `Colaboração ou parceria com conteúdo sob medida envolvendo o ${p} — descreva o parceiro/contexto aqui`
       ],
       // pautas ligadas à data comemorativa em uso (ver pendingCommemorativeOccasion, setado ao
       // confirmar a criação de postagem a partir do clique no texto da data no card do dia) —
@@ -434,9 +555,10 @@
       const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value);
       if(editorias.length===0) return [];
       const p = contentProductPhrase();
+      const details = primarySelectedProductDetails();
       const lists = editorias.map(ed=>{
         const gens = CONTENT_SUGGESTIONS_BY_EDITORIA[ed] || CONTENT_SUGGESTIONS_BY_EDITORIA['Personalizado'];
-        return gens.map(fn=> ({ editoria: ed, pauta: fn(p) }));
+        return gens.map(fn=> ({ editoria: ed, pauta: fn(p, details) }));
       });
       const result = [];
       for(let i=0; result.length<3; i++){
@@ -447,19 +569,56 @@
       return result;
     }
 
-    function renderContentSuggestions(){
+    // cache das 3 pautas atualmente exibidas + a "assinatura" do contexto (produto+editorias)
+    // que as gerou. Sem isso, todo re-render (ex.: o que já acontece a cada tecla digitada em
+    // Texto, via refreshModalDynamic) chamaria pickContentSuggestions() de novo — e como os
+    // ganchos de copy são sorteados (hookFor), as 3 pautas trocariam de texto sozinhas sem o
+    // usuário pedir, e o selo "Em uso" nunca bateria com o que społo foi inserido. Só regenera
+    // quando o produto/editoria muda de verdade (produto removido conta: reseta as pautas, como
+    // pedido) ou quando "gerar outras opções" é clicado.
+    let currentContentSuggestions = null;
+    let currentContentSuggestionsKey = null;
+    function contentSuggestionsContextKey(){
+      const editorias = Array.from(document.querySelectorAll('.mEditoria:checked')).map(e=>e.value).sort().join(',');
+      const productKey = selectedProducts.map(p=>p.code||p.name).join(',');
+      return editorias + '|' + productKey;
+    }
+
+    function renderContentSuggestions(forceRegenerate){
       const box = $('contentSuggestions'); if(!box) return;
+      const key = contentSuggestionsContextKey();
+      if(forceRegenerate || key !== currentContentSuggestionsKey){
+        currentContentSuggestions = pickContentSuggestions();
+        currentContentSuggestionsKey = key;
+        // contexto mudou (produto/editoria) ou pediu pautas novas — as 3 pautas em uso antes já
+        // não correspondem a nenhuma das novas, então a próxima "Usar no conteúdo" deve inserir,
+        // não tentar substituir um texto que não existe mais nessas sugestões
+        lastInsertedPautaBlock = null;
+      }
       const multiEditoria = document.querySelectorAll('.mEditoria:checked').length > 1;
-      const suggestions = pickContentSuggestions();
+      const suggestions = currentContentSuggestions;
       if(suggestions.length===0){ box.innerHTML = `<div class="cs-empty">Selecione uma editoria em Categorização para ver sugestões de pauta.</div>`; return; }
-      box.innerHTML = `<div class="cs-list">${suggestions.map((s,idx)=>`<div class="cs-card">${multiEditoria?`<span class="cs-editoria">${escapeHtml(s.editoria)}</span>`:''}<div class="cs-subject">${escapeHtml(s.pauta)}</div><div class="cs-actions"><button type="button" class="cs-use" data-idx="${idx}">Usar no conteúdo</button></div></div>`).join('')}</div>`;
+      // botão "gerar outras opções" pra sortear novos ganchos de copy sobre os mesmos dados
+      // reais do produto (ver hookFor/HOOK_FORMULAS) — mesma ideia do shuffle de título
+      box.innerHTML = `<div class="ts-header" style="margin-bottom:8px"><span class="ts-icon">${UI_ICONS.idea(13)}</span><span>Pautas sugeridas</span><button type="button" class="ts-shuffle" id="csShuffle" title="Gerar outras opções">${UI_ICONS.shuffle(13)}</button></div>` +
+        `<div class="cs-list">${suggestions.map((s,idx)=>{
+          const inUse = lastInsertedPautaBlock === `Pauta: ${s.pauta}`;
+          return `<div class="cs-card${inUse?' cs-card--active':''}">${multiEditoria?`<span class="cs-editoria">${escapeHtml(s.editoria)}</span>`:''}<div class="cs-subject">${escapeHtml(s.pauta)}</div><div class="cs-actions"><button type="button" class="cs-use" data-idx="${idx}"${inUse?' disabled':''}>${inUse?'Em uso':'Usar no conteúdo'}</button></div></div>`;
+        }).join('')}</div>`;
       box.querySelectorAll('.cs-use').forEach(bt=> bt.addEventListener('click', ()=>{
         const s = suggestions[parseInt(bt.dataset.idx,10)]; if(!s) return;
         const block = `Pauta: ${s.pauta}`;
         const notes = $('mNotes');
-        notes.value = notes.value.trim() ? `${notes.value.trim()}\n\n${block}` : block;
+        // se a pauta usada anteriormente ainda está no texto, substitui em vez de duplicar
+        if(lastInsertedPautaBlock && notes.value.includes(lastInsertedPautaBlock)){
+          notes.value = notes.value.replace(lastInsertedPautaBlock, block);
+        } else {
+          notes.value = notes.value.trim() ? `${notes.value.trim()}\n\n${block}` : block;
+        }
+        lastInsertedPautaBlock = block;
         refreshModalDynamic();
       }));
+      box.querySelector('#csShuffle').addEventListener('click', ()=> renderContentSuggestions(true));
     }
 
     // formata uma data "YYYY-MM-DD" como "20 de agosto de 2026"
@@ -663,9 +822,71 @@
       $('mProductName').focus();
     }
 
-    // catálogo de produtos cadastrado em Configurações
+    // catálogo de produtos cadastrado em Configurações + catálogo mestre (data/catalog-vonder.json).
+    // Itens manuais de Configurações têm prioridade quando o código se repete nos dois.
     function productCandidates(){
-      return (APP_SETTINGS.catalog||[]).map(item=> ({ code:item.code||'', name:item.name }));
+      const manual = (APP_SETTINGS.catalog||[]).map(item=> ({ code:item.code||'', name:item.name }));
+      const seen = new Set(manual.map(item=> item.code).filter(Boolean));
+      const fromMaster = masterCatalog
+        .filter(item=> !item.code || !seen.has(item.code))
+        .map(item=> ({ code:item.code||'', name:item.name }));
+      return manual.concat(fromMaster);
+    }
+
+    // resultados que começam pelo termo buscado (no nome ou no código) vêm antes dos que só
+    // contêm o termo em outro ponto — ex.: buscar "aspirador" mostra "Aspirador de pó..." antes
+    // de "Escova para aspirador"
+    function productMatchRank(item, q, qCode){
+      const name = normalizeStr(item.name||'');
+      if(q && name.startsWith(q)) return 0;
+      if(qCode && item.code && normalizeCode(item.code).startsWith(qCode)) return 0;
+      return 1;
+    }
+
+    // ============================================================
+    // DADOS RICOS DO PRODUTO (destaques/aplicações/ficha técnica) — vindos do catálogo mestre,
+    // pra alimentar sugestões de título/pauta e o gerador de legenda com informação real em vez
+    // de texto genérico. Produtos cadastrados manualmente em Configurações não têm esses campos
+    // (só code/name), então as funções abaixo sempre toleram retorno vazio/nulo.
+    // ============================================================
+    function productDetailsByCode(code){
+      if(!code) return null;
+      const nc = normalizeCode(code);
+      if(!nc) return null;
+      return masterCatalog.find(item=> item.code && normalizeCode(item.code)===nc) || null;
+    }
+    // primeiro produto selecionado que tem dados ricos no catálogo mestre (produtos manuais,
+    // sem correspondência, são pulados)
+    function primarySelectedProductDetails(){
+      for(const p of selectedProducts){ const d = productDetailsByCode(p.code); if(d) return d; }
+      return null;
+    }
+    // recorta a 1ª frase de um texto até maxLen chars, cortando em espaço (nunca no meio de
+    // uma palavra) — usado pra caber destaques longos em título/pauta sem virar um parágrafo
+    function firstSentence(text, maxLen){
+      let cut = String(text||'').trim().split(/[.!?]\s/)[0] || '';
+      cut = cut.trim();
+      if(cut.length > maxLen){
+        const slice = cut.slice(0, maxLen);
+        const lastSpace = slice.lastIndexOf(' ');
+        cut = (lastSpace > 40 ? slice.slice(0, lastSpace) : slice).trim() + '…';
+      }
+      return cut;
+    }
+    // "Tipo: X | Cor: Y | ..." -> [{label:'Tipo',value:'X'}, ...]. Descarta "Aplicação Comercial"
+    // e "Destaques Comercial" — na planilha de origem esses dois "specs" só repetem o mesmo texto
+    // já usado nas pautas de aplicações/destaques, então tirá-los daqui evita pautas redundantes
+    // e deixa a ficha técnica com specs de fato técnicas (voltagem, peso, dimensões...)
+    const TECH_SPEC_LABELS_TO_SKIP = new Set(['aplicacao comercial','destaques comercial']);
+    function parseTechSpecs(text){
+      return String(text||'').split('|').map(part=>{
+        const idx = part.indexOf(':');
+        if(idx < 0) return null;
+        const label = part.slice(0, idx).trim(), value = part.slice(idx+1).trim();
+        if(!label || !value) return null;
+        if(TECH_SPEC_LABELS_TO_SKIP.has(normalizeStr(label))) return null;
+        return { label, value };
+      }).filter(Boolean);
     }
 
     function showProductSuggestions(query){
@@ -676,7 +897,7 @@
       const matches = productCandidates().filter(item=>
         !selectedProducts.some(p=> item.code ? p.code===item.code : p.name===item.name) &&
         (normalizeStr(item.name).includes(q) || (item.code && (normalizeStr(item.code).includes(q) || normalizeCode(item.code).includes(qCode))))
-      ).slice(0, 8);
+      ).sort((a,b)=> productMatchRank(a,q,qCode) - productMatchRank(b,q,qCode));
       if(matches.length===0){
         box.innerHTML = `<div class="autocomplete-item ac-manual"><span class="ac-name">+ Adicionar "${escapeHtml(query.trim())}" (sem catálogo)</span></div>`;
         box.querySelector('.ac-manual').addEventListener('mousedown', (ev)=>{ ev.preventDefault(); addSelectedProduct({ code:'', name: query.trim() }); });
@@ -2297,6 +2518,47 @@
       });
     }
 
+    // ============================================================
+    // GERADOR DE LEGENDA — monta um rascunho de texto do post combinando os dados reais do
+    // produto (destaques/aplicações/ficha técnica, do catálogo mestre) com o gancho e o CTA do
+    // DNA de estilo da editoria selecionada (Central de Inteligência), quando disponível.
+    // ============================================================
+    function generateCaptionDraft(){
+      const details = primarySelectedProductDetails();
+      if(!details) return null;
+      const productName = shortenProductName(details.name) || contentProductPhrase();
+      const dnaNames = selectedEditoriasWithDna();
+      const dna = dnaNames.length ? INTEL.editorias[dnaNames[0]].dna : null;
+
+      const lines = [];
+      // abertura: gancho do DNA da editoria quando houver; senão, um gancho de curiosidade sobre
+      // o destaque real do produto (ver HOOK_FORMULAS) — nunca cai num "Apresentamos o X." seco
+      if(dna && dna.hooks[0]){
+        lines.push(dna.hooks[0]);
+        if(details.destaques) lines.push(firstSentence(details.destaques, 200));
+      } else {
+        lines.push(hookFor('destaque', productName, details.destaques && firstSentence(details.destaques,200)) || `Conheça o ${productName}.`);
+      }
+      if(details.aplicacoes) lines.push(hookFor('aplicacao', productName, details.aplicacoes));
+      const specs = specsPreview(details.qualificacaoTecnica, 4);
+      if(specs) lines.push(hookFor('specs', productName, specs));
+      lines.push((dna && dna.ctas[0]) ? dna.ctas[0] : 'Saiba mais e confira as condições especiais.');
+      return lines.filter(Boolean).join('\n\n');
+    }
+
+    function wireCaptionGenerator(){
+      const btn = $('generateCaptionBtn'); if(!btn) return;
+      btn.addEventListener('click', ()=>{
+        if(selectedProducts.length===0){ alert('Selecione um produto do catálogo antes de gerar a legenda.'); return; }
+        const draft = generateCaptionDraft();
+        if(!draft){ alert('O produto selecionado não tem dados de destaques/aplicações no catálogo — gere a legenda manualmente ou escolha outro produto.'); return; }
+        const notes = $('mNotes');
+        if(notes.value.trim() && !confirm('Isso substitui o texto atual do campo. Continuar?')) return;
+        notes.value = draft;
+        refreshModalDynamic();
+      });
+    }
+
     // nomes das editorias como lista de strings — usado onde é preciso comparar/colorir por nome
     function editoriaNames(){ return APP_SETTINGS.editorias.map(e=>e.name); }
     // cor da editoria pelo nome; para nomes fora do cadastro (ex: posts antigos de uma
@@ -3041,7 +3303,7 @@
           const matches = productCandidates().filter(cand=>
             !row.products.some(p=> cand.code ? p.code===cand.code : p.name===cand.name) &&
             (normalizeStr(cand.name).includes(q) || (cand.code && (normalizeStr(cand.code).includes(q) || normalizeCode(cand.code).includes(qCode))))
-          ).slice(0,8);
+          ).sort((a,b)=> productMatchRank(a,q,qCode) - productMatchRank(b,q,qCode));
           if(matches.length===0){
             sugg.innerHTML = `<div class="autocomplete-item ac-manual"><span class="ac-name">+ Adicionar "${escapeHtml(query.trim())}" (sem catálogo)</span></div>`;
             sugg.querySelector('.ac-manual').addEventListener('mousedown', ev=>{ ev.preventDefault(); row.products.push({ code:'', name: query.trim() }); input.value=''; hideSugg(); renderRowProducts(); input.focus(); });
@@ -4079,6 +4341,9 @@
     // clique (por isso o getter), já que o mesmo botão é reaproveitado a cada postagem editada
     if($('modalMenuBtn')) wireCardMenuButton($('modalMenuBtn'), () => editingId);
     wireIntelValidation();
+    wireCaptionGenerator();
+    wireRemoveProductConfirm();
+    wireClearContentBtn();
     wireModalDismiss('settingsBackdrop', closeSettings);
     wireModalDismiss('filtersBackdrop', closeFilters);
     // modal "Aplicar editoria ao mês" — o "‹" do cabeçalho e o "X" fazem a mesma coisa (fecham
@@ -4211,6 +4476,10 @@
     // carrega configurações e postagens persistidas
     loadSettings();
     renderAllDynamicUI();
+    // catálogo mestre de produtos, pro autocomplete de Produto(s) — ver productCandidates()
+    if(typeof CatalogProvider!=='undefined'){
+      CatalogProvider.load('vonder').then(result=>{ masterCatalog = result.items||[]; });
+    }
     // ícone escolhido (ainda) para a próxima rede a ser adicionada no formulário "Adicionar rede"
     let newNetIconValue = null;
     function refreshNewNetIconPicker(){

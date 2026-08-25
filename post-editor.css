@@ -60,3 +60,9 @@
 .pe-selected-editoria strong{flex:1;min-width:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pe-selected-editoria button{border:1px solid var(--border);border-radius:7px;background:var(--card);padding:6px 8px;color:var(--muted);font:700 9px Lato,"Segoe UI",sans-serif;cursor:pointer}
 .pe-selected-editoria button:hover{border-color:var(--accent-ink);color:var(--accent-ink)}
+
+.pe-field-hint{display:block;margin-top:5px;color:var(--muted);font-size:10px;line-height:1.35}
+#brandVariantField{margin-top:10px}
+
+
+#productDrop[hidden],#removeWhiteField[hidden],#selectedProductCode[hidden],#codeControls[hidden]{display:none!important}

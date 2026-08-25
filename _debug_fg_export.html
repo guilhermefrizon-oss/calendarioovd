@@ -39,5 +39,10 @@
   </div>
 </div>
 </main></div>
-<script src="sync-backend.js"></script><script src="portal-shell.js"></script><script src="post-editor-assets.js"></script><script src="post-editor-fg-lancamentos.js"></script><script src="catalog-provider.js"></script><script src="post-editor.js"></script></body></html>
+<script src="sync-backend.js"></script><script>localStorage.setItem("portal_active_brand_v1","ferramentas-gerais")</script><script src="portal-shell.js"></script><script src="post-editor-assets.js"></script><script src="post-editor-fg-lancamentos.js"></script><script src="catalog-provider.js"></script><script src="post-editor.js"></script><style>*,*::before,*::after{transition:none!important;animation:none!important}#diag{position:fixed;z-index:99999;right:20px;top:20px;background:#fff;border:3px solid #111;padding:16px;font:16px monospace;white-space:pre-wrap}</style><div id="diag">aguardando</div>
+<script>
+function testBlob(id){return new Promise(function(resolve){try{document.getElementById(id).toBlob(function(blob){resolve(id+': '+(blob?('OK '+blob.size):'NULL'))},'image/jpeg',.94)}catch(e){resolve(id+': THROW '+e.name+' '+e.message)}})}
+setTimeout(function(){var e=Array.from(document.querySelectorAll('[data-editoria]')).find(function(x){return x.dataset.editoria==='Lançamentos'});if(e)e.click();setTimeout(function(){var s=document.getElementById('catalogSearch');s.value='Armários modulares';s.dispatchEvent(new Event('input',{bubbles:true}));setTimeout(function(){var i=document.querySelector('#catalogResults [data-catalog-index]');if(i)i.click();setTimeout(function(){Promise.all([testBlob('feedCanvas'),testBlob('storyCanvas')]).then(function(v){document.getElementById('diag').textContent=v.join('\n')+'\nstatus: '+document.getElementById('editorStatus').innerText})},1800)},400)},400)},400)
+</script></body></html>
+
 

@@ -1,0 +1,56 @@
+[
+  {
+    "name": "Bandeja plástica com alça, com 4 divisões, VONDER",
+    "title": "Bandeja plástica com alça, com 4 divisões",
+    "brandVariant": "vonder",
+    "referenceArtwork": true,
+    "background": "post-editor-assets/fg-lancamentos/bandeja-plastica.jpg",
+    "thumbnail": "post-editor-assets/fg-lancamentos/bandeja-plastica.jpg",
+    "category": "Lançamentos"
+  },
+  {
+    "name": "Aplicador de detergente para lavadoras de alta pressão, 1 litro, VONDER",
+    "title": "Aplicador de detergente para lavadoras de alta pressão, 1 litro",
+    "brandVariant": "vonder",
+    "referenceArtwork": true,
+    "background": "post-editor-assets/fg-lancamentos/aplicador-detergente.jpg",
+    "thumbnail": "post-editor-assets/fg-lancamentos/aplicador-detergente.jpg",
+    "category": "Lançamentos"
+  },
+  {
+    "name": "Armários modulares VONDER PLUS",
+    "title": "Armários modulares",
+    "brandVariant": "vonder-plus",
+    "referenceArtwork": true,
+    "background": "post-editor-assets/fg-lancamentos/armarios-modulares.jpg",
+    "thumbnail": "post-editor-assets/fg-lancamentos/armarios-modulares.jpg",
+    "category": "Lançamentos"
+  },
+  {
+    "name": "Carro em aço inox para ferramentas, com 5 gavetas CFI 550, VONDER",
+    "title": "Carro em aço inox para ferramentas, com 5 gavetas CFI 550",
+    "brandVariant": "vonder",
+    "referenceArtwork": true,
+    "background": "post-editor-assets/fg-lancamentos/carro-inox-5-gavetas.jpg",
+    "thumbnail": "post-editor-assets/fg-lancamentos/carro-inox-5-gavetas.jpg",
+    "category": "Lançamentos"
+  },
+  {
+    "name": "Baú metálico multiuso BMV 940, VONDER",
+    "title": "Baú metálico multiuso BMV 940",
+    "brandVariant": "vonder",
+    "referenceArtwork": true,
+    "background": "post-editor-assets/fg-lancamentos/bau-metalico-bmv-940.jpg",
+    "thumbnail": "post-editor-assets/fg-lancamentos/bau-metalico-bmv-940.jpg",
+    "category": "Lançamentos"
+  },
+  {
+    "name": "Alicate para anéis de pistão 80 mm a 120 mm, VONDER",
+    "title": "Alicate para anéis de pistão 80 mm a 120 mm",
+    "brandVariant": "vonder",
+    "referenceArtwork": true,
+    "background": "post-editor-assets/fg-lancamentos/alicate-aneis-pistao.jpg",
+    "thumbnail": "post-editor-assets/fg-lancamentos/alicate-aneis-pistao.jpg",
+    "category": "Lançamentos"
+  }
+]

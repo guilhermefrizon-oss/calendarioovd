@@ -481,7 +481,17 @@
             </div>
             <div class="form-group" data-guided-step="2">
               <h3 class="fg-label">Conteúdo da publicação</h3>
-              <label>Texto</label>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <label style="margin:0">Texto</label>
+                <div style="display:flex;gap:6px">
+                  <!-- Gera um rascunho de legenda a partir dos dados reais do produto selecionado
+                       (destaques/aplicações/ficha técnica do catálogo) + estilo da editoria — ver
+                       generateCaptionDraft()/wireCaptionGenerator() em app.js -->
+                  <button type="button" id="generateCaptionBtn" class="btn ghost small">Gerar legenda com IA</button>
+                  <!-- Limpa o campo de texto — ver wireClearContentBtn() em app.js -->
+                  <button type="button" id="clearContentBtn" class="btn ghost small">Limpar conteúdo</button>
+                </div>
+              </div>
               <textarea id="mNotes" rows="5" placeholder="Escreva o conteúdo da publicação, a partir das sugestões acima ou do zero"></textarea>
               <!-- Validação inteligente: compara este rascunho com o DNA da editoria
                    selecionada — ver wireIntelValidation()/renderIntelValidation() em app.js -->
@@ -508,6 +518,21 @@
       </div>
     </div>
 
+    <!-- Modal de confirmação: remover produto quando já há conteúdo escrito na publicação — avisa
+         que o conteúdo (campo Texto) também será apagado antes de confirmar a remoção. Fica depois
+         de #modalBackdrop no HTML de propósito, pra empilhar por cima dele (mesmo z-index, ordem no
+         DOM decide) já que é aberto de dentro do modal de criar/editar postagem. -->
+    <div id="removeProductConfirmBackdrop" class="modal-backdrop">
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="removeProductConfirmTitle">
+        <div class="modal-header">
+          <div class="modal-header-title"><h2 id="removeProductConfirmTitle">Remover produto?</h2></div>
+          <div class="modal-header-actions"><button type="button" id="removeProductConfirmCloseBtn" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button></div>
+        </div>
+        <div class="modal-body"><p id="removeProductConfirmMessage" style="margin:0;font-size:13px;line-height:1.55;color:var(--text)">Se você remover este produto, o conteúdo escrito no campo Texto também será apagado. Deseja continuar?</p></div>
+        <div class="modal-footer"><button type="button" id="removeProductConfirmCancel" class="btn ghost">Cancelar</button><button type="button" id="removeProductConfirmOk" class="btn">Remover produto e apagar conteúdo</button></div>
+      </div>
+    </div>
+
   </div>
     </div>
   </div>
@@ -515,6 +540,7 @@
   <script src="sync-backend.js"></script>
   <script src="portal-shell.js"></script>
   <script src="intelligence-data.js"></script>
+  <script src="catalog-provider.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
