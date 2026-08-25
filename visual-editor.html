@@ -194,35 +194,6 @@
           </div>
         </div>
       </div>
-      <!-- Modal de Edição em Lote: aplica data/formato/tipo/status/collab a todas as postagens selecionadas -->
-      <div id="bulkEditBackdrop" class="modal-backdrop">
-        <div class="modal" role="dialog" aria-modal="true">
-          <div class="modal-header">
-            <h2>Edição em Lote</h2>
-            <div class="modal-header-actions">
-              <button type="button" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
-            </div>
-          </div>
-          <div class="modal-body">
-            <div style="display:flex;flex-direction:column;gap:10px">
-              <label>Aplicar somente se preenchido (deixe em branco para pular)</label>
-              <label>Data (YYYY-MM-DD)</label>
-              <input id="bDate" type="date" />
-              <label class="field-gap">Formato</label>
-              <div id="bPlaceContainer" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
-              <label class="field-gap">Tipo</label>
-              <div style="display:flex;gap:8px;margin-top:6px"><label class="chip"><input type="radio" name="bType" value="" checked /> Manter</label><label class="chip"><input type="radio" name="bType" value="Static" /> Estático</label><label class="chip"><input type="radio" name="bType" value="Video" /> Vídeo</label></div>
-              <label class="field-gap">Status</label>
-              <select id="bStatusSelect"></select>
-              <label class="field-gap"><input type="checkbox" id="bCollabToggle" /> Forçar Collab = ligado (desmarque para manter)</label>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button id="cancelBulk" class="btn ghost">Cancelar</button>
-            <button id="applyBulk" class="btn">Aplicar</button>
-          </div>
-        </div>
-      </div>
       <!-- Modal "Postagens do dia": abre ao clicar no badge "+N" quando um dia tem mais cards do que cabe na célula -->
       <div id="dayPostsBackdrop" class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true">
@@ -305,6 +276,17 @@
                     <button type="button" id="addEditoriaBtn" class="btn small">Adicionar editoria</button>
                   </div>
                 </div>
+                <!-- Navegador de mês: os dias fixos de cada editoria abaixo (chip e painel de
+                     edição) valem pro mês selecionado aqui — trocar de mês não mexe no
+                     calendário de fundo, só no que esta lista está exibindo/editando. Clicar no
+                     rótulo abre um popover com os 12 meses do ano (mesmo componente do rótulo de
+                     mês do calendário principal); enquanto ele estiver aberto, as setas ‹ ›
+                     trocam de ano em vez de mês — ver renderEditoriasMonthPicker() em app.js. -->
+                <div id="editoriasMonthNav" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;padding:7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)">
+                  <button type="button" id="editoriasMonthPrev" class="btn-icon" aria-label="Mês anterior (ou ano anterior, com a lista de meses aberta)" title="Mês anterior"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+                  <button type="button" id="editoriasMonthLabel" class="month-label" aria-haspopup="true" aria-expanded="false" style="min-width:150px"><span id="editoriasMonthLabelText"></span> <span class="month-label-caret"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></button>
+                  <button type="button" id="editoriasMonthNext" class="btn-icon" aria-label="Próximo mês (ou próximo ano, com a lista de meses aberta)" title="Próximo mês"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+                </div>
                 <div id="editoriasList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
               </div>
 
@@ -357,11 +339,66 @@
       </div>
     </div>
 
+    <!-- Modal "Aplicar editoria ao mês": abre ao clicar em "Aplicar a este mês" no painel de
+         agendamento de uma editoria (Configurações → Editorias). Lista as datas que o agendamento
+         fixo gera nesse mês, com um toggle de ativação e o(s) produto(s) por data, além de um
+         atalho para abrir o card daquela data específica sem perder essa lista (ver
+         openApplyEditoriaModal()/renderApplyEditoriaModal() em app.js). -->
+    <div id="applyEditoriaBackdrop" class="modal-backdrop">
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <div class="modal-header-title">
+            <button type="button" id="applyEditoriaBackBtn" class="modal-back-btn" aria-label="Voltar à lista de editorias" title="Voltar à lista de editorias"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg><span>Voltar</span></button>
+            <h2 id="applyEditoriaTitle">Aplicar editoria</h2>
+          </div>
+          <div class="modal-header-actions">
+            <button type="button" id="applyEditoriaCloseBtn" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 10px">Desmarque as datas que não devem receber essa editoria neste mês e preencha o(s) produto(s) de cada uma. Use "Editar card" para ajustar título, texto e demais campos de uma data específica sem perder esta lista.</div>
+          <div id="applyEditoriaList" class="ae-list"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelApplyEditoria" class="btn ghost">Cancelar</button>
+          <button type="button" id="confirmApplyEditoria" class="btn">Aplicar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de aviso: agendamento de editoria incompleto (Configurações → Editorias → Salvar) -->
+    <div id="scheduleWarningBackdrop" class="modal-backdrop">
+      <div class="modal modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="scheduleWarningTitle">
+        <div class="modal-header">
+          <div class="modal-header-title"><h2 id="scheduleWarningTitle">Agendamento incompleto</h2></div>
+          <div class="modal-header-actions"><button type="button" id="scheduleWarningCloseBtn" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button></div>
+        </div>
+        <div class="modal-body"><p id="scheduleWarningMessage" style="margin:0;font-size:13px;line-height:1.55;color:var(--text)"></p></div>
+        <div class="modal-footer"><button type="button" id="scheduleWarningOkBtn" class="btn">Entendi</button></div>
+      </div>
+    </div>
+
+    <!-- Modal de confirmação: criar postagem específica pra uma data comemorativa (clique no
+         texto da data comemorativa no cabeçalho do dia, no calendário) -->
+    <div id="commemorativeConfirmBackdrop" class="modal-backdrop">
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="commemorativeConfirmTitle">
+        <div class="modal-header">
+          <div class="modal-header-title"><h2 id="commemorativeConfirmTitle">Criar postagem para esta data?</h2></div>
+          <div class="modal-header-actions"><button type="button" id="commemorativeConfirmCloseBtn" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button></div>
+        </div>
+        <div class="modal-body"><p id="commemorativeConfirmMessage" style="margin:0;font-size:13px;line-height:1.55;color:var(--text)"></p></div>
+        <div class="modal-footer"><button type="button" id="commemorativeConfirmCancel" class="btn ghost">Agora não</button><button type="button" id="commemorativeConfirmOk" class="btn">Criar postagem</button></div>
+      </div>
+    </div>
+
     <!-- Modal de Criar/Editar postagem: campos de publicação, salvamento, tipo, produto(s), redes sociais, produção, sugestões e conteúdo -->
     <div id="modalBackdrop" class="modal-backdrop">
       <div class="modal" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 id="modalTitleHeading">Criar postagem</h2>
+          <div class="modal-header-title">
+            <button type="button" id="modalBackBtn" class="modal-back-btn" style="display:none" aria-label="Voltar à lista de datas" title="Voltar à lista de datas"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg><span>Voltar</span></button>
+            <h2 id="modalTitleHeading">Criar postagem</h2>
+          </div>
           <div class="modal-header-actions">
             <button type="button" id="modalMenuBtn" class="modal-close" style="display:none" aria-label="Mais ações" title="Mais ações"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg></button>
             <button type="button" id="modalCloseBtn" class="modal-close" aria-label="Fechar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
@@ -435,7 +472,7 @@
 
             <div class="form-group" data-guided-step="2">
               <h3 class="fg-label">Sugestões de conteúdo</h3>
-              <div style="font-size:11.5px;color:var(--muted);margin:-6px 0 8px">3 ideias de pauta e estrutura recomendadas para a editoria selecionada.</div>
+              <div style="font-size:11.5px;color:var(--muted);margin:-6px 0 8px">3 ideias de pauta prontas, de acordo com a editoria selecionada.</div>
               <div id="contentSuggestions"></div>
               <!-- Direcionamento aprendido pela Central de Inteligência (DNA da editoria
                    selecionada), quando já houver referências analisadas — ver

@@ -4,12 +4,6 @@
     const $ = id => document.getElementById(id);
     function generateId(){ return 'intel-' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
     function escapeHtml(s){ return String(s||'').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-    function humanSize(bytes){
-      if(!bytes && bytes!==0) return '';
-      if(bytes < 1024) return bytes + ' B';
-      if(bytes < 1024*1024) return Math.round(bytes/1024) + ' KB';
-      return (bytes/1024/1024).toFixed(1) + ' MB';
-    }
     const MAX_FILE_BYTES = 15 * 1024 * 1024;
 
     // ============================================================
@@ -39,14 +33,37 @@
     // ============================================================
     const BRAND_SUFFIX = (window.PortalBrand && window.PortalBrand.suffix) || '';
     const CALENDAR_SETTINGS_KEY = 'calendar_settings_v1' + BRAND_SUFFIX;
-    const FALLBACK_EDITORIAS = [
-      { name:'Informativo', color:'#7c3aed' },
-      { name:'Destaques', color:'#0284c7' },
-      { name:'Lançamentos', color:'#16a34a' },
-      { name:'Dica VONDER', color:'#b45309' },
+    // editorias são exclusivas de cada marca (ver app.js, EDITORIAS_BY_BRAND) — este fallback
+    // só entra quando a marca ainda não tem configurações salvas. Trend e Personalizado são
+    // universais (toda marca tem as duas, cada uma com sua própria cópia independente); as
+    // demais só existem pra marca que as tem listada, e uma marca sem entrada aqui cai só
+    // nas universais até ter suas próprias editorias cadastradas
+    const UNIVERSAL_FALLBACK_EDITORIAS = [
       { name:'Trend', color:'#db2777' },
       { name:'Personalizado', color:'#64748b' }
     ];
+    const FALLBACK_EDITORIAS_BY_BRAND = {
+      '': [
+        { name:'Informativo', color:'#7c3aed' },
+        { name:'Destaques', color:'#0284c7' },
+        { name:'Lançamentos', color:'#16a34a' },
+        { name:'Dica VONDER', color:'#b45309' }
+      ],
+      '__ferramentas-gerais': [
+        { name:'Post E-commerce', color:'#0284c7' },
+        { name:'Lançamentos', color:'#16a34a' },
+        { name:'Destaques', color:'#7c3aed' },
+        { name:'Blog - Conecta FG', color:'#4f46e5' },
+        { name:'Datas comemorativas', color:'#db2777' }
+      ],
+      '__osten-ferragens': [
+        { name:'Datas comemorativas', color:'#db2777' }
+      ],
+      '__dismatal': [
+        { name:'Datas comemorativas', color:'#db2777' }
+      ]
+    };
+    const FALLBACK_EDITORIAS = (FALLBACK_EDITORIAS_BY_BRAND[BRAND_SUFFIX] || []).concat(UNIVERSAL_FALLBACK_EDITORIAS);
     function readEditoriaList(){
       const raw = localStorage.getItem(CALENDAR_SETTINGS_KEY);
       if(!raw) return FALLBACK_EDITORIAS;
@@ -54,7 +71,7 @@
         const s = JSON.parse(raw);
         let eds = Array.isArray(s.editorias) ? s.editorias : null;
         if(!eds || !eds.length) return FALLBACK_EDITORIAS;
-        eds = eds.map((e,i)=> typeof e === 'string' ? { name:e, color: FALLBACK_EDITORIAS[i%FALLBACK_EDITORIAS.length].color } : e);
+        eds = eds.map((e,i)=> typeof e === 'string' ? { name:e, color: FALLBACK_EDITORIAS.length ? FALLBACK_EDITORIAS[i%FALLBACK_EDITORIAS.length].color : '#64748b' } : e);
         return eds;
       }catch(e){ return FALLBACK_EDITORIAS; }
     }
@@ -68,7 +85,6 @@
     const FALLBACK_NETWORK_FORMATS = {
       Instagram: [{ name:'Feed', width:1080, height:1350 }, { name:'Stories', width:1080, height:1920 }, { name:'Reels', width:1080, height:1920 }],
       Facebook: [{ name:'Feed', width:1080, height:1350 }, { name:'Stories', width:1080, height:1920 }, { name:'Reels', width:1080, height:1920 }],
-      Twitter: [{ name:'Post', width:1200, height:675 }],
       LinkedIn: [{ name:'Post', width:1200, height:627 }, { name:'Artigo', width:1200, height:644 }],
       TikTok: [{ name:'Vídeo', width:1080, height:1920 }],
       Blog: [{ name:'Post', width:1200, height:630 }],
@@ -80,7 +96,7 @@
       if(!raw) return FALLBACK_NETWORKS;
       try{
         const s = JSON.parse(raw);
-        const nets = Array.isArray(s.networks) ? s.networks : null;
+        const nets = Array.isArray(s.networks) ? s.networks.filter(n=>n.name!=='Twitter') : null;
         if(!nets || !nets.length) return FALLBACK_NETWORKS;
         return nets.map(n=> ({ name:n.name, formats: (Array.isArray(n.formats) && n.formats.length) ? n.formats : (FALLBACK_NETWORK_FORMATS[n.name] || [{name:'Post'}]) }));
       }catch(e){ return FALLBACK_NETWORKS; }

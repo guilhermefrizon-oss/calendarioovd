@@ -31,9 +31,6 @@
     let editingId = null;
     // estado dos filtros aplicados ao calendário/lista
     const filters = { editorias: [], places: [], types: [], statuses: [], collab: 'any' };
-    // modo de seleção múltipla / edição em lote
-    let selectMode = false;
-    const selectedIds = new Set();
     // produtos selecionados no modal de criar/editar postagem: [{code,name}, ...]
     let selectedProducts = [];
     // imagens de referência anexadas no modal de criar/editar postagem (campo "Referências
@@ -58,10 +55,6 @@
       const idx = (list||[]).indexOf(name);
       return TAG_PALETTE[(idx<0?0:idx) % TAG_PALETTE.length];
     }
-    function statusColor(name){
-      const s = APP_SETTINGS.statuses.find(x=>x.name===name);
-      return (s && s.color) || '#94a3b8';
-    }
     function networkColor(name){
       const n = (APP_SETTINGS.networks||[]).find(x=>x.name===name);
       if(n && n.color) return n.color;
@@ -73,7 +66,6 @@
     const PRESET_ICONS = {
       instagram: 'icons/instagram.svg',
       facebook: 'icons/facebook.svg',
-      twitter: 'icons/twitter.svg',
       linkedin: 'icons/linkedin.svg',
       youtube: 'icons/youtube.svg',
       tiktok: 'icons/tiktok.svg'
@@ -323,7 +315,6 @@
     };
     const NETWORK_TITLE_TEMPLATES = {
       Instagram: p => `Confira o ${p} da VONDER`,
-      Twitter: p => `${p} já disponível!`,
       LinkedIn: p => `VONDER apresenta: ${p}`,
       Blog: p => `Blog: conheça o ${p}`,
       Email: p => `Novidade VONDER: ${p}`
@@ -392,56 +383,47 @@
       return names.length ? joinProductNames(names) : 'produto';
     }
 
-    // cada editoria tem exatamente 3 pautas fixas, com estrutura (gancho/desenvolvimento/CTA)
-    // e boas práticas de web/formato — pensadas pro objetivo específico daquela editoria
+    // cada editoria tem exatamente 3 pautas fixas — manchetes/ideias já prontas pra virar o
+    // ponto de partida do post (não uma instrução de como montá-lo), pensadas pro objetivo
+    // específico daquela editoria
     const CONTENT_SUGGESTIONS_BY_EDITORIA = {
       'Informativo': [
-        p => ({ subject: `Como escolher a ferramenta certa para cada tipo de reparo`,
-          structure: `<b>Gancho:</b> parta de uma dúvida comum do público. <b>Desenvolvimento:</b> explique o critério de escolha em 3 passos simples. <b>CTA:</b> convide a conferir o catálogo. <b>Boas práticas web:</b> título claro e buscável (SEO), parágrafos curtos e escaneáveis, uma imagem por ideia.` }),
-        p => ({ subject: `Curiosidades técnicas sobre ${p} que poucas pessoas conhecem`,
-          structure: `<b>Gancho:</b> um dado ou fato pouco conhecido. <b>Desenvolvimento:</b> 2-3 curiosidades em linguagem simples. <b>CTA:</b> reforce a autoridade da marca no tema. <b>Boas práticas web:</b> use bullet points, evite jargão sem explicação, capriche no alt text das imagens.` }),
-        p => ({ subject: `Perguntas frequentes sobre uso e conservação de ${p}`,
-          structure: `<b>Formato:</b> FAQ com 3-5 perguntas reais de clientes. <b>Desenvolvimento:</b> respostas objetivas e diretas. <b>CTA:</b> convide a tirar dúvidas nos comentários/DM. <b>Boas práticas web:</b> hierarquia visual clara (pergunta em destaque, resposta abaixo), facilita compartilhamento.` })
+        p => `Como escolher a ferramenta certa para cada tipo de reparo`,
+        p => `5 curiosidades técnicas sobre o ${p} que poucas pessoas conhecem`,
+        p => `Perguntas frequentes: como usar e conservar o ${p} corretamente`
       ],
       'Destaques': [
-        p => ({ subject: `Os produtos mais vendidos da semana e por que os profissionais confiam neles`,
-          structure: `<b>Gancho:</b> prova social (número de vendas/avaliações). <b>Desenvolvimento:</b> 2-3 diferenciais técnicos. <b>CTA:</b> confira a linha completa. <b>Boas práticas web:</b> depoimentos reais quando possível, imagens de alta qualidade do produto em uso.` }),
-        p => ({ subject: `Comparativo rápido: qual ${p} combina com a sua necessidade`,
-          structure: `<b>Desenvolvimento:</b> 2-3 opções lado a lado, com o diferencial de cada uma. <b>CTA:</b> oriente a escolha e direcione para falar com um consultor. <b>Boas práticas web:</b> tabela ou carrossel comparativo, texto direto ao ponto.` }),
-        p => ({ subject: `Bastidores da qualidade: como a VONDER testa seus produtos`,
-          structure: `<b>Gancho:</b> processo/controle de qualidade como história. <b>Desenvolvimento:</b> prova de autoridade (certificações, testes). <b>CTA:</b> reforce confiança na marca. <b>Boas práticas web:</b> storytelling autêntico, carrossel ou vídeo curto funcionam bem aqui.` })
+        p => `Os mais vendidos da semana — e por que os profissionais confiam neles`,
+        p => `${p}: qual versão combina com a sua necessidade`,
+        p => `Bastidores da qualidade: como o ${p} é testado antes de chegar até você`
       ],
       'Lançamentos': [
-        p => ({ subject: `Chegou ${p}: a novidade que resolve um problema comum`,
-          structure: `<b>Atenção:</b> anúncio forte logo na primeira frase. <b>Interesse:</b> o problema que resolve. <b>Desejo:</b> benefícios e diferenciais. <b>Ação:</b> onde comprar/saiba mais. <b>Boas práticas web:</b> use urgência real (edição limitada, pré-venda), link direto na bio/primeiro comentário.` }),
-        p => ({ subject: `Antes e depois: o que muda no seu trabalho com ${p}`,
-          structure: `<b>Desenvolvimento:</b> mostre o cenário anterior (dor) → a solução (o lançamento) → o resultado (transformação). <b>CTA:</b> compre agora/saiba mais. <b>Boas práticas web:</b> vídeo ou comparação visual antes/depois performa melhor, legenda curta e direta.` }),
-        p => ({ subject: `5 motivos para conhecer ${p} hoje`,
-          structure: `<b>Formato:</b> lista numerada, um benefício claro por item (não só característica). <b>CTA:</b> saiba mais/compre. <b>Boas práticas web:</b> use números ímpares (3, 5, 7), o primeiro e o último item são os mais fortes.` })
+        p => `Chegou o ${p}: a novidade que resolve um problema comum`,
+        p => `Antes e depois: o que muda no seu trabalho com o ${p}`,
+        p => `5 motivos para conhecer o ${p} hoje`
       ],
       'Dica VONDER': [
-        p => ({ subject: `Como usar ${p} com segurança e eficiência`,
-          structure: `<b>Formato:</b> passo a passo numerado (3-5 passos). <b>Desenvolvimento:</b> um verbo de ação por passo. <b>CTA:</b> dica extra de especialista no fim. <b>Boas práticas web:</b> vídeo curto ou carrossel funciona melhor para tutoriais.` }),
-        p => ({ subject: `Erro comum que reduz a vida útil de ${p} (e como evitar)`,
-          structure: `<b>Gancho:</b> o erro/mito comum. <b>Desenvolvimento:</b> por que ele prejudica o resultado. <b>CTA:</b> mostre o jeito correto. <b>Boas práticas web:</b> título com gatilho de curiosidade, imagem clara do "jeito certo".` }),
-        p => ({ subject: `Truque rápido: economize tempo usando ${p} desta forma`,
-          structure: `<b>Formato:</b> dica única e direta, com demonstração visual. <b>CTA:</b> convide a testar e compartilhar o resultado. <b>Boas práticas web:</b> ótimo para Reels/Stories, use texto na tela para quem assiste sem áudio.` })
+        p => `Como usar o ${p} com segurança e eficiência`,
+        p => `O erro comum que reduz a vida útil do ${p} (e como evitar)`,
+        p => `Truque rápido: economize tempo usando o ${p} desta forma`
       ],
       'Trend': [
-        p => ({ subject: `Como aproveitar a tendência do momento no dia a dia de trabalho`,
-          structure: `<b>Desenvolvimento:</b> conecte a tendência ao universo da marca de forma natural, aplicando com o produto. <b>CTA:</b> leve e participativo. <b>Boas práticas web:</b> aja rápido (newsjacking), use os formatos/áudios em alta da rede, mantenha o tom autêntico.` }),
-        p => ({ subject: `Desafio ou meme do momento adaptado para o universo VONDER`,
-          structure: `<b>Formato:</b> use o formato viral já conhecido do público, com um toque de humor ligado ao produto. <b>CTA:</b> convide a interagir/marcar alguém. <b>Boas práticas web:</b> não force a venda dentro do trend, priorize entretenimento e responda comentários rápido.` }),
-        p => ({ subject: `Opinião rápida da marca sobre um assunto em alta no setor`,
-          structure: `<b>Gancho:</b> traga o fato/notícia em alta. <b>Desenvolvimento:</b> posicione a marca com uma opinião curta e relevante. <b>CTA:</b> pergunta que abre a conversa. <b>Boas práticas web:</b> texto curto, cuidado com temas sensíveis, funciona bem em LinkedIn/Twitter.` })
+        p => `Como a tendência do momento também cabe na rotina de quem usa ${p}`,
+        p => `O desafio/meme do momento, adaptado pro dia a dia com o ${p}`,
+        p => `Nossa opinião sobre o assunto que está em alta no setor`
       ],
       'Personalizado': [
-        p => ({ subject: `Defina aqui o tema específico desta campanha personalizada`,
-          structure: `<b>Antes de tudo:</b> defina objetivo e público-alvo da peça. <b>Estrutura:</b> gancho, desenvolvimento e CTA claros, com tom adaptado à ocasião. <b>Boas práticas web:</b> uma única mensagem central por peça, CTA único e mensurável.` }),
-        p => ({ subject: `Conteúdo sob demanda alinhado a uma data ou ação comercial específica`,
-          structure: `<b>Desenvolvimento:</b> parta do briefing/ação comercial e construa a narrativa em torno do motivo (data, parceria, evento). <b>CTA:</b> específico da ação. <b>Boas práticas web:</b> confirme prazos e aprovações antes da produção, mantenha a identidade visual da marca.` }),
-        p => ({ subject: `Colaboração ou parceria com conteúdo sob medida`,
-          structure: `<b>Desenvolvimento:</b> apresente o parceiro/contexto e destaque o valor conjunto para o público. <b>CTA:</b> direcione para a ação combinada (link, evento, sorteio). <b>Boas práticas web:</b> alinhe expectativas com o parceiro antes de publicar, use marcação cruzada quando fizer sentido.` })
+        p => `[Defina aqui] o tema específico desta campanha personalizada`,
+        p => `Conteúdo alinhado a uma data ou ação comercial específica — descreva o motivo aqui`,
+        p => `Colaboração ou parceria com conteúdo sob medida — descreva o parceiro/contexto aqui`
+      ],
+      // pautas ligadas à data comemorativa em uso (ver pendingCommemorativeOccasion, setado ao
+      // confirmar a criação de postagem a partir do clique no texto da data no card do dia) —
+      // sem uma ocasião específica em mãos, cai num texto genérico
+      'Datas comemorativas': [
+        p => `${pendingCommemorativeOccasion || 'A data comemorativa'}: uma ideia de conteúdo pra aproveitar a data com o ${p}`,
+        p => `Como ${pendingCommemorativeOccasion || 'a data'} conecta com o dia a dia de quem usa ${p}`,
+        p => `Mensagem da marca para ${pendingCommemorativeOccasion || 'a data comemorativa'}`
       ]
     };
 
@@ -454,7 +436,7 @@
       const p = contentProductPhrase();
       const lists = editorias.map(ed=>{
         const gens = CONTENT_SUGGESTIONS_BY_EDITORIA[ed] || CONTENT_SUGGESTIONS_BY_EDITORIA['Personalizado'];
-        return gens.map(fn=> Object.assign({ editoria: ed }, fn(p)));
+        return gens.map(fn=> ({ editoria: ed, pauta: fn(p) }));
       });
       const result = [];
       for(let i=0; result.length<3; i++){
@@ -470,11 +452,10 @@
       const multiEditoria = document.querySelectorAll('.mEditoria:checked').length > 1;
       const suggestions = pickContentSuggestions();
       if(suggestions.length===0){ box.innerHTML = `<div class="cs-empty">Selecione uma editoria em Categorização para ver sugestões de pauta.</div>`; return; }
-      box.innerHTML = `<div class="cs-list">${suggestions.map((s,idx)=>`<div class="cs-card">${multiEditoria?`<span class="cs-editoria">${escapeHtml(s.editoria)}</span>`:''}<div class="cs-subject">${escapeHtml(s.subject)}</div><div class="cs-structure">${s.structure}</div><div class="cs-actions"><button type="button" class="cs-use" data-idx="${idx}">Usar no conteúdo</button></div></div>`).join('')}</div>`;
+      box.innerHTML = `<div class="cs-list">${suggestions.map((s,idx)=>`<div class="cs-card">${multiEditoria?`<span class="cs-editoria">${escapeHtml(s.editoria)}</span>`:''}<div class="cs-subject">${escapeHtml(s.pauta)}</div><div class="cs-actions"><button type="button" class="cs-use" data-idx="${idx}">Usar no conteúdo</button></div></div>`).join('')}</div>`;
       box.querySelectorAll('.cs-use').forEach(bt=> bt.addEventListener('click', ()=>{
         const s = suggestions[parseInt(bt.dataset.idx,10)]; if(!s) return;
-        const plainStructure = s.structure.replace(/<[^>]+>/g,'');
-        const block = `Pauta: ${s.subject}\nEstrutura: ${plainStructure}`;
+        const block = `Pauta: ${s.pauta}`;
         const notes = $('mNotes');
         notes.value = notes.value.trim() ? `${notes.value.trim()}\n\n${block}` : block;
         refreshModalDynamic();
@@ -712,43 +693,6 @@
     }
 
     // ============================================================
-    // MODO DE SELEÇÃO E EDIÇÃO EM LOTE — selecionar várias postagens
-    // no calendário e aplicar mudanças a todas de uma vez
-    // ============================================================
-    function toggleSelectMode(){
-      selectMode = !selectMode;
-      if(!selectMode) selectedIds.clear();
-      // indicação visual do botão "Selecionar" ativo
-      document.getElementById('toggleSelect').classList.toggle('btn--active', selectMode);
-      render();
-    }
-
-    function openBulkEdit(){
-      if(selectedIds.size===0){ alert('Nenhuma postagem selecionada'); return; }
-      $('bDate').value = '';
-      document.querySelector('input[name="bPlace"][value=""]').checked = true;
-      document.querySelector('input[name="bType"][value=""]').checked = true;
-      if($('bStatusSelect')) $('bStatusSelect').value = '';
-      $('bCollabToggle').checked = false;
-      $('bulkEditBackdrop').style.display = 'flex';
-    }
-
-    function closeBulkEdit(){ $('bulkEditBackdrop').style.display = 'none'; }
-
-    function applyBulkEdit(){
-      const date = $('bDate').value || null;
-      const place = document.querySelector('input[name="bPlace"]:checked').value || null;
-      const type = document.querySelector('input[name="bType"]:checked').value || null;
-      const status = $('bStatusSelect') ? ($('bStatusSelect').value || null) : null;
-      const beforeStates = [];
-      selectedIds.forEach(id=>{ const p = state.posts.find(x=>x.id===id); if(p){ beforeStates.push(Object.assign({},p)); if(date && date!==p.date){ p.date = date; p.order = nextOrderForDate(date, p.id); } if(place) p.place = place; if(type) p.type = type; if(status) p.status = status; if($('bCollabToggle').checked) p.collab = true; } });
-      saveState(); buildCalendar(); render(); closeBulkEdit();
-      pushUndo({ type:'edit-multi', before: beforeStates }); redoStack = [];
-      // sai do modo de seleção
-      selectMode = false; selectedIds.clear(); document.getElementById('toggleSelect').classList.remove('btn--active');
-    }
-
-    // ============================================================
     // ÍCONES SVG — redes sociais e formatos (Feed/Story)
     // ============================================================
     // no estilo "app icon" (círculo colorido + glifo branco), igual aos ícones de arquivo em
@@ -957,6 +901,49 @@
     }
 
     // ============================================================
+    // CLIQUE NO TEXTO DE DATA COMEMORATIVA — pergunta (num modal com a identidade da
+    // plataforma, não um confirm() nativo) se o usuário quer criar uma postagem específica pra
+    // aquela data; ao confirmar, abre "Criar postagem" já com título, data e (se a marca tiver
+    // uma editoria de datas comemorativas) a categorização pré-preenchidos
+    // ============================================================
+    let pendingCommemorativeDate = null; // { dateStr, holidayName } enquanto o modal de confirmação está aberto
+    // nome da data comemorativa em uso — lido pelas sugestões de conteúdo (CONTENT_SUGGESTIONS_BY_EDITORIA
+    // ['Datas comemorativas']) enquanto o modal de postagem estiver aberto vindo deste fluxo
+    let pendingCommemorativeOccasion = null;
+    // acha a editoria de datas comemorativas da marca ativa, se existir — por nome normalizado
+    // (sem acento/maiúsculas) pra cobrir tanto "Datas comemorativas" quanto pequenas variações
+    function commemorativeEditoria(){
+      const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      return (APP_SETTINGS.editorias||[]).find(e=> norm(e.name).includes('comemorat'));
+    }
+    function openCommemorativeDateConfirm(dateStr, holidayName){
+      pendingCommemorativeDate = { dateStr, holidayName };
+      const [y,m,d] = dateStr.split('-').map(Number);
+      const dateLabel = new Date(y, m-1, d).toLocaleDateString('pt-BR', { day:'2-digit', month:'long' });
+      $('commemorativeConfirmMessage').textContent = `Deseja criar uma publicação específica para "${holidayName}" (${dateLabel})?`;
+      $('commemorativeConfirmBackdrop').style.display = 'flex';
+    }
+    function closeCommemorativeDateConfirm(){
+      $('commemorativeConfirmBackdrop').style.display = 'none';
+      pendingCommemorativeDate = null;
+    }
+    function confirmCommemorativeDatePost(){
+      if(!pendingCommemorativeDate) return;
+      const { dateStr, holidayName } = pendingCommemorativeDate;
+      closeCommemorativeDateConfirm();
+      closeEditState();
+      openModal(dateStr);
+      $('mTitle').value = holidayName;
+      pendingCommemorativeOccasion = holidayName;
+      const ed = commemorativeEditoria();
+      if(ed){
+        const cb = Array.from(document.querySelectorAll('.mEditoria')).find(x=>x.value===ed.name);
+        if(cb) cb.checked = true;
+      }
+      refreshModalDynamic();
+    }
+
+    // ============================================================
     // CALENDÁRIO MENSAL — monta as células (4 a 6 semanas, conforme
     // o necessário) do mês exibido e liga o drag-and-drop de
     // postagens entre os dias
@@ -970,6 +957,11 @@
         el.title = 'Ver todas as postagens deste dia';
         el.addEventListener('click', (ev)=>{ ev.stopPropagation(); openDayPosts(dateStr); });
       });
+      // clicar no nome da data comemorativa oferece criar uma postagem específica pra ela —
+      // pára a propagação pro mesmo motivo que .date/.day-count acima (senão também abriria
+      // "Postagens do dia")
+      const holidayEl = cell.querySelector('.holiday-name');
+      if(holidayEl) holidayEl.addEventListener('click', (ev)=>{ ev.stopPropagation(); openCommemorativeDateConfirm(dateStr, commemorativeDateName(dateStr)); });
       // clicar em qualquer área do card do dia (fora de um post específico, que já abre a edição
       // dele) também abre "Postagens do dia" — mesmo destino do clique na data/contador acima.
       // Cards de postagem, o badge "+N" e o "+ Adicionar postagem" já param a propagação nos
@@ -1054,7 +1046,7 @@
           if(dateStr===tStr) cell.classList.add('today');
           // nome da data comemorativa (feriado ou data comercial), quando o dia corresponder a uma
           const holidayName = commemorativeDateName(dateStr);
-          const holidayHtml = holidayName ? `<span class="holiday-name" title="${escapeHtml(holidayName)}">${escapeHtml(holidayName)}</span>` : '';
+          const holidayHtml = holidayName ? `<span class="holiday-name" title="Clique para criar uma postagem para &quot;${escapeHtml(holidayName)}&quot;">${escapeHtml(holidayName)}</span>` : '';
           cell.innerHTML = `<div class="day-head"><span class="date">${dayIndex}</span>${holidayHtml}<span class="day-count-wrap"><span class="day-status-icon" style="display:none"></span><span class="day-count"></span></span></div><div class="posts"></div>`;
           // clicar no número do dia ou no contador (0/3, 1/3...) abre o popup com todas as
           // postagens daquela data — igual ao badge "+N", mas funciona mesmo com 0, 1, 2 ou 3
@@ -1116,7 +1108,7 @@
         cell.dataset.date = dateStr;
         if(dateStr===tStr) cell.classList.add('today');
         const holidayName = commemorativeDateName(dateStr);
-        const holidayHtml = holidayName ? `<span class="holiday-name" title="${escapeHtml(holidayName)}">${escapeHtml(holidayName)}</span>` : '';
+        const holidayHtml = holidayName ? `<span class="holiday-name" title="Clique para criar uma postagem para &quot;${escapeHtml(holidayName)}&quot;">${escapeHtml(holidayName)}</span>` : '';
         cell.innerHTML = `<div class="week-day-head"><div class="week-day-top-row"><span class="week-day-label">${WEEKDAY_ABBR[i]}</span><span class="day-count-wrap"><span class="day-status-icon" style="display:none"></span><span class="day-count"></span></span></div><span class="date">${d.getDate()}</span>${holidayHtml}</div><div class="posts"></div><button type="button" class="week-day-add">+ Adicionar postagem</button>`;
         attachDayCellInteractions(cell, dateStr);
         cell.querySelector('.week-day-add').addEventListener('click', (ev)=>{ ev.stopPropagation(); closeEditState(); openModal(dateStr); });
@@ -1374,9 +1366,8 @@
         if(!draggedPost) return;
         reorderPost(draggedPost, p, before);
       });
-      div.addEventListener('click', (ev)=>{ ev.stopPropagation(); if(selectMode){ const cb = div.querySelector('.select-checkbox'); if(cb){ cb.checked = !cb.checked; if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); } return; } openEditModal(p.id); });
-      if(selectMode){ const cb = document.createElement('input'); cb.type='checkbox'; cb.className='select-checkbox'; cb.checked = selectedIds.has(p.id); cb.addEventListener('click', (ev)=>{ ev.stopPropagation(); if(cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id); }); div.appendChild(cb); }
-      else { const { btn } = buildCardMenu(p, 'event-menu-btn'); div.appendChild(btn); }
+      div.addEventListener('click', (ev)=>{ ev.stopPropagation(); openEditModal(p.id); });
+      { const { btn } = buildCardMenu(p, 'event-menu-btn'); div.appendChild(btn); }
       return div;
     }
 
@@ -1735,6 +1726,11 @@
 
     function openModal(dateStr){
       $('modalBackdrop').style.display = 'flex';
+      modalOpenedFromApplyEditoria = false;
+      // só fica setada quando este open vem do fluxo de confirmação de data comemorativa (ver
+      // confirmCommemorativeDatePost, que reatribui logo em seguida a esta chamada)
+      pendingCommemorativeOccasion = null;
+      if($('modalBackBtn')) $('modalBackBtn').style.display = 'none';
       setGuidedPostStep(1);
       // pré-preenche a data: a recebida por parâmetro (ex: "+ Adicionar postagem" de uma coluna
       // da semana) ou, na ausência dela, o mês/dia atualmente visível no calendário
@@ -1763,6 +1759,19 @@
 
     function closeModal(){
       $('modalBackdrop').style.display = 'none';
+      pendingCommemorativeOccasion = null;
+      // veio do modal "Aplicar editoria ao mês": ele continua aberto por baixo (nunca foi
+      // fechado), então só precisa reaparecer — ressincroniza a linha com o que foi editado
+      // no card antes de redesenhar a lista
+      if(modalOpenedFromApplyEditoria){
+        modalOpenedFromApplyEditoria = false;
+        if($('modalBackBtn')) $('modalBackBtn').style.display = 'none';
+        if(applyEditoriaState){
+          const row = applyEditoriaState.rows.find(r=> r.postId === editingId);
+          if(row){ const post = state.posts.find(p=>p.id===row.postId); if(post) row.products = getPostProducts(post).slice(); }
+          renderApplyEditoriaModal();
+        }
+      }
     }
 
     function saveModal(){
@@ -1873,8 +1882,8 @@
     // CONFIGURAÇÕES DA APLICAÇÃO — redes, editorias, formatos,
     // status, catálogo de produtos e metas (persistidas no localStorage)
     // ============================================================
-    const BRAND_COLORS = { Instagram:'#E4405F', Facebook:'#1877F2', Twitter:'#1DA1F2', LinkedIn:'#0A66C2', TikTok:'#010101', Blog:'#ef4444', Email:'#374151' };
-    const BRAND_SHORT_NAMES = { Instagram:'IG', Twitter:'TW', LinkedIn:'LI', TikTok:'TT', Blog:'BL', Email:'EM' };
+    const BRAND_COLORS = { Instagram:'#E4405F', Facebook:'#1877F2', LinkedIn:'#0A66C2', TikTok:'#010101', Blog:'#ef4444', Email:'#374151' };
+    const BRAND_SHORT_NAMES = { Instagram:'IG', LinkedIn:'LI', TikTok:'TT', Blog:'BL', Email:'EM' };
     // formatos padrão por rede — cada rede tem seu próprio conjunto (ex: Reels só existe no Instagram),
     // cada formato com as dimensões (px) e extensões de arquivo aceitas
     const NETWORK_DEFAULT_FORMATS = {
@@ -1888,7 +1897,6 @@
         { name:'Stories', width:1080, height:1920, extensions:['JPG','PNG','MP4'] },
         { name:'Reels', width:1080, height:1920, extensions:['MP4'] }
       ],
-      Twitter: [{ name:'Post', width:1200, height:675, extensions:['JPG','PNG','MP4'] }],
       LinkedIn: [
         { name:'Post', width:1200, height:627, extensions:['JPG','PNG','MP4'] },
         { name:'Artigo', width:1200, height:644, extensions:['JPG','PNG'] }
@@ -1896,6 +1904,45 @@
       TikTok: [{ name:'Vídeo', width:1080, height:1920, extensions:['MP4'] }],
       Blog: [{ name:'Post', width:1200, height:630, extensions:['JPG','PNG'] }],
       Email: [{ name:'Email', width:600, height:800, extensions:['JPG','PNG'] }]
+    };
+    // Trend e Personalizado são universais — toda marca tem as duas, mas cada marca recebe
+    // sua própria cópia independente (objetos distintos, nunca a mesma referência): editar,
+    // renomear ou remover a de uma marca não tem nenhuma correlação com as outras.
+    const UNIVERSAL_DEFAULT_EDITORIAS = [
+      { name:'Trend', color:'#db2777' },
+      { name:'Personalizado', color:'#64748b' }
+    ];
+    // demais editorias exclusivas de cada marca — diferente das redes/formatos (infraestrutura
+    // compartilhada), a categorização de conteúdo é definida por marca: a lista abaixo de
+    // cada uma só existe pra ela mesma. Uma marca sem entrada aqui começa só com as universais
+    // acima, até a equipe cadastrar as próprias em Configurações → Editorias.
+    const VONDER_DEFAULT_EDITORIAS = [
+      { name:'Informativo', color:'#7c3aed' },
+      { name:'Destaques', color:'#0284c7' },
+      { name:'Lançamentos', color:'#16a34a' },
+      { name:'Dica VONDER', color:'#b45309' }
+    ];
+    const FG_DEFAULT_EDITORIAS = [
+      { name:'Post E-commerce', color:'#0284c7' },
+      { name:'Lançamentos', color:'#16a34a' },
+      { name:'Destaques', color:'#7c3aed' },
+      { name:'Blog - Conecta FG', color:'#4f46e5' },
+      { name:'Datas comemorativas', color:'#db2777' }
+    ];
+    const OSTEN_FERRAGENS_DEFAULT_EDITORIAS = [
+      { name:'Datas comemorativas', color:'#db2777' }
+    ];
+    // "Datas comemorativas" da Dismatal é uma entrada própria, sem nenhum vínculo com as
+    // editorias de mesmo nome da FG/Osten Ferragens acima — cada marca tem seu objeto
+    // independente, então renomear/editar a de uma marca nunca afeta as outras
+    const DISMATAL_DEFAULT_EDITORIAS = [
+      { name:'Datas comemorativas', color:'#db2777' }
+    ];
+    const EDITORIAS_BY_BRAND = {
+      '': VONDER_DEFAULT_EDITORIAS,
+      '__ferramentas-gerais': FG_DEFAULT_EDITORIAS,
+      '__osten-ferragens': OSTEN_FERRAGENS_DEFAULT_EDITORIAS,
+      '__dismatal': DISMATAL_DEFAULT_EDITORIAS
     };
     const DEFAULT_SETTINGS = {
       TARGET: 3,
@@ -1905,19 +1952,11 @@
         { name:'Instagram', shortName:'IG', color:'#E4405F', formats: NETWORK_DEFAULT_FORMATS.Instagram.map(f=>Object.assign({},f)) },
         { name:'Facebook', shortName:'FB', color:'#1877F2', formats: NETWORK_DEFAULT_FORMATS.Facebook.map(f=>Object.assign({},f)) },
         { name:'TikTok', shortName:'TT', color:'#010101', formats: NETWORK_DEFAULT_FORMATS.TikTok.map(f=>Object.assign({},f)) },
-        { name:'Twitter', shortName:'TW', color:'#1DA1F2', formats: NETWORK_DEFAULT_FORMATS.Twitter.map(f=>Object.assign({},f)) },
         { name:'LinkedIn', shortName:'LI', color:'#0A66C2', formats: NETWORK_DEFAULT_FORMATS.LinkedIn.map(f=>Object.assign({},f)) },
         { name:'Blog', shortName:'BL', color:'#ef4444', formats: NETWORK_DEFAULT_FORMATS.Blog.map(f=>Object.assign({},f)) },
         { name:'Email', shortName:'EM', color:'#374151', formats: NETWORK_DEFAULT_FORMATS.Email.map(f=>Object.assign({},f)) }
       ],
-      editorias: [
-        { name:'Informativo', color:'#7c3aed' },
-        { name:'Destaques', color:'#0284c7' },
-        { name:'Lançamentos', color:'#16a34a' },
-        { name:'Dica VONDER', color:'#b45309' },
-        { name:'Trend', color:'#db2777' },
-        { name:'Personalizado', color:'#64748b' }
-      ],
+      editorias: (EDITORIAS_BY_BRAND[BRAND_SUFFIX] || []).concat(UNIVERSAL_DEFAULT_EDITORIAS).map(e=>Object.assign({},e)),
       statuses: [
         { name:'Rascunho', color:'#94a3b8' },
         { name:'Em produção', color:'#f59e0b' },
@@ -1944,7 +1983,18 @@
         // acrescenta às editorias já salvas as categorizações default que ainda não existem
         // (por nome), sem mexer nas que o usuário já tinha customizado
         if(!APP_SETTINGS.editorias) APP_SETTINGS.editorias = [];
+        // corrige a grafia de "Post e-commerce" pra "Post E-commerce" (ver FG_DEFAULT_EDITORIAS)
+        // em quem já tinha salvo a versão antiga, antes do merge abaixo criar uma duplicata
+        { const old = APP_SETTINGS.editorias.find(e=>e.name==='Post e-commerce'); if(old) old.name = 'Post E-commerce'; }
         DEFAULT_SETTINGS.editorias.forEach(def=>{ if(!APP_SETTINGS.editorias.some(e=>e.name===def.name)) APP_SETTINGS.editorias.push(Object.assign({},def)); });
+        // limpa editorias da VONDER que vazaram pra outras marcas (de quando o padrão acima
+        // ainda era compartilhado por todas) — preserva, porém, qualquer nome que também faça
+        // parte da lista padrão da própria marca (ex: FG também tem "Destaques"/"Lançamentos",
+        // que não são leftover nesse caso, são editorias legítimas da FG)
+        if(BRAND_SUFFIX!==''){
+          const ownDefaultNames = new Set((EDITORIAS_BY_BRAND[BRAND_SUFFIX]||[]).map(def=>def.name));
+          APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(e=> ownDefaultNames.has(e.name) || !VONDER_DEFAULT_EDITORIAS.some(def=>def.name===e.name));
+        }
         // mesma lógica pras redes padrão (ex: Facebook) — acrescenta as que faltam por nome,
         // sem mexer nas redes que o usuário já tinha configurado
         if(!APP_SETTINGS.networks) APP_SETTINGS.networks = [];
@@ -1960,6 +2010,8 @@
         TARGET = APP_SETTINGS.TARGET || TARGET; }catch(e){ APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS); } }
       // migra o formato antigo de redes (string simples) para {name,color}
       APP_SETTINGS.networks = (APP_SETTINGS.networks||[]).map((n,i)=> typeof n === 'string' ? { name:n, color: BRAND_COLORS[n] || TAG_PALETTE[i % TAG_PALETTE.length] } : n);
+      // remove o Twitter de configurações salvas antes da rede ser descontinuada do app
+      APP_SETTINGS.networks = APP_SETTINGS.networks.filter(n=>n.name!=='Twitter');
       // migra redes sem "formats" (config antiga, quando Formato era uma lista global única):
       // usa os formatos padrão da rede se conhecida, senão reaproveita a antiga lista global "places", senão "Feed"
       const legacyPlaces = Array.isArray(APP_SETTINGS.places) && APP_SETTINGS.places.length ? APP_SETTINGS.places.map(p=>({name:p})) : null;
@@ -2004,6 +2056,15 @@
           e.schedule.channels.forEach(c=>{ if(c.channel==='Instagram') c.places = migrateLegacyInstagramFeedPlaces(c.places); });
         }
       });
+      // migra o agendamento único antigo (uma config valendo pra qualquer mês) para o novo
+      // modelo por mês — cada mês passa a ter sua própria configuração (ver monthKeyFromDate/
+      // scheduleByMonth), sem um "padrão" perene. O agendamento que já existia vira a config do
+      // mês atual; dali em diante o usuário ajusta cada mês individualmente pelo navegador de
+      // mês do editor de agendamento.
+      APP_SETTINGS.editorias.forEach(e=>{
+        if(e.schedule && !e.scheduleByMonth){ e.scheduleByMonth = { [monthKeyFromDate(new Date())]: e.schedule }; }
+        delete e.schedule;
+      });
     }
 
     // ============================================================
@@ -2031,7 +2092,7 @@
     // true se algum modal estiver aberto — usado pra não recarregar dados do servidor
     // (e redesenhar a tela) enquanto a pessoa está no meio de uma edição
     function anyModalOpen(){
-      return ['modalBackdrop','settingsBackdrop','bulkEditBackdrop','filtersBackdrop'].some(id=>{
+      return ['modalBackdrop','settingsBackdrop','filtersBackdrop','applyEditoriaBackdrop'].some(id=>{
         const el = $(id); return el && el.style.display === 'flex';
       });
     }
@@ -2219,7 +2280,7 @@
 
     // ============================================================
     // FORMATOS POR REDE — cada rede social tem seu próprio conjunto de formatos
-    // (ex: Instagram = Feed/Stories/Reels, Twitter = Post), cada um com
+    // (ex: Instagram = Feed/Stories/Reels, LinkedIn = Post), cada um com
     // largura, altura (px) e extensões de arquivo aceitas.
     // ============================================================
     // união (sem duplicar nomes) de todos os formatos de todas as redes — usado em Filtros e Edição em Lote
@@ -2283,6 +2344,97 @@
     let editingEditoriaName = null;
     // nome da editoria cujo painel de "dias fixos e formatos" está aberto para edição (ou null)
     let openEditoriaSchedule = null;
+    // mês ("YYYY-MM") que o navegador acima da lista de editorias está exibindo — um só, vale
+    // pra todas as editorias ao mesmo tempo (chip da linha e painel de edição, quando aberto),
+    // ver renderEditoriasUI/editoriasMonthKey. Só null antes da 1ª renderização.
+    let editoriasMonthKey = null;
+
+    // ============================================================
+    // POPOVER DE MESES do navegador acima da lista de editorias — mesmo componente visual do
+    // seletor de mês/ano do calendário principal (classes .month-year-picker/.myp-months/
+    // .myp-month, ver openMonthYearPicker() lá em cima), mas construído em JS e fixo em
+    // document.body (em vez de position:absolute dentro do painel): #secEditorias fica dentro
+    // de .settings-content, que tem overflow-y:auto — um popover position:absolute ali seria
+    // cortado assim que passasse da altura visível, o mesmo problema que o menu "⋮" de cada
+    // editoria (getEditoriaMenuEl) e o popover de marca do portal-shell.js já resolvem do
+    // mesmo jeito.
+    // ============================================================
+    let editoriasMonthPickerEl = null;
+    let editoriasPickerYear = null; // ano exibido no popover (pode diferir do ano de editoriasMonthKey enquanto navega antes de escolher um mês)
+    function getEditoriasMonthPickerEl(){
+      if(editoriasMonthPickerEl) return editoriasMonthPickerEl;
+      editoriasMonthPickerEl = document.createElement('div');
+      editoriasMonthPickerEl.className = 'month-year-picker';
+      // .month-year-picker nasceu pra uso fora de modal (z-index:40) — dentro do modal de
+      // Configurações (.modal-backdrop, z-index:60) precisa de um z-index mais alto pra não
+      // ficar atrás dele, daí o mesmo valor do .event-menu (menu "⋮" de cada editoria). A
+      // classe original também traz left:50%+transform:translateX(-50%) (centralização via
+      // .month-label-wrap com position:relative) — aqui o left em px já é calculado manualmente
+      // a cada abertura (ver openEditoriasMonthPicker), então o transform precisa ser zerado,
+      // senão os dois mecanismos de centralização somam e o popover sai 50% da própria largura
+      // deslocado pra esquerda do que deveria.
+      editoriasMonthPickerEl.style.position = 'fixed';
+      editoriasMonthPickerEl.style.transform = 'none';
+      editoriasMonthPickerEl.style.zIndex = '1000';
+      editoriasMonthPickerEl.innerHTML = '<div class="myp-months"></div>';
+      editoriasMonthPickerEl.addEventListener('click', ev=> ev.stopPropagation());
+      document.body.appendChild(editoriasMonthPickerEl);
+      return editoriasMonthPickerEl;
+    }
+    function renderEditoriasMonthPicker(){
+      const grid = getEditoriasMonthPickerEl().querySelector('.myp-months');
+      const today = new Date();
+      const [selYear, selMonth1] = editoriasMonthKey.split('-').map(Number); // selMonth1 é 1-based
+      grid.innerHTML = '';
+      for(let m=0; m<12; m++){
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'myp-month';
+        btn.textContent = MONTH_ABBR[m];
+        const isPast = editoriasPickerYear < today.getFullYear() || (editoriasPickerYear===today.getFullYear() && m < today.getMonth());
+        const isCurrent = editoriasPickerYear===today.getFullYear() && m===today.getMonth();
+        const isSelected = editoriasPickerYear===selYear && (m+1)===selMonth1;
+        if(isPast) btn.classList.add('past');
+        if(isCurrent) btn.classList.add('current');
+        if(isSelected) btn.classList.add('selected');
+        btn.addEventListener('click', ()=>{
+          editoriasMonthKey = monthKeyFromDate(new Date(editoriasPickerYear, m, 1));
+          closeEditoriasMonthPicker();
+          renderEditoriasUI();
+        });
+        grid.appendChild(btn);
+      }
+    }
+    function openEditoriasMonthPicker(){
+      editoriasPickerYear = parseInt(editoriasMonthKey.split('-')[0], 10);
+      renderEditoriasMonthPicker();
+      const popover = getEditoriasMonthPickerEl();
+      const trigger = $('editoriasMonthLabel');
+      const rect = trigger.getBoundingClientRect();
+      popover.style.top = `${rect.bottom + 6}px`;
+      popover.style.left = `${Math.max(4, rect.left + rect.width/2 - 120)}px`; // 240px de largura (mesma da .month-year-picker) — centraliza sob o botão
+      popover.classList.add('open');
+      trigger.setAttribute('aria-expanded', 'true');
+      $('editoriasMonthLabelText').textContent = editoriasPickerYear;
+    }
+    function closeEditoriasMonthPicker(){
+      if(editoriasMonthPickerEl) editoriasMonthPickerEl.classList.remove('open');
+      const trigger = $('editoriasMonthLabel');
+      if(trigger) trigger.setAttribute('aria-expanded', 'false');
+      const labelText = $('editoriasMonthLabelText');
+      if(labelText && editoriasMonthKey) labelText.textContent = monthLabelFromKey(editoriasMonthKey);
+    }
+    function toggleEditoriasMonthPicker(){
+      if(editoriasMonthPickerEl && editoriasMonthPickerEl.classList.contains('open')) closeEditoriasMonthPicker();
+      else openEditoriasMonthPicker();
+    }
+    // navega o ano exibido no popover — chamado pelas setas ‹ › do navegador enquanto ele estiver aberto
+    function stepEditoriasPickerYear(delta){
+      editoriasPickerYear += delta;
+      $('editoriasMonthLabelText').textContent = editoriasPickerYear;
+      renderEditoriasMonthPicker();
+    }
+
     // abre (ou fecha, se já aberto) o modo de edição completo de uma editoria — nome/cor e dias
     // fixos/redes juntos, sempre pelo mesmo gatilho: o ícone de lápis ou o chip de agendamento
     function toggleEditoriaEdit(name){
@@ -2380,7 +2532,7 @@
             const oldName = n.name;
             n.name = newName;
             state.posts.forEach(p=>{ if(p.channel===oldName) p.channel = newName; if(Array.isArray(p.channels)) p.channels.forEach(c=>{ if(c.channel===oldName) c.channel = newName; }); });
-            APP_SETTINGS.editorias.forEach(e=>{ if(e.schedule) (e.schedule.channels||[]).forEach(c=>{ if(c.channel===oldName) c.channel = newName; }); });
+            APP_SETTINGS.editorias.forEach(e=>{ Object.values(e.scheduleByMonth||{}).forEach(s=> (s.channels||[]).forEach(c=>{ if(c.channel===oldName) c.channel = newName; })); });
             if(openNetworkFormats===oldName) openNetworkFormats = newName;
             if(editingNetworkName===oldName) editingNetworkName = newName;
             saveState(); saveSettings(); renderAllDynamicUI(); render();
@@ -2421,6 +2573,16 @@
 
     const WEEKDAY_ABBR = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
+    // chave "YYYY-MM" usada em editoria.scheduleByMonth — cada mês guarda seu próprio
+    // agendamento fixo (dias da semana + redes), sem um "padrão" valendo pra sempre: uma
+    // editoria pode publicar aos sábados em agosto e às terças em setembro, por exemplo
+    function monthKeyFromDate(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+    function monthLabelFromKey(key){
+      const [y,m] = key.split('-').map(Number);
+      const label = new Date(y, m-1, 1).toLocaleString('pt-BR', { month:'long', year:'numeric' });
+      return label.charAt(0).toUpperCase()+label.slice(1);
+    }
+
     // Constrói, dentro de `container`, o editor de agendamento de uma editoria: dias fixos da
     // semana + redes/tipos/formatos em que ela publica. Permite marcar várias redes, várias
     // tipos por rede e vários formatos por tipo. Reutilizado tanto no formulário de nova
@@ -2436,7 +2598,7 @@
       container.innerHTML = `
         <div>
           <label>Datas de publicação</label>
-          <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 4px">Opcional — dias fixos da semana em que essa editoria publica (ex: sempre segunda e quarta). Depois, use "Aplicar" para gerar os cards do mês visível no calendário.</div>
+          <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 4px">Opcional — dias fixos da semana em que essa editoria publica neste mês (ex: sempre sábado). Cada mês tem sua própria configuração; use "Aplicar" para gerar os cards dele.</div>
           <div class="sched-weekdays" style="display:flex;gap:4px;flex-wrap:wrap"></div>
         </div>
         <div>
@@ -2517,9 +2679,38 @@
           const channels = checkedNets.map(n=> cfgByChannel[n]).filter(c=> c && c.types.length>0 && c.places.length>0);
           if(weekdaysOut.length===0 || channels.length===0) return null;
           return { weekdays: weekdaysOut, channels };
+        },
+        // true quando há alguma seleção (dia da semana e/ou rede marcada) que ainda não forma
+        // um agendamento válido — diferencia "esqueceu de completar" de "desmarcou tudo de
+        // propósito pra remover o agendamento deste mês", que também faz getValue() retornar null
+        isIncomplete(){
+          const hasWeekday = wd.querySelectorAll('.sched-weekday:checked').length>0;
+          syncVisiblePanelsIntoState();
+          const checkedNets = Array.from(netsC.querySelectorAll('.sched-net:checked')).map(el=>el.value);
+          if(!hasWeekday && checkedNets.length===0) return false;
+          const channels = checkedNets.map(n=> cfgByChannel[n]).filter(c=> c && c.types.length>0 && c.places.length>0);
+          return !hasWeekday || channels.length===0;
         }
       };
     }
+
+    // menu flutuante "⋮" de cada editoria (por enquanto só "Remover editoria") — mesmo padrão
+    // do menu de postagem (getCardMenuEl/closeAllCardMenus): um único elemento reaproveitado,
+    // fixo em document.body e reposicionado a cada abertura, pra não ser cortado pelo
+    // overflow:hidden do .net-row. Tira "Remover" de um X sempre exposto na linha (fácil de
+    // clicar sem querer) e vira um item de texto claro, em vermelho, que só aparece sob demanda.
+    let editoriaMenuEl = null;
+    function getEditoriaMenuEl(){
+      if(editoriaMenuEl) return editoriaMenuEl;
+      editoriaMenuEl = document.createElement('div');
+      editoriaMenuEl.className = 'event-menu';
+      editoriaMenuEl.addEventListener('click', ev=> ev.stopPropagation());
+      document.body.appendChild(editoriaMenuEl);
+      return editoriaMenuEl;
+    }
+    function closeEditoriaMenu(){ if(editoriaMenuEl) editoriaMenuEl.classList.remove('open'); }
+    document.addEventListener('click', closeEditoriaMenu);
+    window.addEventListener('scroll', closeEditoriaMenu, true);
 
     function renderEditoriasUI(){
       const c = $('editoriasContainer'); if(c){ c.innerHTML=''; APP_SETTINGS.editorias.forEach(e=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="mEditoria" value="${escapeHtml(e.name)}" /> <span class="dot" style="background:${editoriaColor(e.name)}"></span>${escapeHtml(e.name)}`; c.appendChild(lbl); lbl.querySelector('input').addEventListener('change', refreshModalDynamic); }); }
@@ -2530,20 +2721,32 @@
       const newSchedFields = $('newEditoriaScheduleFields');
       if(newSchedFields) newEditoriaScheduleEditor = buildScheduleEditor(newSchedFields, null);
 
+      // navegador de mês compartilhado, acima da lista — um só mês vale pra todas as editorias
+      // ao mesmo tempo (ver editoriasMonthKey). Começa no mês que o calendário está exibindo;
+      // dali em diante só muda pelas próprias setas ou pelo popover de meses (ligados uma única
+      // vez, fora daqui, junto dos outros botões estáticos da tela — não recriados a cada render)
+      if(!editoriasMonthKey) editoriasMonthKey = monthKeyFromDate(viewDate);
+      const monthLabelEl = $('editoriasMonthLabelText');
+      if(monthLabelEl) monthLabelEl.textContent = monthLabelFromKey(editoriasMonthKey);
+
       // lista de editorias cadastradas — mesmo padrão visual/de edição das redes: modo de
       // visualização (bolinha colorida + nome) e, pelo lápis, modo de edição inline com
       // seletor de cor e renomear (o renome cascateia para as postagens existentes). O
       // agendamento (dias fixos + redes/tipos/formatos) abre num painel expansível à parte,
-      // no mesmo padrão dos formatos de cada rede em "secRedes".
+      // no mesmo padrão dos formatos de cada rede em "secRedes" — sempre referente ao mês
+      // selecionado no navegador acima da lista.
       const list = $('editoriasList');
       if(list){
         list.innerHTML='';
         APP_SETTINGS.editorias.forEach(e=>{
           const row = document.createElement('div');
           row.className = 'net-row';
-          const hasSchedule = e.schedule && (e.schedule.channels||[]).length>0;
-          const scheduleLabel = hasSchedule ? e.schedule.weekdays.slice().sort().map(d=>WEEKDAY_ABBR[d]).join(', ') : '';
-          const channelsLabel = hasSchedule ? e.schedule.channels.map(c=>c.channel).join(', ') : '';
+          // o chip da linha colapsada mostra o agendamento do mês selecionado no navegador
+          // acima da lista — cada mês tem sua própria config (ver scheduleByMonth)
+          const currentSchedule = (e.scheduleByMonth||{})[editoriasMonthKey];
+          const hasCurrentSchedule = currentSchedule && (currentSchedule.channels||[]).length>0;
+          const scheduleLabel = hasCurrentSchedule ? currentSchedule.weekdays.slice().sort().map(d=>WEEKDAY_ABBR[d]).join(', ') : '';
+          const channelsLabel = hasCurrentSchedule ? currentSchedule.channels.map(c=>c.channel).join(', ') : '';
           row.innerHTML = `
             <div class="net-row-head">
               <span class="net-view">
@@ -2554,13 +2757,14 @@
                 <input type="color" class="ed-edit-color" value="${e.color||'#F6BE00'}" title="Cor da editoria" style="flex-shrink:0" />
                 <input type="text" class="ed-edit-name" value="${escapeHtml(e.name)}" title="Nome da editoria" style="flex:2;min-width:110px" />
               </div>` +
-            (hasSchedule ? `<button type="button" class="chip ed-schedule-chip" style="font-size:11px" title="Repete em dias fixos — clique para editar datas e redes">${UI_ICONS.calendar(12)} ${escapeHtml(scheduleLabel)} · ${escapeHtml(channelsLabel)}</button><button type="button" class="btn ghost small" data-apply="${escapeHtml(e.name)}" aria-label="Aplicar ao mês vigente" title="Aplicar ao mês vigente">${UI_ICONS.check(13)}</button>` : '') +
-            `<button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome, cor, datas e formatos">${UI_ICONS.edit(13)}</button>
-              <button type="button" class="btn ghost small" data-editoria="${escapeHtml(e.name)}" aria-label="Remover editoria">${UI_ICONS.x(13)}</button>
+            (hasCurrentSchedule ? `<button type="button" class="chip ed-schedule-chip" style="font-size:11px" title="Repete em dias fixos neste mês — clique para ver/editar mês a mês">${UI_ICONS.calendar(12)} ${escapeHtml(scheduleLabel)} · ${escapeHtml(channelsLabel)}</button>` : '') +
+            `<button type="button" class="btn ghost small ed-edit-toggle" aria-label="Editar editoria" title="Editar nome, cor e agendamento mês a mês">${UI_ICONS.edit(13)}</button>
+              <button type="button" class="btn ghost small ed-more-btn" aria-label="Mais ações" title="Mais ações">${UI_ICONS.moreVertical(13)}</button>
             </div>
             <div class="net-row-formats">
               <div class="ed-schedule-editor" style="display:flex;flex-direction:column;gap:8px"></div>
-              <div style="display:flex;justify-content:flex-end">
+              <div style="display:flex;justify-content:flex-end;gap:8px">
+                <button type="button" class="btn ghost small ed-schedule-apply">Aplicar a este mês</button>
                 <button type="button" class="btn small ed-schedule-save">Salvar</button>
               </div>
             </div>`;
@@ -2568,25 +2772,45 @@
           if(editingEditoriaName === e.name) row.classList.add('editing');
           if(openEditoriaSchedule === e.name) row.classList.add('open');
 
+          // o painel sempre mostra/edita o mês selecionado no navegador acima da lista
+          // (editoriasMonthKey) — não tem navegação própria
           let schedEditor = null;
           if(openEditoriaSchedule === e.name){
-            schedEditor = buildScheduleEditor(row.querySelector('.ed-schedule-editor'), e.schedule);
+            schedEditor = buildScheduleEditor(row.querySelector('.ed-schedule-editor'), (e.scheduleByMonth||{})[editoriasMonthKey] || null);
           }
 
-          // salva o agendamento editado e fecha a edição (nome/cor + dias fixos/formatos, que
-          // abrem e fecham juntos) — se nada ficou totalmente configurado (dia + rede + tipo +
-          // formato), remove o agendamento da editoria em vez de salvar algo incompleto
+          // salva o agendamento editado (do mês selecionado no navegador acima) e fecha a
+          // edição (nome/cor + dias fixos/formatos, que abrem e fecham juntos) — se nada ficou
+          // totalmente configurado (dia + rede + tipo + formato), remove o agendamento desse
+          // mês específico em vez de salvar algo incompleto (os outros meses não são afetados)
           const saveBtn = row.querySelector('.ed-schedule-save');
           if(saveBtn) saveBtn.addEventListener('click', ()=>{
             const value = schedEditor ? schedEditor.getValue() : null;
-            e.schedule = value || undefined;
+            if(!value && schedEditor && schedEditor.isIncomplete()){ openScheduleWarning('Selecione ao menos um dia da semana e uma rede com tipo e formato definidos antes de salvar — ou desmarque tudo para remover o agendamento deste mês.'); return; }
+            e.scheduleByMonth = e.scheduleByMonth || {};
+            if(value) e.scheduleByMonth[editoriasMonthKey] = value; else delete e.scheduleByMonth[editoriasMonthKey];
             openEditoriaSchedule = null;
             editingEditoriaName = null;
             saveSettings(); renderAllDynamicUI(); render();
           });
 
-          // ícone de lápis: abre/fecha a edição completa da editoria (nome, cor, dias fixos e
-          // redes) — mesmo gatilho do chip de agendamento, quando ele existe
+          // "Aplicar a este mês": salva a config do mês selecionado no navegador acima da lista
+          // e abre o modal com a lista de datas geradas por ela, pra revisar produto a produto
+          // antes de efetivar (ver openApplyEditoriaModal) — não fecha o painel, útil pra
+          // configurar vários meses em sequência (navegar, aplicar, navegar, aplicar)
+          const applyBtn = row.querySelector('.ed-schedule-apply');
+          if(applyBtn) applyBtn.addEventListener('click', ()=>{
+            const value = schedEditor ? schedEditor.getValue() : null;
+            if(!value){ alert('Marque ao menos um dia da semana e uma rede com tipo e formato antes de aplicar.'); return; }
+            const [y,m] = editoriasMonthKey.split('-').map(Number);
+            e.scheduleByMonth = e.scheduleByMonth || {};
+            e.scheduleByMonth[editoriasMonthKey] = value;
+            saveSettings();
+            openApplyEditoriaModal(e.name, y, m-1);
+          });
+
+          // ícone de lápis: abre/fecha a edição completa da editoria (nome, cor e agendamento
+          // mês a mês) — mesmo gatilho do chip de agendamento, quando ele existe
           row.querySelector('.ed-edit-toggle').addEventListener('click', ()=> toggleEditoriaEdit(e.name));
           const schedChip = row.querySelector('.ed-schedule-chip');
           if(schedChip) schedChip.addEventListener('click', ()=> toggleEditoriaEdit(e.name));
@@ -2610,60 +2834,248 @@
             saveState(); saveSettings(); renderAllDynamicUI(); render();
           });
           nameInput.addEventListener('keydown', ev=>{ if(ev.key==='Enter') nameInput.blur(); });
+
+          // botão "⋮": só a ação de remover a editoria inteira — "Aplicar" agora mora dentro do
+          // próprio painel de agendamento, junto do navegador de mês (ver ed-schedule-apply
+          // acima), já que passou a ser uma ação por mês em vez de "o mês vigente"
+          const moreBtn = row.querySelector('.ed-more-btn');
+          moreBtn.addEventListener('click', (ev)=>{
+            ev.stopPropagation();
+            const menu = getEditoriaMenuEl();
+            const wasOpenForThis = menu.classList.contains('open') && menu.dataset.forName===e.name;
+            closeEditoriaMenu();
+            if(wasOpenForThis) return;
+            menu.dataset.forName = e.name;
+            menu.innerHTML = `<button type="button" class="menu-remove danger">Remover editoria</button>`;
+            menu.querySelector('.menu-remove').onclick = (ev2)=>{
+              ev2.stopPropagation(); closeEditoriaMenu();
+              if(!confirm(`Remover a editoria "${e.name}"? As postagens já criadas com ela não são apagadas, só deixam de ter essa categoria disponível pra reatribuir. Essa ação não pode ser desfeita com Ctrl+Z.`)) return;
+              APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x.name!==e.name); saveSettings(); renderAllDynamicUI();
+            };
+            // linhas de editoria são baixas (~44px) — o menu abrindo pra baixo, colado no botão,
+            // muitas vezes invade visualmente a linha seguinte (cobre o "⋮"/lápis dela, parecendo
+            // "deslocado" da linha que na verdade o abriu). Se não sobrar espaço até a próxima
+            // linha (ou até o fim da janela, na última linha), abre pra cima em vez de para baixo
+            const rect = moreBtn.getBoundingClientRect();
+            menu.classList.add('open');
+            const menuHeight = menu.offsetHeight;
+            const nextRow = row.nextElementSibling;
+            const spaceBelow = (nextRow ? nextRow.getBoundingClientRect().top : window.innerHeight) - rect.bottom - 4;
+            const top = spaceBelow < menuHeight ? (rect.top - menuHeight - 4) : (rect.bottom + 4);
+            menu.style.top = `${Math.max(4, top)}px`;
+            menu.style.left = `${Math.max(4, rect.right - 180)}px`;
+          });
         });
-        list.querySelectorAll('button[data-editoria]').forEach(bt=> bt.addEventListener('click', ()=>{
-          const v=bt.dataset.editoria;
-          if(!confirm(`Remover a editoria "${v}"? As postagens já criadas com ela não são apagadas, só deixam de ter essa categoria disponível pra reatribuir. Essa ação não pode ser desfeita com Ctrl+Z.`)) return;
-          APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI();
-        }));
-        list.querySelectorAll('button[data-apply]').forEach(bt=> bt.addEventListener('click', ()=>{
-          const name = bt.dataset.apply;
-          const monthLabel = $('monthLabelText') ? $('monthLabelText').textContent : `${viewDate.getMonth()+1}/${viewDate.getFullYear()}`;
-          if(!confirm(`Aplicar a editoria "${name}" a todos os dias fixos configurados em ${monthLabel}? Isso cria (ou atualiza, se já existirem) os cards desses dias.`)) return;
-          applyEditoriaSchedule(name);
-        }));
       }
     }
 
-    // gera cards de postagem para uma editoria com agendamento fixo, em todos os dias
-    // correspondentes do mês atualmente visível no calendário. Não duplica posts já
-    // existentes daquela editoria+rede no mesmo dia, então pode ser clicado várias vezes com segurança.
-    function applyEditoriaSchedule(editoriaName){
+    // ============================================================
+    // MODAL "APLICAR EDITORIA AO MÊS" — revisão data a data (ativar/desativar + produto(s))
+    // do agendamento fixo de uma editoria antes de gerar os cards. Aberto a partir do botão
+    // "Aplicar a este mês" em Configurações → Editorias (ver renderEditoriasUI acima).
+    // ============================================================
+    let applyEditoriaState = null; // { editoriaName, year, month, rows:[{dateStr, active, products, postId}] }
+    // true enquanto o modal de postagem estiver aberto a partir de uma linha deste modal — mostra
+    // o botão "‹ Voltar" no cabeçalho e, ao fechar, ressincroniza a linha com o card editado
+    let modalOpenedFromApplyEditoria = false;
+
+    // datas do mês (year/month, month 0-based) em que o agendamento fixo da editoria publica,
+    // ou null se a editoria não tiver agendamento configurado para esse mês
+    function computeEditoriaScheduleDates(editoriaName, year, month){
       const editoria = APP_SETTINGS.editorias.find(x=>x.name===editoriaName);
-      if(!editoria || !editoria.schedule || !(editoria.schedule.channels||[]).length){ alert('Esta editoria não tem dias fixos configurados.'); return; }
-      const { weekdays, channels } = editoria.schedule;
-      const YEAR = viewDate.getFullYear(), MONTH = viewDate.getMonth();
-      const totalDays = new Date(YEAR, MONTH+1, 0).getDate();
+      const monthKey = monthKeyFromDate(new Date(year, month, 1));
+      const schedule = editoria && editoria.scheduleByMonth && editoria.scheduleByMonth[monthKey];
+      if(!schedule || !(schedule.channels||[]).length) return null;
+      const totalDays = new Date(year, month+1, 0).getDate();
+      const dates = [];
+      for(let d=1; d<=totalDays; d++){
+        const date = new Date(year, month, d);
+        if(!schedule.weekdays.includes(date.getDay())) continue;
+        dates.push(`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+      }
+      return dates;
+    }
+
+    function openApplyEditoriaModal(editoriaName, year, month){
+      const monthLabel = monthLabelFromKey(monthKeyFromDate(new Date(year, month, 1)));
+      const dates = computeEditoriaScheduleDates(editoriaName, year, month);
+      if(!dates){ alert(`Esta editoria não tem dias fixos configurados para ${monthLabel}.`); return; }
+      if(dates.length===0){ alert(`Nenhuma data configurada para "${editoriaName}" em ${monthLabel}.`); return; }
+      // uma data já com card dessa editoria (de uma aplicação anterior) chega pré-marcada com
+      // os produtos que o card já tem, pra revisão em vez de perder o que já foi preenchido
+      const rows = dates.map(dateStr=>{
+        const existing = state.posts.find(p=> p.date===dateStr && (Array.isArray(p.editoria)?p.editoria:[p.editoria]).includes(editoriaName));
+        return { dateStr, active: true, products: existing ? getPostProducts(existing).slice() : [], postId: existing ? existing.id : null };
+      });
+      applyEditoriaState = { editoriaName, year, month, rows };
+      renderApplyEditoriaModal();
+      $('applyEditoriaBackdrop').style.display = 'flex';
+    }
+
+    function closeApplyEditoriaModal(){
+      $('applyEditoriaBackdrop').style.display = 'none';
+      applyEditoriaState = null;
+    }
+
+    // aviso de agendamento incompleto (ver saveBtn em renderEditoriasUI) — modal simples da
+    // própria aplicação em vez de alert() nativo do navegador, pra manter a identidade visual
+    function openScheduleWarning(message){
+      $('scheduleWarningMessage').textContent = message;
+      $('scheduleWarningBackdrop').style.display = 'flex';
+    }
+    function closeScheduleWarning(){ $('scheduleWarningBackdrop').style.display = 'none'; }
+
+    // garante que a linha tenha um card real (cria com os produtos já preenchidos na linha, se
+    // ainda não existir um) — chamado pelo botão "Editar card", pra sempre abrir uma postagem
+    // de verdade em vez de um formulário "solto"
+    function ensurePostForRow(row){
+      if(row.postId && state.posts.some(p=>p.id===row.postId)) return;
+      const { editoriaName, year, month } = applyEditoriaState;
+      const editoria = APP_SETTINGS.editorias.find(x=>x.name===editoriaName);
+      const monthKey = monthKeyFromDate(new Date(year, month, 1));
+      const schedule = editoria.scheduleByMonth[monthKey];
+      const primary = schedule.channels[0];
+      const channelsSnapshot = schedule.channels.map(c=>({ channel: c.channel, types: c.types.slice(), places: c.places.slice() }));
+      const existing = state.posts.find(p=> p.date===row.dateStr && (Array.isArray(p.editoria)?p.editoria:[p.editoria]).includes(editoriaName));
+      if(existing){ row.postId = existing.id; return; }
+      const defaultStatus = (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho';
+      const p = {
+        id: generateId(), title: editoriaName, date: row.dateStr,
+        channel: primary.channel, place: primary.places.slice(), type: primary.types[0] || 'Static',
+        channels: channelsSnapshot,
+        status: defaultStatus, notes: '', collab: false, color: null, editoria: [editoriaName], products: row.products.slice(), order: nextOrderForDate(row.dateStr)
+      };
+      state.posts.push(p);
+      saveState(); buildCalendar(); render();
+      pushUndo({ type:'create', posts:[p.id] }); redoStack = [];
+      row.postId = p.id;
+    }
+
+    // monta a lista de datas do modal — reconstruída inteira a cada chamada (mesmo padrão das
+    // outras listas do app), preservando o que já estiver em applyEditoriaState.rows
+    function renderApplyEditoriaModal(){
+      if(!applyEditoriaState) return;
+      const { editoriaName, year, month, rows } = applyEditoriaState;
+      const monthLabel = monthLabelFromKey(monthKeyFromDate(new Date(year, month, 1)));
+      $('applyEditoriaTitle').textContent = `Aplicar "${editoriaName}" — ${monthLabel}`;
+      const list = $('applyEditoriaList'); if(!list) return;
+      list.innerHTML = '';
+      rows.forEach(row=>{
+        const [y,m,d] = row.dateStr.split('-').map(Number);
+        const dateLabel = new Date(y, m-1, d).toLocaleDateString('pt-BR', { weekday:'short', day:'2-digit', month:'2-digit' });
+        const item = document.createElement('div');
+        item.className = 'ae-row' + (row.active ? '' : ' ae-row-inactive');
+        item.innerHTML = `
+          <div class="ae-row-head">
+            <label class="ae-row-check"><input type="checkbox" class="ae-active" ${row.active?'checked':''} /> <span class="ae-date-label">${escapeHtml(dateLabel)}</span></label>
+            <button type="button" class="btn ghost small ae-edit-card">${row.postId ? 'Editar card' : 'Criar e editar card'} ${UI_ICONS.chevronRight(12)}</button>
+          </div>
+          <div class="ae-row-body">
+            <label>Produto(s) desta data</label>
+            <div class="autocomplete-wrap">
+              <input type="text" class="ae-product-input" placeholder="Digite para buscar no catálogo Vonder..." autocomplete="off" />
+              <div class="autocomplete-list ae-product-suggestions"></div>
+            </div>
+            <div class="selected-products ae-product-list"></div>
+          </div>`;
+        list.appendChild(item);
+
+        item.querySelector('.ae-active').addEventListener('change', ev=>{ row.active = ev.target.checked; item.classList.toggle('ae-row-inactive', !row.active); });
+
+        const chipsWrap = item.querySelector('.ae-product-list');
+        function renderRowProducts(){
+          chipsWrap.innerHTML = '';
+          row.products.forEach((p, idx)=>{
+            const chip = document.createElement('span'); chip.className = 'product-chip';
+            const img = p.code ? `<img src="${productImageUrl(p.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'" />` : '';
+            chip.innerHTML = `${img}<div class="pc-body"><span class="pc-name">${escapeHtml(p.name)}</span>${p.code?`<span class="pc-code">${escapeHtml(p.code)}</span>`:''}</div><button type="button" class="pc-remove" aria-label="Remover produto">${UI_ICONS.x(12)}</button>`;
+            chip.querySelector('.pc-remove').addEventListener('click', ()=>{ row.products.splice(idx,1); renderRowProducts(); });
+            chipsWrap.appendChild(chip);
+          });
+        }
+        renderRowProducts();
+
+        const input = item.querySelector('.ae-product-input');
+        const sugg = item.querySelector('.ae-product-suggestions');
+        function hideSugg(){ sugg.style.display='none'; sugg.innerHTML=''; }
+        function showSugg(query){
+          const q = normalizeStr(query.trim());
+          if(q.length<2){ hideSugg(); return; }
+          const qCode = normalizeCode(query.trim());
+          const matches = productCandidates().filter(cand=>
+            !row.products.some(p=> cand.code ? p.code===cand.code : p.name===cand.name) &&
+            (normalizeStr(cand.name).includes(q) || (cand.code && (normalizeStr(cand.code).includes(q) || normalizeCode(cand.code).includes(qCode))))
+          ).slice(0,8);
+          if(matches.length===0){
+            sugg.innerHTML = `<div class="autocomplete-item ac-manual"><span class="ac-name">+ Adicionar "${escapeHtml(query.trim())}" (sem catálogo)</span></div>`;
+            sugg.querySelector('.ac-manual').addEventListener('mousedown', ev=>{ ev.preventDefault(); row.products.push({ code:'', name: query.trim() }); input.value=''; hideSugg(); renderRowProducts(); input.focus(); });
+            sugg.style.display = 'block';
+            return;
+          }
+          sugg.innerHTML = matches.map((mch,i)=>`<div class="autocomplete-item" data-idx="${i}"><img src="${productImageUrl(mch.code)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'" /><span class="ac-name">${escapeHtml(mch.name)}</span><span class="ac-code">${escapeHtml(mch.code)}</span></div>`).join('');
+          sugg.querySelectorAll('.autocomplete-item[data-idx]').forEach(el=> el.addEventListener('mousedown', ev=>{
+            ev.preventDefault();
+            const mch = matches[Number(el.dataset.idx)];
+            row.products.push({ code: mch.code||'', name: mch.name });
+            input.value=''; hideSugg(); renderRowProducts(); input.focus();
+          }));
+          sugg.style.display = 'block';
+        }
+        input.addEventListener('input', ev=> showSugg(ev.target.value));
+        input.addEventListener('focus', ev=>{ if(ev.target.value.trim().length>=2) showSugg(ev.target.value); });
+        input.addEventListener('blur', ()=> setTimeout(hideSugg, 150));
+
+        // "Editar card": garante que a data já tenha um card real e abre o modal de postagem
+        // por cima deste (sem fechá-lo) — ao fechar o modal de postagem, esta lista reaparece
+        // automaticamente por baixo, já ressincronizada com o que foi editado lá
+        item.querySelector('.ae-edit-card').addEventListener('click', ()=>{
+          ensurePostForRow(row);
+          openEditModal(row.postId);
+          modalOpenedFromApplyEditoria = true;
+          if($('modalBackBtn')) $('modalBackBtn').style.display = 'flex';
+        });
+      });
+    }
+
+    // efetiva a aplicação: cria (ou atualiza, se já existir) um card por data marcada como
+    // ativa, com o(s) produto(s) preenchidos naquela linha — mesma lógica de distribuição por
+    // rede/tipo/formato do agendamento usada em ensurePostForRow
+    function confirmApplyEditoriaModal(){
+      if(!applyEditoriaState) return;
+      const { editoriaName, year, month, rows } = applyEditoriaState;
+      const activeRows = rows.filter(r=>r.active);
+      if(activeRows.length===0){ alert('Marque ao menos uma data para aplicar.'); return; }
+      const editoria = APP_SETTINGS.editorias.find(x=>x.name===editoriaName);
+      const monthKey = monthKeyFromDate(new Date(year, month, 1));
+      const monthLabel = monthLabelFromKey(monthKey);
+      const schedule = editoria && editoria.scheduleByMonth && editoria.scheduleByMonth[monthKey];
+      if(!schedule || !(schedule.channels||[]).length){ alert(`Esta editoria não tem dias fixos configurados para ${monthLabel}.`); return; }
+      const primary = schedule.channels[0];
+      const channelsSnapshot = schedule.channels.map(c=>({ channel: c.channel, types: c.types.slice(), places: c.places.slice() }));
       const defaultStatus = (APP_SETTINGS.statuses[0] && APP_SETTINGS.statuses[0].name) || 'Rascunho';
       const created = [];
-      const updatedBefore = []; // snapshots (para desfazer) dos cards já existentes que forem atualizados
-      // um único card por editoria por data — a rede/tipo/formato marcados no agendamento
-      // ficam guardados em post.channels e aparecem resumidos no próprio card. Se a data já
-      // tiver um card dessa editoria (de uma aplicação anterior), ele é atualizado com a
-      // distribuição atual em vez de duplicado — assim, editar o agendamento e clicar em
-      // "Aplicar" de novo propaga a mudança para os cards já gerados.
-      const primary = channels[0];
-      const channelsSnapshot = channels.map(c=>({ channel: c.channel, types: c.types.slice(), places: c.places.slice() }));
-      for(let d=1; d<=totalDays; d++){
-        const date = new Date(YEAR, MONTH, d);
-        if(!weekdays.includes(date.getDay())) continue;
-        const dateStr = `${YEAR}-${String(MONTH+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const existing = state.posts.find(p=> p.date===dateStr && (Array.isArray(p.editoria)?p.editoria:[p.editoria]).includes(editoriaName));
+      const updatedBefore = [];
+      activeRows.forEach(row=>{
+        const existing = (row.postId && state.posts.find(p=>p.id===row.postId))
+          || state.posts.find(p=> p.date===row.dateStr && (Array.isArray(p.editoria)?p.editoria:[p.editoria]).includes(editoriaName));
         if(existing){
-          updatedBefore.push({ id: existing.id, channel: existing.channel, place: existing.place, type: existing.type, channels: existing.channels });
+          updatedBefore.push({ id: existing.id, channel: existing.channel, place: existing.place, type: existing.type, channels: existing.channels, products: existing.products });
           existing.channel = primary.channel; existing.place = primary.places.slice(); existing.type = primary.types[0] || 'Static';
           existing.channels = channelsSnapshot.map(c=>Object.assign({},c));
-          continue;
+          existing.products = row.products.slice();
+          if(!Array.isArray(existing.editoria)) existing.editoria = [editoriaName];
+          else if(!existing.editoria.includes(editoriaName)) existing.editoria.push(editoriaName);
+          return;
         }
         const p = {
-          id: generateId(), title: editoriaName, date: dateStr,
+          id: generateId(), title: editoriaName, date: row.dateStr,
           channel: primary.channel, place: primary.places.slice(), type: primary.types[0] || 'Static',
           channels: channelsSnapshot.map(c=>Object.assign({},c)),
-          status: defaultStatus, notes: '', collab: false, color: null, editoria: [editoriaName], products: [], order: nextOrderForDate(dateStr)
+          status: defaultStatus, notes: '', collab: false, color: null, editoria: [editoriaName], products: row.products.slice(), order: nextOrderForDate(row.dateStr)
         };
         state.posts.push(p);
         created.push(p);
-      }
+      });
       if(created.length>0 || updatedBefore.length>0){
         saveState(); buildCalendar(); render();
         const actions = [];
@@ -2674,19 +3086,16 @@
         const parts = [];
         if(created.length>0) parts.push(`${created.length} criados`);
         if(updatedBefore.length>0) parts.push(`${updatedBefore.length} atualizados`);
-        alert(`"${editoriaName}" em ${$('monthLabelText').textContent}: ${parts.join(', ')}.`);
-      } else {
-        alert(`Nenhuma data configurada para "${editoriaName}" neste mês.`);
+        alert(`"${editoriaName}" em ${monthLabel}: ${parts.join(', ')}.`);
       }
+      closeApplyEditoriaModal();
     }
 
-    // preenche o filtro de Formato (união de todos os formatos de todas as redes), o filtro de Tipo
-    // (fixo) e o seletor de Formato da Edição em Lote (união + opção "Manter")
+    // preenche o filtro de Formato (união de todos os formatos de todas as redes) e o filtro de Tipo (fixo)
     function renderPlacesUI(){
       const fc = $('filterPlacesContainer'); if(fc){ fc.innerHTML=''; allFormatNames().forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" class="fPlace" value="${escapeHtml(p)}"/> ${escapeHtml(p)}`; fc.appendChild(lbl); }); }
       // tipos (Estático/Vídeo) são fixos — só preenche o container de filtro
       const ft = $('filterTypesContainer'); if(ft){ ft.innerHTML=''; ['Static','Video'].forEach(ti=>{ const lbl = document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fType" value="${ti}"/> ${ti==='Static'?'Estático':'Vídeo'}`; ft.appendChild(lbl); }); }
-      const bp = $('bPlaceContainer'); if(bp){ bp.innerHTML = `<label class="chip"><input type="radio" name="bPlace" value="" checked /> Manter</label>` + allFormatNames().map(p=>`<label class="chip"><input type="radio" name="bPlace" value="${escapeHtml(p)}" /> ${escapeHtml(p)}</label>`).join(''); }
     }
 
     // preenche o Formato do modal de criar/editar postagem, com base na(s) rede(s) marcada(s) —
@@ -2725,32 +3134,7 @@
     }
 
     function renderStatusUI(){
-      renderQuickStatusFilter();
-      const bs = $('bStatusSelect'); if(bs){ bs.innerHTML = '<option value="">Manter</option>' + APP_SETTINGS.statuses.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join(''); }
       const list = $('statusesList'); if(list){ list.innerHTML=''; APP_SETTINGS.statuses.forEach(s=>{ const chip=document.createElement('span'); chip.className='chip'; chip.style.display='inline-flex'; chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${escapeHtml(s.name)} <button class="btn ghost small" data-status="${escapeHtml(s.name)}" style="margin-left:8px" aria-label="Remover status">${UI_ICONS.x(13)}</button>`; list.appendChild(chip); }); list.querySelectorAll('button[data-status]').forEach(bt=> bt.addEventListener('click', ()=>{ const v=bt.dataset.status; APP_SETTINGS.statuses = APP_SETTINGS.statuses.filter(x=>x.name!==v); saveSettings(); renderAllDynamicUI(); })); }
-    }
-
-    // Filtro rápido de status (toolbar): um chip por status, com a cor e um ícone que resume o
-    // sentido do nome (heurística em statusIconFor) — clique alterna dentro/fora de filters.statuses
-    // e já refaz o calendário na hora, sem precisar abrir o modal de Filtros (estilo mLabs)
-    function renderQuickStatusFilter(){
-      const row = $('quickStatusFilter'); if(!row) return;
-      row.innerHTML = '';
-      APP_SETTINGS.statuses.forEach(s=>{
-        const chip = document.createElement('button');
-        const active = filters.statuses.includes(s.name);
-        chip.type = 'button';
-        chip.className = 'status-filter-chip' + (active ? ' active' : '');
-        chip.style.setProperty('--st-color', s.color);
-        chip.style.setProperty('--st-weak', hexToRgba(s.color, 0.14));
-        chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${statusIconFor(s.name)(13)}<span>${escapeHtml(s.name)}</span>`;
-        chip.addEventListener('click', ()=>{
-          const idx = filters.statuses.indexOf(s.name);
-          if(idx>=0) filters.statuses.splice(idx,1); else filters.statuses.push(s.name);
-          buildCalendar(); render(); renderQuickStatusFilter();
-        });
-        row.appendChild(chip);
-      });
     }
 
     function renderCatalogUI(){
@@ -2865,10 +3249,18 @@
       closeAllIconPickers();
       $('sTarget').value = TARGET;
       $('sVideoWeeklyTarget').value = APP_SETTINGS.videoWeeklyTarget;
+      // o navegador de mês de Editorias sempre abre sincronizado com o mês que o calendário
+      // está exibindo no momento (viewDate) — nunca com o mês de uma sessão anterior do
+      // modal, nem com o mês atual do relógio; dali em diante (com o modal já aberto) o
+      // usuário pode navegar livremente pelas próprias setas, ver editoriasMonthKey
+      editoriasMonthKey = monthKeyFromDate(viewDate);
+      // reconstrói a lista de editorias antes de abrir (cobre qualquer mudança vinda de outra
+      // aba/sincronização enquanto o modal estava fechado)
+      renderEditoriasUI();
       $('settingsBackdrop').style.display = 'flex';
     }
 
-    function closeSettings(){ closeAllIconPickers(); $('settingsBackdrop').style.display = 'none'; }
+    function closeSettings(){ closeAllIconPickers(); closeEditoriaMenu(); closeEditoriasMonthPicker(); $('settingsBackdrop').style.display = 'none'; }
 
     function saveSettingsHandler(){
       TARGET = parseInt($('sTarget').value,10) || TARGET;
@@ -2882,6 +3274,8 @@
     // ============================================================
     function openEditModal(id){
       const post = state.posts.find(p=>p.id===id); if(!post) return;
+      modalOpenedFromApplyEditoria = false;
+      if($('modalBackBtn')) $('modalBackBtn').style.display = 'none';
       isEditing = true; editingId = id;
       // preenche os campos do modal com os dados da postagem
       $('mTitle').value = post.title || '';
@@ -3089,15 +3483,18 @@
     $('saveSettings').addEventListener('click', saveSettingsHandler);
     $('cancelModal').addEventListener('click', closeModal);
     $('saveModal').addEventListener('click', saveModal);
-    // as setas ‹ › navegam mês (padrão) ou ano (quando o popover de mês está aberto)
-    document.getElementById('prevMonth').addEventListener('click', ()=>{
-      if($('monthYearPicker').classList.contains('open')){ stepPickerYear(-1); return; }
+    // as setas ‹ › navegam mês (padrão) ou ano (quando o popover de mês está aberto) — o
+    // stopPropagation() no caso do popover aberto é necessário: sem ele, o clique borbulha até
+    // o document.addEventListener('click', closeMonthYearPicker) logo abaixo e fecha o popover
+    // no mesmo clique em que o ano acabou de mudar, antes do usuário conseguir ver o resultado
+    document.getElementById('prevMonth').addEventListener('click', (ev)=>{
+      if($('monthYearPicker').classList.contains('open')){ ev.stopPropagation(); stepPickerYear(-1); return; }
       if(currentView==='week'){ viewDate.setDate(viewDate.getDate()-7); updateMonthLabelText(); render(); return; }
       if(currentView==='biweek'){ stepFortnight(-1); buildCalendar(); render(); return; }
       viewDate.setMonth(viewDate.getMonth()-1); buildCalendar(); render();
     });
-    document.getElementById('nextMonth').addEventListener('click', ()=>{
-      if($('monthYearPicker').classList.contains('open')){ stepPickerYear(1); return; }
+    document.getElementById('nextMonth').addEventListener('click', (ev)=>{
+      if($('monthYearPicker').classList.contains('open')){ ev.stopPropagation(); stepPickerYear(1); return; }
       if(currentView==='week'){ viewDate.setDate(viewDate.getDate()+7); updateMonthLabelText(); render(); return; }
       if(currentView==='biweek'){ stepFortnight(1); buildCalendar(); render(); return; }
       viewDate.setMonth(viewDate.getMonth()+1); buildCalendar(); render();
@@ -3608,10 +4005,6 @@
     const _exportCsvBtn = $('exportCsvBtn'); if(_exportCsvBtn) _exportCsvBtn.addEventListener('click', exportCSV);
     if($('exportBriefingBtn')) $('exportBriefingBtn').addEventListener('click', openExportBriefingModal);
     const _resetMonthBtn = $('resetMonthBtn'); if(_resetMonthBtn) _resetMonthBtn.addEventListener('click', resetMonth);
-    const _toggleSelectBtn = $('toggleSelect'); if(_toggleSelectBtn) _toggleSelectBtn.addEventListener('click', toggleSelectMode);
-    const _bulkEditBtn = $('bulkEditBtn'); if(_bulkEditBtn) _bulkEditBtn.addEventListener('click', openBulkEdit);
-    const _cancelBulk = $('cancelBulk'); if(_cancelBulk) _cancelBulk.addEventListener('click', closeBulkEdit);
-    const _applyBulk = $('applyBulk'); if(_applyBulk) _applyBulk.addEventListener('click', applyBulkEdit);
     // botão que abre o modal de filtros
     const _filtersBtn = $('filtersBtn'); if(_filtersBtn) _filtersBtn.addEventListener('click', ()=>{ $('filtersBackdrop').style.display='flex'; });
     if($('applyFilters')) $('applyFilters').addEventListener('click', ()=>{
@@ -3627,7 +4020,7 @@
       document.querySelectorAll('.fPlace').forEach(x=>x.checked=false);
       document.querySelectorAll('.fType').forEach(x=>x.checked=false);
       const any = document.querySelector('input[name="fCollab"][value="any"]'); if(any) any.checked = true;
-      filters.editorias = []; filters.places = []; filters.types = []; filters.statuses = []; filters.collab='any'; $('filtersBackdrop').style.display='none'; buildCalendar(); render(); renderQuickStatusFilter();
+      filters.editorias = []; filters.places = []; filters.types = []; filters.statuses = []; filters.collab='any'; $('filtersBackdrop').style.display='none'; buildCalendar(); render();
     });
     function closeFilters(){ $('filtersBackdrop').style.display = 'none'; }
 
@@ -3648,8 +4041,23 @@
     if($('modalMenuBtn')) wireCardMenuButton($('modalMenuBtn'), () => editingId);
     wireIntelValidation();
     wireModalDismiss('settingsBackdrop', closeSettings);
-    wireModalDismiss('bulkEditBackdrop', closeBulkEdit);
     wireModalDismiss('filtersBackdrop', closeFilters);
+    // modal "Aplicar editoria ao mês" — o "‹" do cabeçalho e o "X" fazem a mesma coisa (fecham
+    // este modal e revelam a lista de editorias, que continua aberta por baixo, em Configurações);
+    // o "‹" existe separado só pra deixar explícito que é "voltar", não "cancelar sem salvar"
+    wireModalDismiss('applyEditoriaBackdrop', closeApplyEditoriaModal, '#applyEditoriaCloseBtn');
+    if($('applyEditoriaBackBtn')) $('applyEditoriaBackBtn').addEventListener('click', closeApplyEditoriaModal);
+    if($('cancelApplyEditoria')) $('cancelApplyEditoria').addEventListener('click', closeApplyEditoriaModal);
+    if($('confirmApplyEditoria')) $('confirmApplyEditoria').addEventListener('click', confirmApplyEditoriaModal);
+    wireModalDismiss('scheduleWarningBackdrop', closeScheduleWarning, '#scheduleWarningCloseBtn');
+    if($('scheduleWarningOkBtn')) $('scheduleWarningOkBtn').addEventListener('click', closeScheduleWarning);
+    wireModalDismiss('commemorativeConfirmBackdrop', closeCommemorativeDateConfirm, '#commemorativeConfirmCloseBtn');
+    if($('commemorativeConfirmCancel')) $('commemorativeConfirmCancel').addEventListener('click', closeCommemorativeDateConfirm);
+    if($('commemorativeConfirmOk')) $('commemorativeConfirmOk').addEventListener('click', confirmCommemorativeDatePost);
+    // "‹ Voltar" do modal de postagem: só aparece quando ele foi aberto a partir de uma linha do
+    // modal "Aplicar editoria" (ver renderApplyEditoriaModal) — fechar aqui também revela essa
+    // lista de volta, igual ao "X", mas com o rótulo certo pra esse contexto
+    if($('modalBackBtn')) $('modalBackBtn').addEventListener('click', closeModal);
     wireModalDismiss('exportBriefingBackdrop', closeExportBriefingModal);
     if($('cancelExportBriefing')) $('cancelExportBriefing').addEventListener('click', closeExportBriefingModal);
     if($('exportPeriodPreset')) $('exportPeriodPreset').addEventListener('change', ()=>{
@@ -3797,11 +4205,30 @@
       if(APP_SETTINGS.editorias.some(x=>x.name===v)){ alert('Já existe uma editoria com esse nome.'); return; }
       const entry = { name: v, color: $('newEditoriaColor') ? $('newEditoriaColor').value : '#F6BE00' };
       const scheduleValue = newEditoriaScheduleEditor ? newEditoriaScheduleEditor.getValue() : null;
-      if(scheduleValue) entry.schedule = scheduleValue;
+      if(scheduleValue) entry.scheduleByMonth = { [editoriasMonthKey || monthKeyFromDate(viewDate)]: scheduleValue };
       APP_SETTINGS.editorias.push(entry);
       saveSettings(); renderAllDynamicUI();
       closeNewEditoriaForm();
     });
+    // navegador de mês compartilhado acima da lista de editorias — ligado uma única vez (os
+    // elementos são estáticos, não recriados a cada renderEditoriasUI); só troca
+    // editoriasMonthKey e manda re-renderizar, pra refletir em todas as editorias de uma vez
+    // (chip + painel aberto). Com o popover de meses aberto, as mesmas setas trocam de ano
+    // (mesmo padrão do prevMonth/nextMonth do calendário principal com o monthYearPicker aberto).
+    if($('editoriasMonthPrev')) $('editoriasMonthPrev').addEventListener('click', (ev)=>{
+      if(editoriasMonthPickerEl && editoriasMonthPickerEl.classList.contains('open')){ ev.stopPropagation(); stepEditoriasPickerYear(-1); return; }
+      const [y,m] = editoriasMonthKey.split('-').map(Number);
+      editoriasMonthKey = monthKeyFromDate(new Date(y, m-2, 1));
+      renderEditoriasUI();
+    });
+    if($('editoriasMonthNext')) $('editoriasMonthNext').addEventListener('click', (ev)=>{
+      if(editoriasMonthPickerEl && editoriasMonthPickerEl.classList.contains('open')){ ev.stopPropagation(); stepEditoriasPickerYear(1); return; }
+      const [y,m] = editoriasMonthKey.split('-').map(Number);
+      editoriasMonthKey = monthKeyFromDate(new Date(y, m, 1));
+      renderEditoriasUI();
+    });
+    if($('editoriasMonthLabel')) $('editoriasMonthLabel').addEventListener('click', (ev)=>{ ev.stopPropagation(); toggleEditoriasMonthPicker(); });
+    document.addEventListener('click', ()=> closeEditoriasMonthPicker());
     loadState();
     // monta o calendário e, se ainda não houver nenhuma postagem, cria exemplos de demonstração
     // (só no modo local/offline — num calendário sincronizado com o servidor não faz sentido
@@ -3812,7 +4239,7 @@
     if(!SYNC_ENABLED && state.posts.length===0 && BRAND_SUFFIX===''){
       state.posts.push({ id: generateId(), title: 'Campanha: Lançamento Comunidade', date: '2026-08-18', channel: 'Instagram', color:'#E4405F', status:'Aprovado', editoria:['Lançamentos'], place:'Feed', type:'Static' });
       state.posts.push({ id: generateId(), title: 'Blog: Anúncio oficial', date: '2026-08-20', channel: 'Blog', color:'#06b6d4', status:'Em produção', editoria:['Informativo'], place:'Feed', type:'Static' });
-      state.posts.push({ id: generateId(), title: 'Postagem de teste — Social', date: '2026-08-19', channel: 'Twitter', color:'#f97316', status:'Rascunho', editoria:['Destaques'], place:'Feed', type:'Video' });
+      state.posts.push({ id: generateId(), title: 'Postagem de teste — Social', date: '2026-08-19', channel: 'LinkedIn', color:'#f97316', status:'Rascunho', editoria:['Destaques'], place:'Feed', type:'Video' });
       saveState();
     }
     const tbAll = document.querySelector('#tabs button[data-tab="All"]'); if(tbAll) tbAll.classList.remove('ghost');

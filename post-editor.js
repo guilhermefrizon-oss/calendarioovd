@@ -12,7 +12,7 @@ var positions={
  feed:{left:{badge:[68,108,484,313],product:[458,128,410,333]},stacked:{badge:[42,338,484,313],product:[92,147,340,276]},right:{badge:[582,600,484,313],product:[618,360,365,296]}},
  story:{left:{badge:[64,246,471,306],product:[450,286,430,349]},stacked:{badge:[42,548,471,306],product:[88,333,370,300]},right:{badge:[568,548,471,306],product:[610,268,370,300]}}
 };
-var state={background:null,product:null,productDrawable:null,productHasCircle:true,badgeFeed:null,badgeStory:null,autoLayout:'left',bgZoom:{feed:1,story:1},overlayScale:1,format:{feed:{bgDx:0,bgDy:0,overlayDx:0,overlayDy:0},story:{bgDx:0,bgDy:0,overlayDx:0,overlayDy:0}}};
+var state={editoriaName:null,editoriaColor:null,footerColor:'#FFBE00',background:null,product:null,productDrawable:null,productHasCircle:true,badgeFeed:null,badgeStory:null,autoLayout:'left',bgZoom:{feed:1,story:1},overlayScale:1,format:{feed:{bgDx:0,bgDy:0,overlayDx:0,overlayDy:0},story:{bgDx:0,bgDy:0,overlayDx:0,overlayDy:0}}};
 var TEST_CATALOG=[{
  name:'Lavadora de alta pressão LAV 1600, 1.600 lbf/pol², 127 V~, VONDER',
  title:'Lavadora de alta pressão',
@@ -24,6 +24,50 @@ var TEST_CATALOG=[{
  sourceUrl:'https://www.vonder.com.br/produto/lavadora_de_alta_presso_lav_1600_1600_lbfpol_127_v_vonder/12507'
 }];
 var catalog=[],selectedProduct=null,catalogFocus=0;
+// ============================================================
+// EDITORIAS — mesma fonte usada em Configurações → Editorias no Calendário (app.js), lida
+// direto da mesma chave de localStorage (cada marca tem sua própria lista, ver BRAND_SUFFIX).
+// Cada editoria só é selecionável aqui se tiver um preset registrado em EDITORIA_PRESETS;
+// as demais aparecem desabilitadas ("Em breve") até ganharem composição própria.
+// ============================================================
+var BRAND_SUFFIX=(window.PortalBrand&&window.PortalBrand.suffix)||'';
+var CALENDAR_SETTINGS_KEY='calendar_settings_v1'+BRAND_SUFFIX;
+// editorias são exclusivas de cada marca (ver app.js, EDITORIAS_BY_BRAND) — este fallback só
+// entra quando a marca ainda não tem configurações salvas. Trend e Personalizado são
+// universais (toda marca tem as duas, cada uma com sua própria cópia independente); as
+// demais só existem pra marca listada, e uma marca sem entrada aqui cai só nas universais
+var UNIVERSAL_FALLBACK_EDITORIAS=[{name:'Trend',color:'#db2777'},{name:'Personalizado',color:'#64748b'}];
+var FALLBACK_EDITORIAS_BY_BRAND={
+ '':[{name:'Informativo',color:'#7c3aed'},{name:'Destaques',color:'#0284c7'},{name:'Lançamentos',color:'#16a34a'},
+     {name:'Dica VONDER',color:'#b45309'}],
+ '__ferramentas-gerais':[{name:'Post E-commerce',color:'#0284c7'},{name:'Lançamentos',color:'#16a34a'},
+     {name:'Destaques',color:'#7c3aed'},{name:'Blog - Conecta FG',color:'#4f46e5'},{name:'Datas comemorativas',color:'#db2777'}],
+ '__osten-ferragens':[{name:'Datas comemorativas',color:'#db2777'}],
+ '__dismatal':[{name:'Datas comemorativas',color:'#db2777'}]
+};
+var FALLBACK_EDITORIAS=(FALLBACK_EDITORIAS_BY_BRAND[BRAND_SUFFIX]||[]).concat(UNIVERSAL_FALLBACK_EDITORIAS);
+function readEditoriaList(){
+ var raw=localStorage.getItem(CALENDAR_SETTINGS_KEY);if(!raw)return FALLBACK_EDITORIAS;
+ try{var s=JSON.parse(raw),eds=Array.isArray(s.editorias)?s.editorias:null;if(!eds||!eds.length)return FALLBACK_EDITORIAS;
+  return eds.map(function(e,i){return typeof e==='string'?{name:e,color:(FALLBACK_EDITORIAS.length?FALLBACK_EDITORIAS[i%FALLBACK_EDITORIAS.length].color:'#64748b')}:e})
+ }catch(e){return FALLBACK_EDITORIAS}
+}
+var EDITORIAS=readEditoriaList();
+// preset visual de cada editoria (selo do feed/story + cor do rodapé) — exclusivo por marca:
+// cada marca tem seu próprio catálogo de editorias, então uma editoria "Destaques" da VONDER
+// não tem nada a ver com uma "Destaques" da Ferramentas Gerais, mesmo com o mesmo nome. Por
+// isso o registro é indexado primeiro por BRAND_SUFFIX e só depois por nome da editoria.
+// Novas editorias/marcas ganham entrada aqui à medida que a arte for feita.
+var EDITORIA_PRESETS_BY_BRAND={
+ '':{ // VONDER (marca padrão)
+  'Destaques':{
+   footerColor:'#FFBE00',
+   badgeFeed:(window.POST_EDITOR_ASSETS&&window.POST_EDITOR_ASSETS.feed)||'post-editor-assets/destaques-feed.png',
+   badgeStory:(window.POST_EDITOR_ASSETS&&window.POST_EDITOR_ASSETS.story)||'post-editor-assets/destaques-story.png'
+  }
+ }
+};
+var EDITORIA_PRESETS=EDITORIA_PRESETS_BY_BRAND[BRAND_SUFFIX]||{};
 function escapeHtml(value){return String(value||'').replace(/[&<>\"]/g,function(ch){return{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch]})}
 function normalizeText(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()}
 function normalizeCode(value){return String(value||'').replace(/\D/g,'')}
@@ -36,10 +80,51 @@ function catalogCodes(item){
  if(!out.length&&item&&item.code)out.push({code:item.code,label:item.variant||''});return out
 }
 function editorNameFor(item){var title=item&&(item.title||item.shortName),sub=item&&(item.subtitle||item.shortDescription||item.descriptionShort);if(title)return title+(sub?'\n'+sub:'');var parsed=splitName(item&&item.name);return parsed.title+(parsed.sub?'\n'+parsed.sub:'')}
+var FLOW_STEP_ORDER={editoria:0,choose:1,edit:2};
+var currentFlowMode='editoria',maxFlowOrder=0,pendingLeaveEditTarget=null;
 function setFlow(mode){
- var choosing=mode==='choose';$('#productChooser').hidden=!choosing;$('#editorWorkspace').hidden=choosing;$('#editorIntro').textContent=choosing?'Primeiro, escolha qual produto será usado na arte.':'Dados carregados. Revise a arte e ajuste o que precisar.';
- $$('[data-flow-step]').forEach(function(el){var isChoose=el.dataset.flowStep==='choose';el.classList.toggle('is-active',(choosing&&isChoose)||(!choosing&&!isChoose));el.classList.toggle('is-complete',!choosing&&isChoose)});
- if(choosing)setTimeout(function(){$('#catalogSearch').focus()},20)
+ currentFlowMode=mode;maxFlowOrder=Math.max(maxFlowOrder,FLOW_STEP_ORDER[mode]);
+ $('#editoriaChooser').hidden=mode!=='editoria';$('#productChooser').hidden=mode!=='choose';$('#editorWorkspace').hidden=mode!=='edit';
+ $('#editorIntro').textContent=mode==='editoria'?'Primeiro, escolha qual editoria você vai postar.':mode==='choose'?'Agora, escolha qual produto será usado na arte.':'Dados carregados. Revise a arte e ajuste o que precisar.';
+ var cur=FLOW_STEP_ORDER[mode];
+ $$('[data-flow-step]').forEach(function(el){var own=FLOW_STEP_ORDER[el.dataset.flowStep];el.classList.toggle('is-active',own===cur);el.classList.toggle('is-complete',own<cur);el.classList.toggle('is-clickable',own!==cur&&own<=maxFlowOrder)});
+ if(mode==='choose'){renderCatalogResults();setTimeout(function(){$('#catalogSearch').focus()},20)}
+}
+// navegação entre etapas iniciada pelo usuário (clique nos passos do topo ou nos botões
+// "Trocar") — sair da etapa "Editar e baixar" pede confirmação, porque a composição em tela
+// nunca é salva automaticamente; indo pra frente (ou entre editoria/produto) não há nada a perder
+function goToStep(mode){
+ if(mode===currentFlowMode)return;
+ if(currentFlowMode==='edit'){pendingLeaveEditTarget=mode;$('#confirmLeaveEdit').hidden=false;return}
+ setFlow(mode)
+}
+function closeConfirmLeaveEdit(){$('#confirmLeaveEdit').hidden=true;pendingLeaveEditTarget=null}
+$('#confirmLeaveEditCancel').addEventListener('click',closeConfirmLeaveEdit);
+$('#confirmLeaveEditOk').addEventListener('click',function(){var target=pendingLeaveEditTarget;closeConfirmLeaveEdit();if(target)setFlow(target)});
+$('#confirmLeaveEdit').addEventListener('click',function(ev){if(ev.target===ev.currentTarget)closeConfirmLeaveEdit()});
+document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&!$('#confirmLeaveEdit').hidden)closeConfirmLeaveEdit()});
+$$('[data-flow-step]').forEach(function(el){el.addEventListener('click',function(){if(el.classList.contains('is-clickable'))goToStep(el.dataset.flowStep)})});
+function syncEditoriaBadges(){
+ [['selectedEditoriaDotChoose','selectedEditoriaNameChoose'],['selectedEditoriaDotEdit','selectedEditoriaNameEdit']].forEach(function(ids){
+  var dot=$('#'+ids[0]),name=$('#'+ids[1]);if(!dot||!name)return;dot.style.background=state.editoriaColor||'#64748b';name.textContent=state.editoriaName||'Editoria'
+ })
+}
+function renderEditoriaGrid(){
+ var box=$('#editoriaGrid');
+ box.innerHTML=EDITORIAS.map(function(e){
+  var available=!!EDITORIA_PRESETS[e.name];
+  return '<button type="button" class="pe-editoria-item" data-editoria="'+escapeHtml(e.name)+'"'+(available?'':' disabled')+'><span class="pe-editoria-dot" style="background:'+(e.color||'#64748b')+'"></span><span><strong>'+escapeHtml(e.name)+'</strong><small>'+(available?'Preset disponível':'Em breve')+'</small></span></button>'
+ }).join('');
+ $$('#editoriaGrid [data-editoria]:not(:disabled)').forEach(function(btn){
+  btn.addEventListener('click',function(){var e=EDITORIAS.filter(function(x){return x.name===btn.dataset.editoria})[0];if(e)chooseEditoria(e)})
+ })
+}
+function chooseEditoria(editoria){
+ var preset=EDITORIA_PRESETS[editoria.name];if(!preset)return;
+ state.editoriaName=editoria.name;state.editoriaColor=editoria.color||'#64748b';state.footerColor=preset.footerColor||'#FFBE00';
+ syncEditoriaBadges();status('Carregando preset de '+editoria.name+'…',true);
+ Promise.all([loadImage(preset.badgeFeed),loadImage(preset.badgeStory)]).then(function(v){state.badgeFeed=v[0];state.badgeStory=v[1];drawAll();status('Preset de '+editoria.name+' carregado',false)}).catch(function(){drawAll();status('Preset de '+editoria.name+' carregado; algumas imagens não abriram',false)});
+ setFlow('choose')
 }
 function updateSelectedSummary(item,manual){
  var thumb=$('#selectedProductThumb');thumb.innerHTML='＋';$('#selectedProductName').textContent=manual?'Produto manual':(item.name||'Produto sem nome');$('#selectedProductCode').textContent=manual?'Sem vínculo com o catálogo':(catalogCodes(item).map(function(v){return v.code}).join(' · ')||'Sem código');
@@ -64,7 +149,6 @@ function renderCatalogResults(){
  box.innerHTML=matches.map(function(item,index){var image=itemImageUrl(item);return'<button type="button" class="pe-catalog-item'+(index===catalogFocus?' is-focused':'')+'" data-catalog-index="'+index+'" role="option" aria-selected="'+(index===catalogFocus)+'">'+(image?'<img src="'+escapeHtml(image)+'" alt="">':'<span class="pe-selected-thumb">＋</span>')+'<span><strong>'+escapeHtml(item.name)+'</strong><small>'+escapeHtml(catalogCodes(item).map(function(v){return v.code}).join(' · '))+'</small></span><span>›</span></button>'}).join('');
  $$('#catalogResults [data-catalog-index]').forEach(function(btn){btn.addEventListener('click',function(){chooseCatalogProduct(matches[Number(btn.dataset.catalogIndex)])})})
 }
-function useCatalog(value){if(!value||!Array.isArray(value.catalog))return false;catalog=value.catalog.filter(function(item){return item&&item.name});catalogFocus=0;renderCatalogResults();return true}
 function loadCatalog(){
  catalog=TEST_CATALOG.slice();catalogFocus=0;renderCatalogResults()
 }
@@ -106,7 +190,7 @@ function drawDualCode(ctx,t,y,label,code){
  var x=t.codeX+20;ctx.fillStyle='#080808';ctx.textBaseline='middle';ctx.textAlign='left';ctx.font=labelFont;ctx.fillText(label,x,y+h/2+1);x+=labelW+16;ctx.font='700 18px Arial,sans-serif';ctx.fillText('•',x,y+h/2);x+=20;ctx.font=codeFont;ctx.fillText(code,x,y+h/2+1)
 }
 function drawFooter(ctx,t){
- var txt=splitName($('#productName').value),code=($('#productCode').value||'').trim(),dual=$('#codeCount').value==='2';ctx.fillStyle='#FFBE00';ctx.fillRect(0,t.footerY,t.w,t.footerH);
+ var txt=splitName($('#productName').value),code=($('#productCode').value||'').trim(),dual=$('#codeCount').value==='2';ctx.fillStyle=state.footerColor||'#FFBE00';ctx.fillRect(0,t.footerY,t.w,t.footerH);
  ctx.fillStyle='#050505';ctx.textBaseline='top';ctx.textAlign='left';ctx.font=font(fitFont(ctx,txt.title.toUpperCase(),t.titleMax,48,28));ctx.fillText(txt.title.toUpperCase(),t.textX,t.titleY);
  if(txt.sub){ctx.font=font(fitFont(ctx,txt.sub.toUpperCase(),t.titleMax,30,20));ctx.fillText(txt.sub.toUpperCase(),t.textX,t.subY)}
  if(dual){var firstY=t.dualCodeY;drawDualCode(ctx,t,firstY,$('#codeVariant1').value,code);drawDualCode(ctx,t,firstY+49,$('#codeVariant2').value,($('#productCode2').value||'').trim())}
@@ -182,9 +266,10 @@ Object.keys(canvases).forEach(function(format){var c=canvases[format],drag=null;
 $('#downloadFeed').onclick=function(){download('feed')};$('#downloadStory').onclick=function(){download('story')};$('#downloadBoth').onclick=downloadZip;$$('[data-download]').forEach(function(b){b.onclick=function(){download(b.dataset.download)}});
 $('#catalogSearch').addEventListener('input',function(){catalogFocus=0;renderCatalogResults()});
 $('#catalogSearch').addEventListener('keydown',function(ev){var matches=matchingProducts(this.value);if(ev.key==='ArrowDown'&&matches.length){catalogFocus=Math.min(matches.length-1,catalogFocus+1);renderCatalogResults();ev.preventDefault()}else if(ev.key==='ArrowUp'&&matches.length){catalogFocus=Math.max(0,catalogFocus-1);renderCatalogResults();ev.preventDefault()}else if(ev.key==='Enter'&&matches.length){chooseCatalogProduct(matches[catalogFocus]||matches[0]);ev.preventDefault()}});
-$('#manualProduct').addEventListener('click',chooseManualProduct);$('#changeProduct').addEventListener('click',function(){setFlow('choose');renderCatalogResults()});
-setFlow('choose');loadCatalog();
-var embedded=window.POST_EDITOR_ASSETS||{};Promise.all([loadImage(embedded.feed||'post-editor-assets/destaques-feed.png'),loadImage(embedded.story||'post-editor-assets/destaques-story.png'),loadImage(embedded.product||'post-editor-assets/demo-product.png')]).then(function(v){state.badgeFeed=v[0];state.badgeStory=v[1];if(!selectedProduct&&!state.product&&$('#editorWorkspace').hidden)state.productDrawable=v[2];drawAll();try{canvases.feed.toDataURL('image/jpeg',.1);document.body.dataset.exportReady='true';status('Editor pronto',false)}catch(e){document.body.dataset.exportReady='false';status('Prévia pronta; exportação bloqueada pelo navegador',false)}}).catch(function(){drawAll();status('Editor aberto; alguns elementos não carregaram',false)});
+$('#manualProduct').addEventListener('click',chooseManualProduct);$('#changeProduct').addEventListener('click',function(){goToStep('choose')});
+$('#changeEditoriaChoose').addEventListener('click',function(){goToStep('editoria')});$('#changeEditoriaEdit').addEventListener('click',function(){goToStep('editoria')});
+setFlow('editoria');renderEditoriaGrid();loadCatalog();
+var embedded=window.POST_EDITOR_ASSETS||{};loadImage(embedded.product||'post-editor-assets/demo-product.png').then(function(im){if(!selectedProduct&&!state.product&&$('#editorWorkspace').hidden)state.productDrawable=im;drawAll();try{canvases.feed.toDataURL('image/jpeg',.1);document.body.dataset.exportReady='true';status('Editor pronto',false)}catch(e){document.body.dataset.exportReady='false';status('Prévia pronta; exportação bloqueada pelo navegador',false)}}).catch(function(){drawAll();status('Editor aberto; alguns elementos não carregaram',false)});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(drawAll);else drawAll();
 window.PostEditor={redraw:drawAll,state:state,chooseProduct:chooseCatalogProduct,getCatalog:function(){return catalog.slice()},makeZip:makeZip,exportBaseName:exportBaseName};
 })();
