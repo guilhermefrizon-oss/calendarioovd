@@ -142,35 +142,6 @@
                 </div>
 
                 <div class="form-group">
-                  <h3 class="fg-label">Modelo visual (análise por IA)</h3>
-                  <div class="bg-section-desc" style="margin-bottom:10px">Análise visual real das imagens enviadas, feita por IA (Google Gemini) — hierarquia, o que é fixo/variável entre as peças, paleta, tipografia e composição.</div>
-
-                  <div id="intelDnaVTWarning" class="bg-inline-warning" style="display:none;margin-bottom:10px"></div>
-                  <div id="intelDnaVTEmpty" class="bg-empty"></div>
-
-                  <div id="intelDnaVTContent" style="display:none">
-                    <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:12px" id="intelDnaVTMeta"></div>
-
-                    <div class="bg-quick-insert-label" style="margin-bottom:6px">Hierarquia visual</div>
-                    <ol id="intelDnaVTHierarchy" class="intel-rule-list intel-rule-list--ordered" style="margin-bottom:14px"></ol>
-
-                    <div class="bg-quick-insert-label" style="margin-bottom:6px">Elementos fixos</div>
-                    <ul id="intelDnaVTFixed" class="intel-rule-list intel-rule-list--positive" style="margin:0 0 14px"></ul>
-
-                    <div class="bg-quick-insert-label" style="margin-bottom:6px">Elementos variáveis</div>
-                    <ul id="intelDnaVTVariable" class="intel-rule-list" style="margin:0 0 14px"></ul>
-
-                    <div class="bg-quick-insert-row"><span class="bg-quick-insert-label">Paleta de cores</span><span id="intelDnaVTPalette"></span></div>
-                    <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Tipografia</span><span id="intelDnaVTTypography"></span></div>
-                    <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Composição</span><span id="intelDnaVTComposition"></span></div>
-                    <div class="bg-quick-insert-row" style="margin-top:8px"><span class="bg-quick-insert-label">Produto × cenário</span><span id="intelDnaVTRelationRule"></span></div>
-
-                    <div class="bg-quick-insert-label" style="margin:14px 0 6px">Orientação-base para novas peças</div>
-                    <div id="intelDnaVTBaseInstruction" style="font-size:12px;line-height:1.6;white-space:pre-wrap;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted);color:var(--text)"></div>
-                  </div>
-                </div>
-
-                <div class="form-group">
                   <h3 class="fg-label">Padrões de conteúdo identificados</h3>
                   <div class="bg-quick-insert-row" style="margin-bottom:6px"><span class="bg-quick-insert-label">Estrutura dos textos</span><span id="intelDnaTextStructureConf"></span></div>
                   <ol id="intelDnaTextStructure" class="intel-rule-list intel-rule-list--ordered" style="margin-bottom:14px"></ol>

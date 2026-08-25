@@ -529,12 +529,6 @@
       });
     }
 
-    // pelo menos uma imagem (não vídeo) em alguma peça — é isso que decide se a análise visual
-    // por IA (Gemini) roda junto com o DNA heurístico ao clicar em "Criar/Atualizar inteligência"
-    function bucketHasAnyImage(bucket){
-      return (bucket.posts||[]).some(post=> Object.values(post.formats||{}).some(items=> (items||[]).some(i=> i.kind==='imagem')));
-    }
-
     function renderTrainingPanel(bucket){
       renderPieceNetworkSelect();
       renderPieceFormatSlots();
@@ -542,7 +536,6 @@
       $('intelInstructionsNotes').value = bucket.instructions || '';
       const n = IntelStore.referenceCount(bucket);
       let hint = n===0 ? 'Envie ao menos uma referência para poder criar a inteligência.' : (n<3 ? `${n} referência${n===1?'':'s'} enviada${n===1?'':'s'} — quanto mais referências, mais confiável fica o DNA.` : '');
-      if(bucketHasAnyImage(bucket)) hint += (hint ? ' ' : '') + 'Isso também envia até 6 imagens desta editoria para análise visual por IA (Google Gemini).';
       $('intelAnalyzeHint').textContent = hint;
       $('intelAnalyzeBtn').textContent = bucket.dna ? 'Atualizar inteligência' : 'Criar inteligência da editoria';
       $('intelAnalyzeBtn').disabled = false;
@@ -582,41 +575,17 @@
         saveIntel();
       });
 
-      $('intelAnalyzeBtn').addEventListener('click', async ()=>{
+      $('intelAnalyzeBtn').addEventListener('click', ()=>{
         if(!selectedEditoria) return;
         const bucket = IntelStore.getBucket(INTEL, selectedEditoria);
         if(IntelStore.referenceCount(bucket)===0){ alert('Adicione ao menos uma peça de referência (com arte, briefing ou legenda) antes de analisar.'); return; }
 
-        // heurístico primeiro — roda 100% offline e sempre funciona, mesmo se a análise
-        // visual por IA (abaixo) falhar ou não rodar por falta de imagens
         bucket.dna = IntelStore.generateDNA(bucket);
         IntelStore.recordDnaGeneration(bucket);
         saveIntel();
         renderLibrary();
         renderWorkspace();
         switchIntelTab('intelPanelDna');
-
-        if(bucketHasAnyImage(bucket)){
-          const btn = $('intelAnalyzeBtn');
-          btn.disabled = true;
-          btn.textContent = 'Analisando visual com IA…';
-          // visível na aba DNA (pra onde acabamos de trocar) enquanto a chamada assíncrona
-          // roda — renderWorkspace() no finally substitui isso pelo resultado/erro real
-          $('intelDnaVTContent').style.display = 'none';
-          $('intelDnaVTWarning').style.display = 'none';
-          $('intelDnaVTEmpty').style.display = 'block';
-          $('intelDnaVTEmpty').textContent = 'Analisando padrão visual com IA…';
-          try{
-            bucket.dna.visualTemplate = await IntelStore.generateVisualTemplate(bucket, selectedEditoria);
-            bucket.dna.visualTemplateError = null;
-          }catch(e){
-            bucket.dna.visualTemplate = null;
-            bucket.dna.visualTemplateError = { message: e.message || 'Falha desconhecida', failedAt: Date.now() };
-          }finally{
-            saveIntel();
-            renderWorkspace();
-          }
-        }
       });
     }
 
@@ -648,51 +617,6 @@
       const text = Array.isArray(entry.value) ? chipsHtml(entry.value) : escapeHtml(entry.value);
       el.innerHTML = text + confidencePillHtml(entry);
     }
-    // "Modelo visual (análise por IA)" — hierarquia/fixo/variável/paleta/tipografia/composição
-    // vindos de dna.visualTemplate (gerado por Gemini, ver IntelStore.generateVisualTemplate);
-    // dna.visualTemplateError guarda a última falha, se houver, sem invalidar o resto do DNA
-    function renderVisualTemplateSection(bucket, dna){
-      const warning = $('intelDnaVTWarning'), empty = $('intelDnaVTEmpty'), content = $('intelDnaVTContent');
-      warning.style.display = 'none';
-
-      if(dna.visualTemplateError){
-        warning.style.display = 'block';
-        warning.textContent = `Análise visual por IA não disponível: ${dna.visualTemplateError.message}. O restante do DNA acima continua válido.`;
-      }
-
-      const t = dna.visualTemplate;
-      if(!t){
-        content.style.display = 'none';
-        empty.style.display = 'block';
-        empty.textContent = bucketHasAnyImage(bucket)
-          ? (dna.visualTemplateError ? 'A análise visual por IA falhou na última tentativa — clique em "Atualizar inteligência" para tentar de novo.' : 'Análise visual por IA ainda não gerada — clique em "Atualizar inteligência" para rodar.')
-          : 'Envie ao menos uma arte/carrossel para a IA analisar o padrão visual.';
-        return;
-      }
-      empty.style.display = 'none';
-      content.style.display = 'block';
-
-      $('intelDnaVTMeta').textContent = `Analisado em ${new Date(t.generatedAt).toLocaleString('pt-BR')} · ${t.imageCount} imagem${t.imageCount===1?'':'ns'} · modelo ${t.model}`;
-
-      $('intelDnaVTHierarchy').innerHTML = (t.hierarchy||[]).length
-        ? t.hierarchy.map(h=> `<li><b>${escapeHtml(h.element)}</b> — ${escapeHtml(h.description)}</li>`).join('')
-        : `<li style="border:0;background:transparent;padding:2px 0;color:var(--text-faint)">Não identificado.</li>`;
-
-      $('intelDnaVTFixed').innerHTML = (t.fixedElements||[]).length
-        ? t.fixedElements.map(e=> `<li>${escapeHtml(e)}</li>`).join('')
-        : `<li style="border:0;background:transparent;padding:2px 0;color:var(--text-faint)">Nenhum elemento fixo identificado ainda — envie mais referências.</li>`;
-
-      $('intelDnaVTVariable').innerHTML = (t.variableElements||[]).length
-        ? t.variableElements.map(e=> `<li>${escapeHtml(e)}</li>`).join('')
-        : `<li style="border:0;background:transparent;padding:2px 0;color:var(--text-faint)">Nenhum elemento variável identificado.</li>`;
-
-      $('intelDnaVTPalette').textContent = t.colorPalette || '—';
-      $('intelDnaVTTypography').textContent = t.typography || '—';
-      $('intelDnaVTComposition').textContent = t.composition || '—';
-      $('intelDnaVTRelationRule').textContent = t.scenarioProductRule || '—';
-      $('intelDnaVTBaseInstruction').textContent = t.baseInstruction || '—';
-    }
-
     function renderDnaPanel(bucket){
       const dna = bucket.dna;
       const empty = $('intelDnaEmpty'), content = $('intelDnaContent');
@@ -718,9 +642,6 @@
       renderConfEntry('intelDnaComposition', dna.visualStrategy.composition, NOT_IDENTIFIED_VISUAL);
       renderConfEntry('intelDnaRecurringVisual', dna.visualStrategy.recurring, NOT_IDENTIFIED_VISUAL);
       renderConfEntry('intelDnaHierarchy', dna.visualStrategy.hierarchy, NOT_IDENTIFIED_VISUAL);
-
-      // Modelo visual (análise por IA)
-      renderVisualTemplateSection(bucket, dna);
 
       // Padrões de conteúdo identificados
       const structureEntry = dna.contentStrategy.textStructure;

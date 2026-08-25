@@ -662,72 +662,8 @@
       hooks: hooks.map(h=> h.label),
       ctas: ctas.map(c=> c.label),
       recurringWords: words,
-      stats: { avgWords: avg, hashtagRatio: hashRatio, captionCount: captionTexts.length, visualCount: visuals.length },
-
-      // preenchidos depois, de forma assíncrona e separada, por generateVisualTemplate() —
-      // generateDNA() continua 100% síncrono/offline; a análise visual por IA é um passo
-      // adicional que só roda se houver imagens e não bloqueia o DNA heurístico se falhar
-      visualTemplate: null,
-      visualTemplateError: null
+      stats: { avgWords: avg, hashtagRatio: hashRatio, captionCount: captionTexts.length, visualCount: visuals.length }
     };
-  }
-
-  // ============================================================
-  // ANÁLISE VISUAL POR IA (Google Gemini) — passo adicional e assíncrono, chamado depois de
-  // generateDNA() já ter rodado. Envia até MAX_VISION_IMAGES imagens representativas (uma por
-  // peça, pulando vídeos) pro endpoint intelligence-vision.php, que por sua vez usa a camada
-  // compartilhada gemini-client.php (reaproveitável por outras funcionalidades da plataforma).
-  // ============================================================
-  const MAX_VISION_IMAGES = 6;
-
-  function pickRepresentativeImages(bucket){
-    const out = [];
-    (bucket.posts || []).slice().reverse().forEach(post=>{
-      if(out.length >= MAX_VISION_IMAGES) return;
-      const formats = post.formats || {};
-      for(const formatName of Object.keys(formats)){
-        const items = formats[formatName] || [];
-        const img = items.find(i=> i.kind==='imagem');
-        if(img){ out.push({ dataUrl: img.dataUrl, network: post.network, formatName }); break; }
-      }
-    });
-    return out.slice(0, MAX_VISION_IMAGES);
-  }
-
-  async function generateVisualTemplate(bucket, editoriaName){
-    const images = pickRepresentativeImages(bucket);
-    if(!images.length) throw new Error('sem imagens');
-
-    const { captions: captionItems, briefings: briefingItems } = flattenPosts(bucket.posts);
-    const dna = bucket.dna || {};
-    const heuristicSummary = {
-      objective: dna.howItWorks && dna.howItWorks.objective && dna.howItWorks.objective.value,
-      audience: dna.howItWorks && dna.howItWorks.audience && dna.howItWorks.audience.value,
-      tone: dna.howBrandCommunicates && dna.howBrandCommunicates.tone && dna.howBrandCommunicates.tone.value,
-      language: dna.howBrandCommunicates && dna.howBrandCommunicates.language && dna.howBrandCommunicates.language.value,
-      presentation: dna.visualStrategy && dna.visualStrategy.presentation && dna.visualStrategy.presentation.value,
-      visualStyle: dna.visualStrategy && dna.visualStrategy.style && dna.visualStrategy.style.value,
-      composition: dna.visualStrategy && dna.visualStrategy.composition && dna.visualStrategy.composition.value,
-      recurringVisual: dna.visualStrategy && dna.visualStrategy.recurring && dna.visualStrategy.recurring.value,
-      hierarchy: dna.visualStrategy && dna.visualStrategy.hierarchy && dna.visualStrategy.hierarchy.value
-    };
-
-    const res = await fetch('intelligence-vision.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        editoria: editoriaName || '',
-        images,
-        briefings: briefingItems.map(b=> b.text).filter(Boolean),
-        captions: captionItems.map(c=> c.text).filter(Boolean),
-        instructions: bucket.instructions || '',
-        heuristicSummary
-      })
-    });
-    const data = await res.json().catch(()=> ({}));
-    if(!res.ok || !data.ok) throw new Error(data.error || 'falha na análise visual');
-
-    return Object.assign({}, data.template, { generatedAt: Date.now(), model: data.model, imageCount: data.imageCount });
   }
 
   // ============================================================
@@ -794,7 +730,7 @@
   global.IntelStore = {
     STORAGE_KEY, normalize, readLocal, writeLocal, fetchServer, pushServer,
     getBucket, referenceCount, learningStatus, recordDnaGeneration,
-    emptyPost, generateDNA, generateVisualTemplate, validatePost,
+    emptyPost, generateDNA, validatePost,
     topWords, detectCtas, detectHooks, hookLabelFor, tokenize
   };
 })(window);

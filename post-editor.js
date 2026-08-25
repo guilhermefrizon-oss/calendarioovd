@@ -13,17 +13,7 @@ var positions={
  story:{left:{badge:[64,246,471,306],product:[450,286,430,349]},stacked:{badge:[42,548,471,306],product:[88,333,370,300]},right:{badge:[568,548,471,306],product:[610,268,370,300]}}
 };
 var state={editoriaName:null,editoriaColor:null,footerColor:'#FFBE00',background:null,product:null,productDrawable:null,productHasCircle:true,badgeFeed:null,badgeStory:null,autoLayout:'left',bgZoom:{feed:1,story:1},overlayScale:1,format:{feed:{bgDx:0,bgDy:0,overlayDx:0,overlayDy:0},story:{bgDx:0,bgDy:0,overlayDx:0,overlayDy:0}}};
-var TEST_CATALOG=[{
- name:'Lavadora de alta pressão LAV 1600, 1.600 lbf/pol², 127 V~, VONDER',
- title:'Lavadora de alta pressão',
- subtitle:'LAV 1600, 1.600 lbf/pol², 127 V~',
- code:'68.64.160.001',
- image:(window.POST_EDITOR_ASSETS&&window.POST_EDITOR_ASSETS.lavadora)||'post-editor-assets/lavadora-lav1600-127v.jpg',
- background:(window.POST_EDITOR_ASSETS&&window.POST_EDITOR_ASSETS.lavadoraUsage)||'post-editor-assets/lavadora-lav1600-uso.jpg',
- preferredLayout:'right',
- sourceUrl:'https://www.vonder.com.br/produto/lavadora_de_alta_presso_lav_1600_1600_lbfpol_127_v_vonder/12507'
-}];
-var catalog=[],selectedProduct=null,catalogFocus=0;
+var catalog=[],selectedProduct=null,catalogFocus=0,catalogLoading=true;
 // ============================================================
 // EDITORIAS — mesma fonte usada em Configurações → Editorias no Calendário (app.js), lida
 // direto da mesma chave de localStorage (cada marca tem sua própria lista, ver BRAND_SUFFIX).
@@ -32,6 +22,12 @@ var catalog=[],selectedProduct=null,catalogFocus=0;
 // ============================================================
 var BRAND_SUFFIX=(window.PortalBrand&&window.PortalBrand.suffix)||'';
 var CALENDAR_SETTINGS_KEY='calendar_settings_v1'+BRAND_SUFFIX;
+// mapeia o sufixo de marca (ver app.js/portal-shell.js) pro "slug" do catálogo correspondente
+// em data/catalog-{slug}.json (ver catalog-provider.js). Uma marca sem entrada aqui cai no
+// próprio sufixo sem "__" como slug — se o arquivo ainda não existir, CatalogProvider.load()
+// resolve pra lista vazia (mesmo estado de "sem catálogo" que já existia antes)
+var CATALOG_SLUG_BY_BRAND_SUFFIX={ '':'vonder', '__ferramentas-gerais':'fg', '__dismatal':'dismatal' };
+var CATALOG_SLUG=CATALOG_SLUG_BY_BRAND_SUFFIX[BRAND_SUFFIX]||BRAND_SUFFIX.replace(/^__/,'');
 // editorias são exclusivas de cada marca (ver app.js, EDITORIAS_BY_BRAND) — este fallback só
 // entra quando a marca ainda não tem configurações salvas. Trend e Personalizado são
 // universais (toda marca tem as duas, cada uma com sua própria cópia independente); as
@@ -152,23 +148,56 @@ function chooseManualProduct(){
 function chooseCatalogProduct(item){
  selectedProduct=item;var codes=catalogCodes(item);$('#productName').value=editorNameFor(item);$('#productCode').value=codes[0]?codes[0].code:'';$('#productCode2').value=codes[1]?codes[1].code:'';$('#codeVariant1').value=(codes[0]&&codes[0].label)||'110 V~';$('#codeVariant2').value=(codes[1]&&codes[1].label)||'220 V~';$('#codeCount').value=codes.length>1?'2':'1';syncCodeFields();
  state.product=null;state.productDrawable=null;state.productHasCircle=false;state.background=null;state.format.feed={bgDx:0,bgDy:0,overlayDx:0,overlayDy:0};state.format.story={bgDx:0,bgDy:0,overlayDx:0,overlayDy:0};showEditor(item,false);drawAll();
- var bgUrl=itemBackgroundUrl(item);if(bgUrl){$('#backgroundFileName').textContent='Foto de aplicação do catálogo';loadImage(bgUrl).then(function(im){if(selectedProduct!==item)return;state.background=trimBackgroundMargins(im);state.bgZoom.feed=1;state.bgZoom.story=1;$('#backgroundZoomFeed').value='100';$('#backgroundZoomStory').value='100';$('#backgroundZoomFeedOut').value='100%';$('#backgroundZoomStoryOut').value='100%';setStoryExtensionForImage(state.background);if(item.preferredLayout){state.autoLayout=item.preferredLayout;drawAll();status('Produto e foto de aplicação carregados',false)}else analyze()}).catch(function(){if(selectedProduct!==item)return;$('#backgroundFileName').textContent='Envie a foto de fundo manualmente';status('Produto carregado; a foto de aplicação não abriu',false)})}else{$('#backgroundFileName').textContent='Clique ou arraste uma imagem'}
+ var bgUrl=itemBackgroundUrl(item);if(bgUrl){$('#backgroundFileName').textContent='Foto de aplicação do catálogo';loadImage(bgUrl).then(function(im){if(selectedProduct!==item)return;
+  if(!im.exportSafe){$('#backgroundFileName').textContent='Envie a foto de fundo manualmente';status('Essa foto de aplicação não pode ser usada automaticamente (o servidor de origem não libera para exportação) — envie manualmente abaixo',false);return}
+  state.background=trimBackgroundMargins(im);state.bgZoom.feed=1;state.bgZoom.story=1;$('#backgroundZoomFeed').value='100';$('#backgroundZoomStory').value='100';$('#backgroundZoomFeedOut').value='100%';$('#backgroundZoomStoryOut').value='100%';setStoryExtensionForImage(state.background);if(item.preferredLayout){state.autoLayout=item.preferredLayout;drawAll();status('Produto e foto de aplicação carregados',false)}else analyze()
+ }).catch(function(){if(selectedProduct!==item)return;$('#backgroundFileName').textContent='Envie a foto de fundo manualmente';status('Produto carregado; a foto de aplicação não abriu',false)})}else{$('#backgroundFileName').textContent='Clique ou arraste uma imagem'}
  var url=itemImageUrl(item);if(!url){status('Dados preenchidos; envie a foto do produto',false);return}status(bgUrl?'Carregando produto e foto de aplicação…':'Carregando e recortando a foto do catálogo…',true);$('#productFileName').textContent='Foto do catálogo · '+(codes[0]?codes[0].code:'produto');
- loadImage(url).then(function(im){if(selectedProduct!==item)return;state.product=im;$('#removeWhite').checked=true;updateProduct()}).catch(function(){if(selectedProduct!==item)return;status('Dados preenchidos; não foi possível carregar a foto automaticamente',false);$('#productFileName').textContent='Envie a foto do produto manualmente'})
+ loadImage(url).then(function(im){if(selectedProduct!==item)return;
+  if(!im.exportSafe){status('Dados preenchidos; a foto deste produto não pode ser usada automaticamente (o servidor de origem não libera para exportação) — envie a foto manualmente abaixo para poder baixar a arte',false);$('#productFileName').textContent='Envie a foto do produto manualmente';return}
+  state.product=im;$('#removeWhite').checked=true;updateProduct()
+ }).catch(function(){if(selectedProduct!==item)return;status('Dados preenchidos; não foi possível carregar a foto automaticamente',false);$('#productFileName').textContent='Envie a foto do produto manualmente'})
 }
 function matchingProducts(query){var q=normalizeText(query.trim()),qc=normalizeCode(query);return catalog.filter(function(item){var codeHit=qc&&catalogCodes(item).some(function(v){return normalizeCode(v.code).includes(qc)});return!q||normalizeText(item.name).includes(q)||codeHit}).slice(0,10)}
 function renderCatalogResults(){
- var query=$('#catalogSearch').value,matches=matchingProducts(query),box=$('#catalogResults');catalogFocus=Math.min(catalogFocus,Math.max(0,matches.length-1));$('#catalogStatus').textContent=catalog.length?(query?matches.length+' produto'+(matches.length===1?' encontrado':'s encontrados'):catalog.length+' produtos disponíveis'):'Nenhum produto cadastrado nesta marca';
+ var query=$('#catalogSearch').value,matches=matchingProducts(query),box=$('#catalogResults');
+ catalogFocus=Math.min(catalogFocus,Math.max(0,matches.length-1));
+ if(catalogLoading){$('#catalogStatus').textContent='Carregando catálogo…';box.innerHTML='<div class="pe-catalog-empty"><strong>Carregando catálogo…</strong>Buscando os produtos disponíveis.</div>';return}
+ $('#catalogStatus').textContent=catalog.length?(query?matches.length+' produto'+(matches.length===1?' encontrado':'s encontrados'):catalog.length.toLocaleString('pt-BR')+' produtos disponíveis'):'Nenhum produto cadastrado nesta marca';
  if(!catalog.length){box.innerHTML='<div class="pe-catalog-empty"><strong>O catálogo ainda está vazio</strong>Cadastre produtos em Configurações no calendário ou continue sem catálogo.</div>';return}
  if(!matches.length){box.innerHTML='<div class="pe-catalog-empty"><strong>Nenhum produto encontrado</strong>Tente buscar apenas uma parte do nome ou os números do código.</div>';return}
  box.innerHTML=matches.map(function(item,index){var image=itemImageUrl(item);return'<button type="button" class="pe-catalog-item'+(index===catalogFocus?' is-focused':'')+'" data-catalog-index="'+index+'" role="option" aria-selected="'+(index===catalogFocus)+'">'+(image?'<img src="'+escapeHtml(image)+'" alt="">':'<span class="pe-selected-thumb">＋</span>')+'<span><strong>'+escapeHtml(item.name)+'</strong><small>'+escapeHtml(catalogCodes(item).map(function(v){return v.code}).join(' · '))+'</small></span><span>›</span></button>'}).join('');
  $$('#catalogResults [data-catalog-index]').forEach(function(btn){btn.addEventListener('click',function(){chooseCatalogProduct(matches[Number(btn.dataset.catalogIndex)])})})
 }
+// carrega o catálogo desta marca via CatalogProvider (ver catalog-provider.js) — nunca lê
+// JSON nem localStorage diretamente aqui, só consome a Promise; assim, se a origem do
+// catálogo mudar no futuro (API própria, scraping agendado, etc.), só CatalogProvider muda
 function loadCatalog(){
- catalog=TEST_CATALOG.slice();catalogFocus=0;renderCatalogResults()
+ catalog=[];catalogFocus=0;catalogLoading=true;renderCatalogResults();
+ if(typeof CatalogProvider==='undefined'){catalogLoading=false;renderCatalogResults();return}
+ CatalogProvider.load(CATALOG_SLUG).then(function(result){
+  catalog=result.items;catalogFocus=0;catalogLoading=false;renderCatalogResults();
+  if(result.source==='cache')status('Catálogo carregado da cópia local (sem conexão com o servidor)',false)
+ })
 }
 function status(message,busy){var el=$('#editorStatus');el.classList.toggle('is-busy',!!busy);el.querySelector('span:last-child').textContent=message}
-function loadImage(src){return new Promise(function(resolve,reject){function direct(){var im=new Image();im.onload=function(){resolve(im)};im.onerror=reject;im.src=src}if(/^data:/.test(src)){direct();return}try{var xhr=new XMLHttpRequest();xhr.open('GET',src,true);xhr.responseType='blob';xhr.onload=function(){if(!xhr.response||(xhr.status&&xhr.status>=400)){direct();return}var u=URL.createObjectURL(xhr.response),im=new Image();im.onload=function(){URL.revokeObjectURL(u);resolve(im)};im.onerror=function(){URL.revokeObjectURL(u);direct()};im.src=u};xhr.onerror=direct;xhr.send()}catch(e){direct()}})}
+// carrega uma imagem e marca em im.exportSafe se ela pode ser desenhada no canvas sem
+// "contaminar" a exportação (toBlob/toDataURL). Mesma origem e data: URI são sempre seguras;
+// uma origem externa só é segura se o servidor permitir CORS (daí o XHR como blob funcionar —
+// nesse caso os bytes já vieram pra cá, então a imagem final é local pro navegador). Quando o
+// servidor de origem não manda CORS (caso do endpoint de fotos usado pelo catálogo da VONDER,
+// ver data/catalog-vonder.json), a única forma de exibir a imagem é via <img src> direto — o
+// que funciona pra pré-visualização, mas deixa qualquer canvas que a desenhar permanentemente
+// impedido de exportar (é uma trava do próprio navegador, não tem como contornar sem o
+// servidor de origem cooperar). Por isso quem chama loadImage() para desenhar em canvas
+// (chooseCatalogProduct) precisa checar im.exportSafe ANTES de desenhar, e não depois.
+function loadImage(src){return new Promise(function(resolve,reject){
+ function direct(safe){var im=new Image();im.onload=function(){im.exportSafe=safe;resolve(im)};im.onerror=reject;im.src=src}
+ if(/^data:/.test(src)){direct(true);return}
+ var sameOrigin=true;try{sameOrigin=new URL(src,location.href).origin===location.origin}catch(e){}
+ if(sameOrigin){direct(true);return}
+ try{var xhr=new XMLHttpRequest();xhr.open('GET',src,true);xhr.responseType='blob';xhr.onload=function(){if(!xhr.response||(xhr.status&&xhr.status>=400)){direct(false);return}var u=URL.createObjectURL(xhr.response),im=new Image();im.onload=function(){URL.revokeObjectURL(u);im.exportSafe=true;resolve(im)};im.onerror=function(){URL.revokeObjectURL(u);direct(false)};im.src=u};xhr.onerror=function(){direct(false)};xhr.send()}catch(e){direct(false)}
+})}
 function trimBackgroundMargins(im){var c=document.createElement('canvas');c.width=im.width;c.height=im.height;var ctx=c.getContext('2d');ctx.drawImage(im,0,0);var pixels=ctx.getImageData(0,0,c.width,c.height).data,minX=c.width,minY=c.height,maxX=-1,maxY=-1;for(var y=0;y<c.height;y++)for(var x=0;x<c.width;x++){var i=(y*c.width+x)*4;if(pixels[i+3]>8&&(pixels[i]<245||pixels[i+1]<245||pixels[i+2]<245)){if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y}}if(maxX<minX||maxY<minY)return im;var cropW=maxX-minX+1,cropH=maxY-minY+1;if(cropW>=c.width*.98&&cropH>=c.height*.98)return im;var inset=3;minX=Math.min(maxX,minX+inset);minY=Math.min(maxY,minY+inset);maxX=Math.max(minX,maxX-inset);maxY=Math.max(minY,maxY-inset);cropW=maxX-minX+1;cropH=maxY-minY+1;var out=document.createElement('canvas');out.width=cropW;out.height=cropH;out.getContext('2d').drawImage(c,minX,minY,cropW,cropH,0,0,cropW,cropH);return out}
 function drawPlaceholder(ctx,t){
  var g=ctx.createLinearGradient(0,0,t.w,t.h);g.addColorStop(0,'#202427');g.addColorStop(.48,'#5a5f5d');g.addColorStop(1,'#1d201f');ctx.fillStyle=g;ctx.fillRect(0,0,t.w,t.h);

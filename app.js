@@ -705,8 +705,18 @@
       Feed: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5-4 4-3-3-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
       Story: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="6" stroke="currentColor" stroke-width="1.6"/></svg>`,
       Stories: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="6" stroke="currentColor" stroke-width="1.6"/></svg>`,
-      Reels: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.6"/><path d="M10 9l5 3-5 3V9z" fill="currentColor"/></svg>`
+      Reels: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.6"/><path d="M10 9l5 3-5 3V9z" fill="currentColor"/></svg>`,
+      'Vídeo': `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 9.5l5 2.5-5 2.5v-5z" fill="currentColor"/></svg>`,
+      Post: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.6"/><path d="M7 8h10M7 12h10M7 16h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+      Artigo: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 3h9l4 4v14H6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M15 3v5h4M9 12h7M9 16h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+      Email: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="m4.5 7 7.5 6 7.5-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`
     };
+    const TYPE_ICONS = {
+      Static: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor"/><path d="M21 16l-5.5-5.5L11 15l-2.5-2.5L3 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      Video: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 9.5l5 2.5-5 2.5v-5z" fill="currentColor"/></svg>`
+    };
+    const GENERIC_FORMAT_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+    function formatIcon(name){ return FORMAT_ICONS[name] || GENERIC_FORMAT_ICON; }
 
     // ============================================================
     // ÍCONES DE INTERFACE — substitui emojis/glifos de texto (✕ ✏️ ✨ 🔄 📅 📋 ⋮ ⠿ ↩ ↪ ‹ › ▾)
@@ -2590,7 +2600,13 @@
       }
     }
 
-    const WEEKDAY_ABBR = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    const WEEKDAYS_PT = [
+      { short:'Dom', full:'Domingo' }, { short:'Seg', full:'Segunda-feira' },
+      { short:'Ter', full:'Terça-feira' }, { short:'Qua', full:'Quarta-feira' },
+      { short:'Qui', full:'Quinta-feira' }, { short:'Sex', full:'Sexta-feira' },
+      { short:'Sáb', full:'Sábado' }
+    ];
+    const WEEKDAY_ABBR = WEEKDAYS_PT.map(day=>day.short);
 
     // chave "YYYY-MM" usada em editoria.scheduleByMonth — cada mês guarda seu próprio
     // agendamento fixo (dias da semana + redes), sem um "padrão" valendo pra sempre: uma
@@ -2618,24 +2634,24 @@
         <div>
           <label>Datas de publicação</label>
           <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 4px">Opcional — dias fixos da semana em que essa editoria publica neste mês (ex: sempre sábado). Cada mês tem sua própria configuração; use "Aplicar" para gerar os cards dele.</div>
-          <div class="sched-weekdays" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+          <div class="sched-weekdays"></div>
         </div>
         <div>
           <label>Redes, tipos e formatos</label>
           <div style="font-size:11.5px;color:var(--muted);margin:-2px 0 4px">Marque quantas redes forem necessárias — cada uma pode ter vários tipos, e cada tipo, vários formatos.</div>
-          <div class="sched-nets" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <div class="sched-nets"></div>
           <div class="sched-net-configs" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
         </div>`;
 
       const wd = container.querySelector('.sched-weekdays');
-      WEEKDAY_ABBR.forEach((label,i)=>{
-        const lbl=document.createElement('label'); lbl.className='chip'; lbl.style.padding='4px 8px';
-        lbl.innerHTML = `<input type="checkbox" class="sched-weekday" value="${i}" ${weekdays.includes(i)?'checked':''} />${label}`;
+      WEEKDAYS_PT.forEach((day,i)=>{
+        const lbl=document.createElement('label'); lbl.className='sched-day-chip'; lbl.title=day.full;
+        lbl.innerHTML = `<input type="checkbox" class="sched-weekday" value="${i}" aria-label="${day.full}" ${weekdays.includes(i)?'checked':''} /><span>${day.short}</span>`;
         wd.appendChild(lbl);
       });
       const allChecked = weekdays.length===7;
-      const allLbl = document.createElement('label'); allLbl.className='chip'; allLbl.style.padding='4px 8px';
-      allLbl.innerHTML = `<input type="checkbox" class="sched-all-days" ${allChecked?'checked':''} />Todos os dias`;
+      const allLbl = document.createElement('label'); allLbl.className='sched-day-chip sched-all-days-chip';
+      allLbl.innerHTML = `<input type="checkbox" class="sched-all-days" aria-label="Selecionar todos os dias" ${allChecked?'checked':''} /><span>Todos os dias</span>`;
       wd.appendChild(allLbl);
       wd.querySelectorAll('.sched-weekday').forEach(cb=>{ cb.disabled = allChecked; });
       allLbl.querySelector('input').addEventListener('change', (ev)=>{
@@ -2668,23 +2684,24 @@
           panel.className = 'sched-net-config'; panel.dataset.net = netName;
           panel.style.cssText = 'padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted)';
           panel.innerHTML = `
-            <div style="font-weight:700;font-size:12px;margin-bottom:4px">${escapeHtml(netName)}</div>
+            <div class="sched-net-config-title"><span class="sched-net-config-icon">${networkIcon(netName)}</span><span>${escapeHtml(netName)}</span></div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Tipo</div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
-              <label class="chip"><input type="checkbox" class="sched-type" value="Static" ${cfg.types.includes('Static')?'checked':''}/> Estático</label>
-              <label class="chip"><input type="checkbox" class="sched-type" value="Video" ${cfg.types.includes('Video')?'checked':''}/> Vídeo</label>
+              <label class="chip"><input type="checkbox" class="sched-type" value="Static" ${cfg.types.includes('Static')?'checked':''}/>${TYPE_ICONS.Static} Estático</label>
+              <label class="chip"><input type="checkbox" class="sched-type" value="Video" ${cfg.types.includes('Video')?'checked':''}/>${TYPE_ICONS.Video} Vídeo</label>
             </div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Formato</div>
             <div style="display:flex;gap:4px;flex-wrap:wrap">
-              ${(net && net.formats || []).map(f=>`<label class="chip"><input type="checkbox" class="sched-place" value="${escapeHtml(f.name)}" ${cfg.places.includes(f.name)?'checked':''}/> ${escapeHtml(f.name)}</label>`).join('') || '<span style="font-size:11.5px;color:var(--text-faint)">Essa rede ainda não tem formatos cadastrados.</span>'}
+              ${(net && net.formats || []).map(f=>`<label class="chip"><input type="checkbox" class="sched-place" value="${escapeHtml(f.name)}" ${cfg.places.includes(f.name)?'checked':''}/>${formatIcon(f.name)} ${escapeHtml(f.name)}</label>`).join('') || '<span style="font-size:11.5px;color:var(--text-faint)">Essa rede ainda não tem formatos cadastrados.</span>'}
             </div>`;
           configsC.appendChild(panel);
         });
       }
 
       APP_SETTINGS.networks.forEach(n=>{
-        const lbl = document.createElement('label'); lbl.className='chip';
-        lbl.innerHTML = `<input type="checkbox" class="sched-net" value="${escapeHtml(n.name)}" ${cfgByChannel[n.name]?'checked':''} /> ${escapeHtml(n.name)}`;
+        const lbl = document.createElement('label'); lbl.className='chip-net sched-net-choice';
+        lbl.title = n.name;
+        lbl.innerHTML = `<input type="checkbox" class="sched-net" value="${escapeHtml(n.name)}" aria-label="${escapeHtml(n.name)}" ${cfgByChannel[n.name]?'checked':''} />${networkIcon(n.name)}`;
         netsC.appendChild(lbl);
         lbl.querySelector('input').addEventListener('change', renderNetConfigs);
       });
@@ -3112,9 +3129,9 @@
 
     // preenche o filtro de Formato (união de todos os formatos de todas as redes) e o filtro de Tipo (fixo)
     function renderPlacesUI(){
-      const fc = $('filterPlacesContainer'); if(fc){ fc.innerHTML=''; allFormatNames().forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" class="fPlace" value="${escapeHtml(p)}"/> ${escapeHtml(p)}`; fc.appendChild(lbl); }); }
+      const fc = $('filterPlacesContainer'); if(fc){ fc.innerHTML=''; allFormatNames().forEach(p=>{ const lbl=document.createElement('label'); lbl.className='chip'; lbl.innerHTML=`<input type="checkbox" class="fPlace" value="${escapeHtml(p)}"/>${formatIcon(p)} ${escapeHtml(p)}`; fc.appendChild(lbl); }); }
       // tipos (Estático/Vídeo) são fixos — só preenche o container de filtro
-      const ft = $('filterTypesContainer'); if(ft){ ft.innerHTML=''; ['Static','Video'].forEach(ti=>{ const lbl = document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fType" value="${ti}"/> ${ti==='Static'?'Estático':'Vídeo'}`; ft.appendChild(lbl); }); }
+      const ft = $('filterTypesContainer'); if(ft){ ft.innerHTML=''; ['Static','Video'].forEach(ti=>{ const lbl = document.createElement('label'); lbl.className='chip'; lbl.innerHTML = `<input type="checkbox" class="fType" value="${ti}"/>${TYPE_ICONS[ti]} ${ti==='Static'?'Estático':'Vídeo'}`; ft.appendChild(lbl); }); }
     }
 
     // preenche o Formato do modal de criar/editar postagem, com base na(s) rede(s) marcada(s) —
@@ -3141,7 +3158,7 @@
             const dims = (f.width && f.height) ? `${f.width}×${f.height}px` : '';
             const exts = (f.extensions||[]).join(', ');
             if(exts) lbl.title = exts;
-            lbl.innerHTML = `<input type="checkbox" name="mPlace" value="${escapeHtml(f.name)}" ${prevChecked.includes(f.name)?'checked':''} />${FORMAT_ICONS[f.name]?`<span class="format-chip-icon">${FORMAT_ICONS[f.name]}</span>`:''}<span class="format-chip-body"><span class="format-chip-name">${escapeHtml(f.name)}</span>${dims?`<span class="format-chip-dims">${dims}</span>`:''}</span>`;
+            lbl.innerHTML = `<input type="checkbox" name="mPlace" value="${escapeHtml(f.name)}" ${prevChecked.includes(f.name)?'checked':''} /><span class="format-chip-icon">${formatIcon(f.name)}</span><span class="format-chip-body"><span class="format-chip-name">${escapeHtml(f.name)}</span>${dims?`<span class="format-chip-dims">${dims}</span>`:''}</span>`;
             lbl.querySelector('input').addEventListener('change', refreshModalDynamic);
             chips.appendChild(lbl);
           });
@@ -4046,15 +4063,18 @@
     // fechamento padrão de qualquer modal: pelo botão "X" ou clicando fora da caixa (no backdrop).
     // `closeBtnSelector` é opcional — só é preciso quando o modal tem mais de um botão com a
     // classe ".modal-close" (caso do modal de postagem, que também tem o "⋮" de mais ações);
-    // sem ele, cai no primeiro ".modal-close" encontrado, como nos demais modais
-    function wireModalDismiss(backdropId, closeFn, closeBtnSelector){
+    // sem ele, cai no primeiro ".modal-close" encontrado, como nos demais modais.
+    // `closeOnBackdropClick` (padrão true) desliga o fechamento por clique fora — usado no modal
+    // de criar/editar postagem, onde um clique acidental fora da caixa vinha fechando o modal e
+    // descartando o que a pessoa já tinha preenchido; ali só o "X" (ou "‹ Voltar") fecha.
+    function wireModalDismiss(backdropId, closeFn, closeBtnSelector, closeOnBackdropClick){
       const backdrop = $(backdropId);
       if(!backdrop) return;
-      backdrop.addEventListener('click', ev=>{ if(ev.target === backdrop) closeFn(); });
+      if(closeOnBackdropClick !== false) backdrop.addEventListener('click', ev=>{ if(ev.target === backdrop) closeFn(); });
       const closeBtn = backdrop.querySelector(closeBtnSelector || '.modal-close');
       if(closeBtn) closeBtn.addEventListener('click', closeFn);
     }
-    wireModalDismiss('modalBackdrop', closeModal, '#modalCloseBtn');
+    wireModalDismiss('modalBackdrop', closeModal, '#modalCloseBtn', false);
     // botão "⋮" do modal de edição — fixo, ligado uma única vez; lê editingId no momento do
     // clique (por isso o getter), já que o mesmo botão é reaproveitado a cada postagem editada
     if($('modalMenuBtn')) wireCardMenuButton($('modalMenuBtn'), () => editingId);
@@ -4279,3 +4299,7 @@
     } else {
       setSyncStatus('Salvando só neste navegador (abra pelo endereço do servidor pra sincronizar)', 'warn');
     }
+
+
+
+
