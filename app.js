@@ -1979,26 +1979,40 @@
 
     function loadSettings(){
       const raw = localStorage.getItem(LS_SETTINGS_KEY);
+      // rastreia se alguma migração abaixo realmente mudou algo em relação ao que já estava
+      // salvo — se sim, no fim da função persiste e sincroniza o resultado (ver saveSettings()
+      // no fim). Sem isso, essas migrações só valiam para a sessão atual: nunca eram gravadas de
+      // volta no localStorage nem enviadas pro servidor, então uma editoria/rede padrão nova só
+      // aparecia enquanto o app.js rodava — outra página que lê a config direto do localStorage,
+      // como o Editor de Posts, ou outro computador puxando do servidor, continuava vendo a
+      // versão antiga e incompleta para sempre.
+      let migrated = !raw;
       if(raw){ try{ const s = JSON.parse(raw); APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS, s||{}); if(!APP_SETTINGS.statuses || !APP_SETTINGS.statuses.length) APP_SETTINGS.statuses = DEFAULT_SETTINGS.statuses.slice();
         // acrescenta às editorias já salvas as categorizações default que ainda não existem
         // (por nome), sem mexer nas que o usuário já tinha customizado
         if(!APP_SETTINGS.editorias) APP_SETTINGS.editorias = [];
         // corrige a grafia de "Post e-commerce" pra "Post E-commerce" (ver FG_DEFAULT_EDITORIAS)
         // em quem já tinha salvo a versão antiga, antes do merge abaixo criar uma duplicata
-        { const old = APP_SETTINGS.editorias.find(e=>e.name==='Post e-commerce'); if(old) old.name = 'Post E-commerce'; }
-        DEFAULT_SETTINGS.editorias.forEach(def=>{ if(!APP_SETTINGS.editorias.some(e=>e.name===def.name)) APP_SETTINGS.editorias.push(Object.assign({},def)); });
+        { const old = APP_SETTINGS.editorias.find(e=>e.name==='Post e-commerce'); if(old){ old.name = 'Post E-commerce'; migrated = true; } }
+        { const before = APP_SETTINGS.editorias.length;
+          DEFAULT_SETTINGS.editorias.forEach(def=>{ if(!APP_SETTINGS.editorias.some(e=>e.name===def.name)) APP_SETTINGS.editorias.push(Object.assign({},def)); });
+          if(APP_SETTINGS.editorias.length!==before) migrated = true; }
         // limpa editorias da VONDER que vazaram pra outras marcas (de quando o padrão acima
         // ainda era compartilhado por todas) — preserva, porém, qualquer nome que também faça
         // parte da lista padrão da própria marca (ex: FG também tem "Destaques"/"Lançamentos",
         // que não são leftover nesse caso, são editorias legítimas da FG)
         if(BRAND_SUFFIX!==''){
           const ownDefaultNames = new Set((EDITORIAS_BY_BRAND[BRAND_SUFFIX]||[]).map(def=>def.name));
+          const before = APP_SETTINGS.editorias.length;
           APP_SETTINGS.editorias = APP_SETTINGS.editorias.filter(e=> ownDefaultNames.has(e.name) || !VONDER_DEFAULT_EDITORIAS.some(def=>def.name===e.name));
+          if(APP_SETTINGS.editorias.length!==before) migrated = true;
         }
         // mesma lógica pras redes padrão (ex: Facebook) — acrescenta as que faltam por nome,
         // sem mexer nas redes que o usuário já tinha configurado
         if(!APP_SETTINGS.networks) APP_SETTINGS.networks = [];
-        DEFAULT_SETTINGS.networks.forEach(def=>{ if(!APP_SETTINGS.networks.some(n=> (typeof n==='string'?n:n.name)===def.name)) APP_SETTINGS.networks.push(Object.assign({}, def, { formats: def.formats.map(f=>Object.assign({},f)) })); });
+        { const before = APP_SETTINGS.networks.length;
+          DEFAULT_SETTINGS.networks.forEach(def=>{ if(!APP_SETTINGS.networks.some(n=> (typeof n==='string'?n:n.name)===def.name)) APP_SETTINGS.networks.push(Object.assign({}, def, { formats: def.formats.map(f=>Object.assign({},f)) })); });
+          if(APP_SETTINGS.networks.length!==before) migrated = true; }
         // reordena pela ordem canônica das redes padrão (ex: TikTok logo após Facebook), mantendo
         // redes customizadas pelo usuário na posição relativa em que já estavam, ao final
         { const order = new Map(DEFAULT_SETTINGS.networks.map((n,i)=>[n.name,i]));
@@ -2007,7 +2021,7 @@
             const rb = order.has(b.n.name) ? order.get(b.n.name) : Infinity;
             return ra===rb ? a.i-b.i : ra-rb;
           }).map(x=>x.n); }
-        TARGET = APP_SETTINGS.TARGET || TARGET; }catch(e){ APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS); } }
+        TARGET = APP_SETTINGS.TARGET || TARGET; }catch(e){ APP_SETTINGS = Object.assign({}, DEFAULT_SETTINGS); migrated = true; } }
       // migra o formato antigo de redes (string simples) para {name,color}
       APP_SETTINGS.networks = (APP_SETTINGS.networks||[]).map((n,i)=> typeof n === 'string' ? { name:n, color: BRAND_COLORS[n] || TAG_PALETTE[i % TAG_PALETTE.length] } : n);
       // remove o Twitter de configurações salvas antes da rede ser descontinuada do app
@@ -2065,6 +2079,10 @@
         if(e.schedule && !e.scheduleByMonth){ e.scheduleByMonth = { [monthKeyFromDate(new Date())]: e.schedule }; }
         delete e.schedule;
       });
+      // alguma migração acima acrescentou/corrigiu algo que ainda não estava salvo (ou este
+      // navegador nunca tinha salvo nada) — grava e sincroniza agora, pra essa versão completa
+      // valer para qualquer página/computador que ler essa configuração a partir de agora
+      if(migrated) saveSettings();
     }
 
     // ============================================================

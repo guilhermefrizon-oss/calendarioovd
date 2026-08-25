@@ -53,6 +53,21 @@ function readEditoriaList(){
  }catch(e){return FALLBACK_EDITORIAS}
 }
 var EDITORIAS=readEditoriaList();
+// a lista acima só reflete o que já estava salvo NESTE navegador (pode estar desatualizada,
+// já que esta página nunca chamou o servidor até agora) — assim que o SyncBackend
+// responder, atualiza a lista e o cache local, e redesenha a grade se ainda estiver visível
+var SYNC_ENABLED=location.protocol!=='file:';
+function refreshEditoriasFromServer(){
+ if(!SYNC_ENABLED||typeof SyncBackend==='undefined')return;
+ SyncBackend.get('settings'+BRAND_SUFFIX).then(function(res){
+  if(!res||res.v===null)return;
+  var eds=Array.isArray(res.v.editorias)?res.v.editorias:null;if(!eds||!eds.length)return;
+  var normalized=eds.map(function(e,i){return typeof e==='string'?{name:e,color:(FALLBACK_EDITORIAS.length?FALLBACK_EDITORIAS[i%FALLBACK_EDITORIAS.length].color:'#64748b')}:e});
+  EDITORIAS=normalized;
+  try{var raw=localStorage.getItem(CALENDAR_SETTINGS_KEY),s=raw?JSON.parse(raw):{};s.editorias=normalized;localStorage.setItem(CALENDAR_SETTINGS_KEY,JSON.stringify(s))}catch(e){}
+  renderEditoriaGrid()
+ }).catch(function(){})
+}
 // preset visual de cada editoria (selo do feed/story + cor do rodapé) — exclusivo por marca:
 // cada marca tem seu próprio catálogo de editorias, então uma editoria "Destaques" da VONDER
 // não tem nada a ver com uma "Destaques" da Ferramentas Gerais, mesmo com o mesmo nome. Por
@@ -268,7 +283,7 @@ $('#catalogSearch').addEventListener('input',function(){catalogFocus=0;renderCat
 $('#catalogSearch').addEventListener('keydown',function(ev){var matches=matchingProducts(this.value);if(ev.key==='ArrowDown'&&matches.length){catalogFocus=Math.min(matches.length-1,catalogFocus+1);renderCatalogResults();ev.preventDefault()}else if(ev.key==='ArrowUp'&&matches.length){catalogFocus=Math.max(0,catalogFocus-1);renderCatalogResults();ev.preventDefault()}else if(ev.key==='Enter'&&matches.length){chooseCatalogProduct(matches[catalogFocus]||matches[0]);ev.preventDefault()}});
 $('#manualProduct').addEventListener('click',chooseManualProduct);$('#changeProduct').addEventListener('click',function(){goToStep('choose')});
 $('#changeEditoriaChoose').addEventListener('click',function(){goToStep('editoria')});$('#changeEditoriaEdit').addEventListener('click',function(){goToStep('editoria')});
-setFlow('editoria');renderEditoriaGrid();loadCatalog();
+setFlow('editoria');renderEditoriaGrid();loadCatalog();refreshEditoriasFromServer();
 var embedded=window.POST_EDITOR_ASSETS||{};loadImage(embedded.product||'post-editor-assets/demo-product.png').then(function(im){if(!selectedProduct&&!state.product&&$('#editorWorkspace').hidden)state.productDrawable=im;drawAll();try{canvases.feed.toDataURL('image/jpeg',.1);document.body.dataset.exportReady='true';status('Editor pronto',false)}catch(e){document.body.dataset.exportReady='false';status('Prévia pronta; exportação bloqueada pelo navegador',false)}}).catch(function(){drawAll();status('Editor aberto; alguns elementos não carregaram',false)});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(drawAll);else drawAll();
 window.PostEditor={redraw:drawAll,state:state,chooseProduct:chooseCatalogProduct,getCatalog:function(){return catalog.slice()},makeZip:makeZip,exportBaseName:exportBaseName};
