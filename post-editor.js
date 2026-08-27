@@ -28,6 +28,10 @@ var CALENDAR_SETTINGS_KEY='calendar_settings_v1'+BRAND_SUFFIX;
 // resolve pra lista vazia (mesmo estado de "sem catálogo" que já existia antes)
 var CATALOG_SLUG_BY_BRAND_SUFFIX={ '':'vonder', '__ferramentas-gerais':'fg', '__dismatal':'dismatal' };
 var CATALOG_SLUG=CATALOG_SLUG_BY_BRAND_SUFFIX[BRAND_SUFFIX]||BRAND_SUFFIX.replace(/^__/,'');
+// FG e Dismatal revendem produto VONDER e seus códigos de catálogo apontam pro mesmo sistema
+// de fotos (app.ovd.com.br), então usam o mesmo proxy de fotos por código que a VONDER. Se
+// algum dia ganharem catálogo de código próprio (outro fornecedor de foto), tira a marca daqui.
+var CATALOG_PHOTO_SLUG=({ fg:'vonder', dismatal:'vonder' })[CATALOG_SLUG]||CATALOG_SLUG;
 // editorias são exclusivas de cada marca (ver app.js, EDITORIAS_BY_BRAND) — este fallback só
 // entra quando a marca ainda não tem configurações salvas. Trend e Personalizado são
 // universais (toda marca tem as duas, cada uma com sua própria cópia independente); as
@@ -97,15 +101,20 @@ var CATALOG_THUMB_WIDTH=160;
 var CATALOG_PRODUCT_WIDTH=1600;
 function productImageUrl(code,width){var digits=normalizeCode(code);if(!digits)return'';return'product-image.php?code='+encodeURIComponent(digits)+'&v=4'+(width?'&w='+width:'')}
 function localProductImageUrl(code,width){var digits=normalizeCode(code);if(!digits)return'';return'http://127.0.0.1:8765/product-image?code='+encodeURIComponent(digits)+'&v=4'+(width?'&w='+width:'')}
+// o helper local só existe na máquina de quem está editando (rodado pelo "Abrir
+// Calendario.cmd"); num site publicado (GitHub Pages etc.) chamar 127.0.0.1 faz o Chrome
+// pedir a permissão de "Acessar dispositivos na rede local" pro visitante à toa, então só
+// tentamos esse endereço quando a própria página está sendo servida localmente
+var IS_LOCAL_HOST=location.protocol==='file:'||/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 function itemImageUrls(item,width){
  var codes=catalogCodes(item),code=codes[0]&&codes[0].code,direct=(item&&(item.imageUrl||item.image||item.photo))||'',urls=[];
  // Em file:// o PHP da pasta não é executado. O helper local devolve a foto com CORS;
  // quando há servidor web, o PHP continua sendo a primeira opção. A URL direta (foto em
  // tamanho real, sem redimensionar) fica como último fallback pra quando nenhum proxy
  // responder — e nunca será desenhada se contaminar o canvas.
- if(CATALOG_SLUG==='vonder'&&code){
+ if(CATALOG_PHOTO_SLUG==='vonder'&&code){
   if(location.protocol==='file:')urls.push(localProductImageUrl(code,width));else urls.push(productImageUrl(code,width));
-  urls.push(localProductImageUrl(code,width))
+  if(IS_LOCAL_HOST)urls.push(localProductImageUrl(code,width))
  }
  if(direct)urls.push(direct);
  return urls.filter(function(url,index){return url&&urls.indexOf(url)===index})

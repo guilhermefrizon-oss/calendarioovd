@@ -14,6 +14,11 @@
 // criando/removendo o arquivo; nenhum código muda. Uma marca sem arquivo próprio ainda
 // resolve normalmente para uma lista vazia (mesmo comportamento de "catálogo sem produtos"
 // que o Post Editor já tratava antes).
+//
+// Ferramentas Gerais e Dismatal revendem os mesmos produtos VONDER; por ora catalog-fg.json
+// é uma cópia do catálogo completo da VONDER (a duplicação é no próprio arquivo, não aqui,
+// porque logo esses dados vêm de uma consulta própria à planilha e o arquivo passa a ter
+// conteúdo exclusivo da marca).
 // ============================================================
 (function(global){
   'use strict';
