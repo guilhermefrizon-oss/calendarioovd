@@ -54,7 +54,7 @@
   // institucional/neutro) em vez de "a marca" (mais vibrante/amarela).
   const DEFAULT_BRANDS = [
     { id:'default', name:'VONDER', shortName:'VD', photo:'icons/icon_vonder.jpg', themeColor:{ dark:'#F6BE00', light:'#F6BE00' }, themeColorInk:'#000000' },
-    { id:'ferramentas-gerais', name:'FERRAMENTAS GERAIS', shortName:'FG', photo:'icons/icon_ferramentas_gerais.png', themeColor:{ dark:'#004E32', light:'#004E32' }, themeColorInk:'#0A6C43' },
+    { id:'ferramentas-gerais', name:'FERRAMENTAS GERAIS', shortName:'FG', photo:'icons/icon_ferramentas_gerais.png', themeColor:{ dark:'#005745', light:'#005745' }, themeColorInk:'#005745' },
     { id:'osten-ferragens', name:'OSTEN FERRAGENS', shortName:'OF', photo:'icons/icon_osten_ferragens.jpg', themeColor:{ dark:'#ED8B00', light:'#ED8B00' }, themeColorInk:'#2E2E2E' },
     { id:'dismatal', name:'DISMATAL', shortName:'DM', photo:'icons/icon_dismatal.jpg', themeColor:{ dark:'#FFED00', light:'#FFED00' }, themeColorInk:'#000000' },
     { id:'toolmix', name:'TOOLMIX', shortName:'TM', photo:'icons/icon_toolmix.jpg', themeColor:{ dark:'#F26522', light:'#F26522' }, themeColorInk:'#FFFFFF', onAccent:'#FFFFFF' },
@@ -333,7 +333,8 @@
     const toolmixEntry = BRANDS.find(b=>b.id==='toolmix');
     if(toolmixEntry && toolmixEntry.themeColorInk==='#3C3C3B'){ toolmixEntry.themeColorInk = '#FFFFFF'; changed = true; if(toolmixEntry.id===ACTIVE_ID) activeChanged = true; }
     const fgEntry = BRANDS.find(b=>b.id==='ferramentas-gerais');
-    if(fgEntry && fgEntry.themeColorInk==='#E42313'){ fgEntry.themeColorInk = '#0A6C43'; changed = true; if(fgEntry.id===ACTIVE_ID) activeChanged = true; }
+    if(fgEntry && fgEntry.themeColor && ['#004E32','#135844'].includes(fgEntry.themeColor.light)){ fgEntry.themeColor = { dark:'#005745', light:'#005745' }; changed = true; if(fgEntry.id===ACTIVE_ID) activeChanged = true; }
+    if(fgEntry && ['#E42313','#0A6C43'].includes(fgEntry.themeColorInk)){ fgEntry.themeColorInk = '#005745'; changed = true; if(fgEntry.id===ACTIVE_ID) activeChanged = true; }
     DEFAULT_BRANDS.forEach(def=>{
       const existing = BRANDS.find(b=>b.id===def.id);
       if(!existing){
