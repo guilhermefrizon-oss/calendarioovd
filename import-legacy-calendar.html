@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Importar cronograma manual</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+body{max-width:760px;margin:40px auto;padding:0 20px}
+.imp-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px 28px;margin-bottom:18px}
+.imp-card h2{margin-top:0}
+.imp-log{font:13px/1.5 monospace;background:var(--surface-muted);border-radius:8px;padding:14px;white-space:pre-wrap;max-height:340px;overflow:auto}
+.imp-actions{display:flex;gap:12px;margin-top:16px}
+button.imp-primary{background:var(--accent-ink);color:#000;border:0;border-radius:10px;padding:12px 22px;font-weight:700;cursor:pointer}
+button.imp-secondary{background:transparent;border:1px solid var(--border);border-radius:10px;padding:12px 22px;cursor:pointer;color:var(--text)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.imp-stat{display:inline-block;margin-right:22px;font-size:13px;color:var(--muted)}
+.imp-stat b{display:block;font-size:22px;color:var(--text)}
+</style>
+</head>
+<body>
+<div class="imp-card">
+  <h2>Importar cronograma manual 2026 — VONDER</h2>
+  <p>Lê <code>data/import-vonder-cronograma-2026.json</code> (extraído do calendário manual em Excel, Jan–Jul/2026) e soma esses cards aos que já existem no calendário desta marca, sem duplicar. Nada é gravado até você clicar em "Importar".</p>
+  <div id="preview">Carregando prévia…</div>
+  <div class="imp-actions">
+    <button id="btnImport" class="imp-primary" disabled>Importar</button>
+    <a href="visual-editor.html"><button class="imp-secondary" type="button">Ir para o calendário</button></a>
+  </div>
+</div>
+<div class="imp-card" id="logCard" hidden>
+  <h2>Resultado</h2>
+  <div id="log" class="imp-log"></div>
+</div>
+<script>
+(function(){
+  'use strict';
+  var LS_POSTS_KEY = 'calendar_posts_v1'; // VONDER = marca padrão, sem sufixo
+  var SOURCE_URL = 'data/import-vonder-cronograma-2026.json';
+
+  function $(id){ return document.getElementById(id); }
+  function genId(){ return 'p-' + Math.random().toString(36).slice(2,12); }
+  function readLocalPosts(){
+    try{ return JSON.parse(localStorage.getItem(LS_POSTS_KEY)) || []; }catch(e){ return []; }
+  }
+  function normKey(p){ return (p.date||'') + '|' + String(p.title||'').trim().toLowerCase(); }
+
+  var incoming = null, existing = null, toAdd = null;
+
+  fetch(SOURCE_URL).then(function(res){
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function(data){
+    incoming = data;
+    existing = readLocalPosts();
+    var existingKeys = new Set(existing.map(normKey));
+    toAdd = incoming.filter(function(p){ return !existingKeys.has(normKey(p)); });
+    $('preview').innerHTML =
+      '<span class="imp-stat"><b>' + incoming.length + '</b>no arquivo</span>' +
+      '<span class="imp-stat"><b>' + existing.length + '</b>já no calendário hoje</span>' +
+      '<span class="imp-stat"><b>' + toAdd.length + '</b>novos a adicionar</span>' +
+      '<span class="imp-stat"><b>' + (incoming.length - toAdd.length) + '</b>ignorados (já existem)</span>';
+    $('btnImport').disabled = toAdd.length === 0;
+    if(toAdd.length === 0) $('btnImport').textContent = 'Nada para importar';
+  }).catch(function(err){
+    $('preview').textContent = 'Não foi possível carregar ' + SOURCE_URL + ': ' + err.message;
+  });
+
+  // contador de "order" por data, iniciado a partir do maior já existente — cada card novo
+  // do mesmo dia pega o próximo número em sequência (senão todos cairiam na mesma posição)
+  function makeOrderCounter(existingPosts){
+    var next = {};
+    existingPosts.forEach(function(p){
+      if(typeof p.order === 'number' && (!(p.date in next) || p.order >= next[p.date])) next[p.date] = p.order + 1;
+    });
+    return function(date){
+      var n = next[date] || 0;
+      next[date] = n + 1;
+      return n;
+    };
+  }
+
+  function log(lines){ $('logCard').hidden = false; $('log').textContent = lines.join('\n'); }
+
+  // tenta sincronizar com api.php (mesmo protocolo usado por app.js); se não responder
+  // (hospedagem estática, sem PHP), segue só com localStorage — mesma resiliência que o
+  // resto do projeto já usa (CatalogProvider, etc.)
+  function pushToServer(mergedPosts, onDone){
+    fetch('api.php?k=posts').then(function(r){ return r.json(); }).then(function(cur){
+      var serverPosts = cur && cur.v ? cur.v : [];
+      var serverKeys = new Set(serverPosts.map(normKey));
+      var extra = mergedPosts.filter(function(p){ return !serverKeys.has(normKey(p)); });
+      var finalList = serverPosts.concat(extra);
+      return fetch('api.php?k=posts', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ v: finalList, expected_updated_at: cur.updated_at || 0 })
+      }).then(function(r){ return r.json().then(function(j){ return {status:r.status, body:j}; }); });
+    }).then(function(res){
+      if(res.status === 200) onDone(true, 'Sincronizado com o servidor (api.php) com sucesso.');
+      else if(res.status === 409) onDone(false, 'Conflito ao sincronizar com o servidor (alguém salvou por cima ao mesmo tempo) — os dados ficaram salvos neste navegador; recarregue e tente importar de novo para reconciliar.');
+      else onDone(false, 'Servidor respondeu ' + res.status + ' — os dados ficaram salvos neste navegador.');
+    }).catch(function(){
+      onDone(false, 'api.php não respondeu nesta origem (normal se a página não estiver rodando num servidor com PHP) — os dados ficaram salvos neste navegador.');
+    });
+  }
+
+  $('btnImport').addEventListener('click', function(){
+    $('btnImport').disabled = true;
+    var current = readLocalPosts();
+    var orderFor = makeOrderCounter(current);
+    var withOrder = toAdd.map(function(p){
+      var copy = Object.assign({}, p, { id: genId() });
+      copy.order = orderFor(copy.date);
+      return copy;
+    });
+    var merged = current.concat(withOrder);
+    localStorage.setItem(LS_POSTS_KEY, JSON.stringify(merged));
+    var lines = [
+      withOrder.length + ' cards adicionados ao calendário (localStorage) desta marca.',
+      'Total de cards agora: ' + merged.length + '.',
+      'Sincronizando com o servidor…'
+    ];
+    log(lines);
+    pushToServer(merged, function(ok, msg){
+      lines.push(msg);
+      log(lines);
+      $('btnImport').textContent = 'Importado';
+    });
+  });
+})();
+</script>
+</body>
+</html>

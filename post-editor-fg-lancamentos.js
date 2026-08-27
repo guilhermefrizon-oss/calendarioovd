@@ -37,21 +37,31 @@
     else if(state.background)api.helpers.drawCover(ctx,state.background,t,api.format);
     else api.helpers.drawPlaceholder(ctx,t);
 
-    var titleRight=1029,titleLeft=isStory?413:396,titleFit=fitTitle(ctx,api.productName,titleRight-titleLeft,3,58,38),lineH=titleFit.size*1.09,titleY,lineY;
+    var titleRight=1029,titleLeft=isStory?413:396,titleFit=fitTitle(ctx,api.productName,titleRight-titleLeft,2,58,16),lineH=titleFit.size*1.09,titleY,lineY;
+    var badgeColor=state.brandBadgeColor||'#fbc400';
+    var brand=api.brandVariant==='vonder-plus'?state.customAssets.brandPlus:state.customAssets.brandVonder;
     if(isStory){
       if(state.customAssets.headerGradient)ctx.drawImage(state.customAssets.headerGradient,0,0,t.w,430);
       else{ctx.fillStyle='#000';ctx.fillRect(0,0,t.w,314)}
-      ctx.fillStyle='#fbc400';ctx.fillRect(68,0,302,314);
-      var brand=api.brandVariant==='vonder-plus'?state.customAssets.brandPlus:state.customAssets.brandVonder;
+      ctx.fillStyle=badgeColor;ctx.fillRect(68,0,302,314);
       if(brand){
         if(api.brandVariant==='vonder-plus')ctx.drawImage(brand,86,172,263,115);
         else ctx.drawImage(brand,84,193,274,77)
       }
       lineY=311;titleY=Math.max(92,lineY-titleFit.lines.length*lineH-8)
     }else{
+      // o header achatado (header-vonder.png/header-vonder-plus.png) traz o fundo preto
+      // gradiente + o retângulo amarelo + a logo, tudo cozido numa imagem só. Pra cor do
+      // retângulo virar configurável, desenhamos ele por cima com a cor escolhida (mesmas
+      // coordenadas do retângulo original, medidas em pixel na imagem) e depois a logo
+      // isolada (mesmo arquivo já usado no Story), igual ao Story já faz — sem imagem achatada
       var header=api.brandVariant==='vonder-plus'?state.customAssets.headerPlus:state.customAssets.headerVonder;
-      if(header)ctx.drawImage(header,0,0,t.w,377);
-      else{ctx.fillStyle='#000';ctx.fillRect(0,0,t.w,228);ctx.fillStyle='#fbc400';ctx.fillRect(48,0,223,179)}
+      if(header)ctx.drawImage(header,0,0,t.w,377);else{ctx.fillStyle='#000';ctx.fillRect(0,0,t.w,228)}
+      ctx.fillStyle=badgeColor;ctx.fillRect(48,0,223,179);
+      if(brand){
+        if(api.brandVariant==='vonder-plus')ctx.drawImage(brand,64,83,192,84);
+        else ctx.drawImage(brand,58,102,202,57)
+      }
       titleY=55;lineY=Math.min(249,titleY+titleFit.lines.length*lineH+11)
     }
 
