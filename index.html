@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Portal de Mídias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body class="home-body">
+  <main class="home-shell">
+    <header class="home-header">
+      <a class="home-logo" href="index.html" aria-label="Portal de Mídias — Início">
+        <span class="home-logo-mark" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 8.5 5-8.5 5-8.5-5Z"/><path d="m3.5 12 8.5 5 8.5-5"/><path d="m3.5 17 8.5 5 8.5-5"/></svg></span>
+        <span>Portal de Mídias</span>
+      </a>
+      <div class="home-header-actions">
+        <span class="home-local-note">Ambiente de criação e planejamento</span>
+        <button type="button" class="home-theme-button" id="homeThemeButton" aria-label="Alternar tema" title="Alternar tema">
+          <svg class="theme-icon-light" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="theme-icon-dark" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+        </button>
+      </div>
+    </header>
+    <section class="home-intro" aria-labelledby="homeTitle">
+      <span class="home-eyebrow">Bem-vindo ao seu espaço de trabalho</span>
+      <h1 id="homeTitle">O que vamos criar hoje?</h1>
+      <p>Escolha o perfil que deseja acessar e depois selecione uma ferramenta.</p>
+    </section>
+    <section class="home-step" aria-labelledby="profileTitle">
+      <div class="home-step-heading"><span class="home-step-number">1</span><div><h2 id="profileTitle">Selecione o perfil</h2><p>Os conteúdos e configurações são separados por marca.</p></div></div>
+      <div class="profile-picker-wrap">
+        <button type="button" class="profile-picker" id="profilePicker" aria-haspopup="listbox" aria-expanded="false">
+          <span id="profilePickerAvatar"></span>
+          <span class="profile-picker-copy"><small>Perfil ativo</small><strong id="profilePickerName">Carregando…</strong></span>
+          <svg class="profile-picker-chevron" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="profile-menu" id="profileMenu" role="listbox" aria-label="Perfis disponíveis" hidden></div>
+      </div>
+    </section>
+    <section class="home-step home-tools-step" aria-labelledby="toolsTitle">
+      <div class="home-step-heading"><span class="home-step-number">2</span><div><h2 id="toolsTitle">Escolha uma ferramenta</h2><p>Você entrará usando o perfil selecionado acima.</p></div></div>
+      <div class="tool-grid" id="toolGrid">
+        <a class="tool-card" href="visual-editor.html"><span class="tool-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 15h3M13 15h3M8 19h3"/></svg></span><span class="tool-copy"><span class="tool-tag">Planejamento</span><strong>Calendário de Postagens</strong><small>Organize pautas, datas, canais e briefings do mês.</small></span><span class="tool-arrow">→</span></a>
+        <a class="tool-card" href="post-editor.html"><span class="tool-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/><path d="m14 18 3-3"/></svg></span><span class="tool-copy"><span class="tool-tag">Criação</span><strong>Editor de Posts</strong><small>Monte artes para feed e story a partir do catálogo.</small></span><span class="tool-arrow">→</span></a>
+        <a class="tool-card" href="business-card-generator.html"><span class="tool-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h5M7 14h3M15.5 10.5h2M15.5 14h2"/></svg></span><span class="tool-copy"><span class="tool-tag">Produção gráfica</span><strong>Gerador de Cartões</strong><small>Importe dados e gere cartões de visita prontos para impressão.</small></span><span class="tool-arrow">→</span></a>
+        <a class="tool-card" href="intelligence-center.html"><span class="tool-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2Z"/><path d="M9 18h6M10 22h4"/></svg></span><span class="tool-copy"><span class="tool-tag">Estratégia</span><strong>Central de Inteligência</strong><small>Consulte referências, análises e aprendizados da marca.</small></span><span class="tool-arrow">→</span></a>
+      </div>
+    </section>
+  </main>
+  <script src="sync-backend.js"></script>
+  <script src="portal-shell.js"></script>
+  <script src="index.js"></script>
+</body>
+</html>

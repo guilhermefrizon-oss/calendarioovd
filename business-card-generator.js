@@ -34,6 +34,44 @@
     return normalize(value).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "cartao";
   }
 
+  var VALID_DDDS = {
+    11:1,12:1,13:1,14:1,15:1,16:1,17:1,18:1,19:1,21:1,22:1,24:1,27:1,28:1,
+    31:1,32:1,33:1,34:1,35:1,37:1,38:1,41:1,42:1,43:1,44:1,45:1,46:1,47:1,48:1,49:1,
+    51:1,53:1,54:1,55:1,61:1,62:1,63:1,64:1,65:1,66:1,67:1,68:1,69:1,71:1,73:1,
+    74:1,75:1,77:1,79:1,81:1,82:1,83:1,84:1,85:1,86:1,87:1,88:1,89:1,91:1,92:1,
+    93:1,94:1,95:1,96:1,97:1,98:1,99:1
+  };
+
+  function phoneDigits(value, type) {
+    var digits = String(value || "").replace(/\D/g, "");
+    if ((digits.length === 12 || digits.length === 13) && digits.slice(0, 2) === "55") digits = digits.slice(2);
+    return digits.slice(0, type === "landline" ? 10 : 11);
+  }
+
+  function formatPhone(value, type) {
+    var digits = phoneDigits(value, type);
+    if (!digits) return "";
+    if (digits.length <= 2) return "(" + digits;
+    var ddd = digits.slice(0, 2);
+    var local = digits.slice(2);
+    var firstLength = local.length > 8 ? 5 : Math.min(4, local.length);
+    var first = local.slice(0, firstLength);
+    var second = local.slice(firstLength);
+    return "(" + ddd + ") " + first + (second ? "-" + second : "");
+  }
+
+  function validatePhone(value, type, required) {
+    var digits = phoneDigits(value, type);
+    var label = type === "landline" ? "Telefone fixo" : "Celular";
+    var expected = type === "landline" ? 10 : 11;
+    if (!digits) return { valid: !required, empty: true, message: required ? label + " não informado." : "DDD + 8 números" };
+    if (digits.length !== expected) return { valid: false, empty: false, message: label + " deve ter DDD + " + (expected - 2) + " números." };
+    if (!VALID_DDDS[digits.slice(0, 2)]) return { valid: false, empty: false, message: "DDD inválido. Confira os dois primeiros números." };
+    if (type === "mobile" && digits.charAt(2) !== "9") return { valid: false, empty: false, message: "Celular deve começar com 9 após o DDD." };
+    if (type === "landline" && !/[2-5]/.test(digits.charAt(2))) return { valid: false, empty: false, message: "Telefone fixo deve começar entre 2 e 5 após o DDD." };
+    return { valid: true, empty: false, message: type === "landline" ? "Telefone fixo válido" : "Celular válido" };
+  }
+
   function activeBrand() {
     var portal = window.PortalBrand || {};
     var list = portal.list || [];
@@ -45,7 +83,7 @@
 
   var BRAND_TEMPLATES = {
     "default": { label: "Institucional VONDER", source: "Identidade exclusiva VONDER", accent: "#F6BE00", ink: "#171717", style: "diagonal", qr: { x: 1460, y: 680, size: 300 } },
-    "ferramentas-gerais": { label: "FG 94 × 54 mm", source: "Illustrator .ai preenchido", accent: "#005745", ink: "#706f6f", style: "fg", qr: { x: 1320, y: 580, size: 400 } },
+    "ferramentas-gerais": { label: "FG 96 × 56 mm", source: "Illustrator .ai preenchido", accent: "#005745", ink: "#706f6f", style: "fg", qr: { x: 1320, y: 580, size: 400 } },
     "osten-ferragens": { label: "Institucional OSTEN", source: "Identidade exclusiva OSTEN", accent: "#ED8B00", ink: "#252525", style: "sidebar", qr: { x: 1460, y: 680, size: 300 } },
     "dismatal": { label: "Institucional DISMATAL", source: "Identidade exclusiva DISMATAL", accent: "#FFED00", ink: "#181818", style: "stripe", qr: { x: 1460, y: 680, size: 300 } },
     "toolmix": { label: "Institucional TOOLMIX", source: "Identidade exclusiva TOOLMIX", accent: "#F26522", ink: "#272727", style: "corner", qr: { x: 1460, y: 680, size: 300 } },
@@ -68,6 +106,7 @@
     name: $("fieldName"),
     role: $("fieldRole"),
     address: $("fieldAddress"),
+    landline: $("fieldLandline"),
     phone: $("fieldPhone"),
     email: $("fieldEmail"),
     website: $("fieldWebsite")
@@ -95,7 +134,8 @@
       name: clean(obj.name),
       role: clean(obj.role),
       address: clean(obj.address),
-      phone: clean(obj.phone),
+      landline: formatPhone(obj.landline, "landline"),
+      phone: formatPhone(obj.phone, "mobile"),
       email: clean(obj.email),
       website: clean(obj.website),
       logoVariant: obj.logoVariant === "fg-ico" ? "fg-ico" : "fg",
@@ -115,7 +155,11 @@
   function load() {
     try {
       var parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      if (Array.isArray(parsed)) state.records = parsed;
+      if (Array.isArray(parsed)) state.records = parsed.map(function (r) {
+        r.landline = formatPhone(r.landline, "landline");
+        r.phone = formatPhone(r.phone, "mobile");
+        return r;
+      });
     } catch (e) {}
     if (state.records.length) {
       state.activeId = state.records[0].id;
@@ -208,6 +252,24 @@
     });
   }
 
+  function renderPhoneValidation(fieldName, type, showEmpty) {
+    var input = fields[fieldName];
+    var hint = $(fieldName === "landline" ? "landlineHint" : "phoneHint");
+    if (!input || !hint) return;
+    var result = validatePhone(input.value, type, fieldName === "phone");
+    var invalid = !result.valid && (!result.empty || showEmpty);
+    input.classList.toggle("is-invalid", invalid);
+    input.setAttribute("aria-invalid", invalid ? "true" : "false");
+    hint.classList.toggle("is-invalid", invalid);
+    if (invalid || (!result.empty && result.valid)) hint.textContent = result.message;
+    else hint.textContent = fieldName === "landline" ? "DDD + 8 números" : "DDD + 9 números";
+  }
+
+  function renderPhoneValidations(showEmpty) {
+    renderPhoneValidation("landline", "landline", showEmpty);
+    renderPhoneValidation("phone", "mobile", showEmpty);
+  }
+
   function renderEditor() {
     var r = current();
     Object.keys(fields).forEach(function (key) {
@@ -215,6 +277,7 @@
       fields[key].value = r ? r[key] || "" : "";
     });
     $("editorTitle").textContent = r ? (r.name || "Cartão sem nome") : "Selecione um cartão";
+    renderPhoneValidations(!!(r && r.reviewed));
     var approve = $("approveCurrent");
     approve.disabled = !r || !r.reviewed || hasBlocking(r);
     approve.checked = !!(r && r.approved);
@@ -342,13 +405,16 @@
   function reviewRecord(r) {
     Object.keys(fields).forEach(function (key) { r[key] = clean(r[key]); });
     var issues = [];
+    r.landline = formatPhone(r.landline, "landline");
+    r.phone = formatPhone(r.phone, "mobile");
     if (!r.name) issues.push({ blocking: true, message: "Nome completo não informado." });
     if (!r.role) issues.push({ blocking: true, message: "Cargo não informado." });
-    if (!r.phone) issues.push({ blocking: true, message: "Celular não informado." });
+    var landlineCheck = validatePhone(r.landline, "landline", false);
+    var mobileCheck = validatePhone(r.phone, "mobile", true);
+    if (!landlineCheck.valid) issues.push({ blocking: true, message: landlineCheck.message });
+    if (!mobileCheck.valid) issues.push({ blocking: true, message: mobileCheck.message });
     if (!r.email) issues.push({ blocking: true, message: "E-mail não informado." });
     if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)) issues.push({ blocking: true, message: "Confira o formato do e-mail." });
-    var digits = (r.phone || "").replace(/\D/g, "");
-    if (r.phone && digits.length < 10) issues.push({ blocking: true, message: "O celular parece estar incompleto." });
     if (r.website && !/[.]/.test(r.website)) issues.push({ blocking: false, message: "Confira o endereço do site: não foi encontrado um domínio completo." });
     var scan = (r.name + " " + r.role + " " + r.address).toLowerCase();
     var common = [
@@ -362,7 +428,7 @@
     common.forEach(function (rule) {
       if (rule[0].test(scan)) issues.push({ blocking: false, message: "Possível ajuste de acentuação: confira " + rule[1] + "." });
     });
-    if (/[ ]{2,}/.test(r.name + " " + r.role + " " + r.phone)) issues.push({ blocking: false, message: "Há espaços duplicados; a limpeza automática foi aplicada." });
+    if (/[ ]{2,}/.test(r.name + " " + r.role + " " + r.landline + " " + r.phone)) issues.push({ blocking: false, message: "Há espaços duplicados; a limpeza automática foi aplicada." });
     r.reviewed = true;
     r.approved = false;
     r.issues = issues;
@@ -374,6 +440,9 @@
   function fieldChanged(ev) {
     var r = current();
     if (!r) return;
+    if (ev.target.name === "landline" || ev.target.name === "phone") {
+      ev.target.value = formatPhone(ev.target.value, ev.target.name === "landline" ? "landline" : "mobile");
+    }
     r[ev.target.name] = ev.target.value;
     r.reviewed = false;
     r.approved = false;
@@ -385,6 +454,7 @@
     updateFlow();
     renderCanvas(r);
     renderIssues(r);
+    renderPhoneValidations(false);
     $("approveCurrent").disabled = true;
     $("approveCurrent").checked = false;
   }
@@ -407,7 +477,8 @@
       name: headerIndex(headers, ["nome", "nomecompleto", "name"]),
       role: headerIndex(headers, ["cargo", "funcao", "função", "role"]),
       address: headerIndex(headers, ["endereco", "address"]),
-      phone: headerIndex(headers, ["celular", "telefone", "fone", "phone"]),
+      landline: headerIndex(headers, ["telefonefixo", "fixo", "telefonecomercial", "landline"]),
+      phone: headerIndex(headers, ["celular", "telefonecelular", "whatsapp", "mobile", "phone", "telefone", "fone"]),
       email: headerIndex(headers, ["email", "correioeletronico"]),
       website: headerIndex(headers, ["site", "website", "url"])
     };
@@ -563,8 +634,10 @@
 
   function contactVCard(r) {
     var lines = ["BEGIN:VCARD", "VERSION:3.0", "N:" + vCardName(r.name), "FN:" + vCardEscape(r.name), "ORG:" + vCardEscape(brand.name), "TITLE:" + vCardEscape(r.role)];
+    var landline = vCardPhone(r.landline);
     var phone = vCardPhone(r.phone);
     var url = vCardUrl(r.website);
+    if (landline) lines.push("TEL;TYPE=WORK,VOICE:" + landline);
     if (phone) lines.push("TEL;TYPE=CELL:" + phone);
     if (r.email) lines.push("EMAIL;TYPE=INTERNET:" + vCardEscape(r.email));
     if (r.address) lines.push("ADR;TYPE=WORK:;;" + vCardEscape(r.address) + ";;;;");
@@ -635,8 +708,9 @@
     ctx.font = "400 42px Swiss721,Arial Narrow,Arial,sans-serif";
     var address = wrapText(r.address, width, 2);
     address.forEach(function (line, i) { ctx.fillText(line, x, y + i * 38); });
-    ctx.font = "700 42px Swiss721,Arial Narrow,Arial,sans-serif";
-    ctx.fillText(r.phone || "", x, y + 112);
+    var phoneLine = [r.phone ? "Celular: " + r.phone : "", r.landline ? "Telefone: " + r.landline : ""].filter(Boolean).join("   |   ");
+    fitText(phoneLine, width, 42, 700);
+    ctx.fillText(phoneLine, x, y + 112);
     ctx.font = "400 38px Swiss721,Arial Narrow,Arial,sans-serif";
     var contact = [r.email, r.website].filter(Boolean).join("  |  ");
     fitText(contact, width, 38, 400);
@@ -685,8 +759,11 @@
     ctx.font = "400 48.59px Swiss721,Arial Narrow,Arial,sans-serif";
     var addressLines = wrapText(r.address, template.qr.x - FG_LEFT - 55, 2);
     addressLines.forEach(function (line, i) { ctx.fillText(line, FG_LEFT, 805.18 + i * FG_LINE); });
-    // Celular e E-mail/Site têm âncoras fixas no original. Nunca descem quando o endereço quebra.
-    ctx.fillText(r.phone || "", FG_LEFT, 921.81);
+    // Telefones e E-mail/Site têm âncoras fixas no original. Nunca descem quando o endereço quebra.
+    var phoneLine = [r.phone ? "Celular: " + r.phone : "", r.landline ? "Telefone: " + r.landline : ""].filter(Boolean).join("   |   ");
+    fitText(phoneLine, template.qr.x - FG_LEFT - 55, 48.59, 400);
+    ctx.fillText(phoneLine, FG_LEFT, 921.81);
+    ctx.font = "400 48.59px Swiss721,Arial Narrow,Arial,sans-serif";
     var contact = [r.email, r.website].filter(Boolean).join(" | ");
     ctx.fillText(contact, FG_LEFT, 980.12);
     drawContactQr(r, template.qr);
@@ -918,12 +995,53 @@
     return output;
   }
 
-  // Página impressa: 94 × 54 mm convertidos para pontos PDF (1pt = 1/72in, 1in = 25.4mm).
-  var PDF_WIDTH_PT = 266.456693;
-  var PDF_HEIGHT_PT = 153.070866;
+  // Arte calibrada: cartão de 90 × 50 mm de corte + 2 mm de sangria original = 94 × 54 mm em
+  // pontos PDF (1pt = 1/72in, 1in = 25.4mm). Este é o canvas 1880 × 1080 já aprovado — nunca
+  // deve ser redimensionado nem ter suas posições internas recalculadas.
+  var DESIGN_WIDTH_PT = 266.456693;
+  var DESIGN_HEIGHT_PT = 153.070866;
+  // No arquivo final, a sangria aumenta de 2 mm (já presente na arte) para 3 mm, e uma margem
+  // branca adicional de 8 mm é acrescentada por fora da sangria — ambas aplicadas por
+  // pós-processamento sobre a arte pronta, sem tocar nas posições internas do cartão.
+  var BLEED_EXTRA_MM = 1;
+  var WHITE_MARGIN_MM = 8;
   // Resolução de exportação e perfil de cor de destino exigidos pela gráfica.
   var EXPORT_DPI = 600;
   var OUTPUT_PROFILE_NAME = "Coated FOGRA39 \\(ISO 12647-2:2004\\)";
+
+  // Estica a última linha/coluna de pixels da arte para fora, criando a sangria extra de forma
+  // contínua (sem costura), sem alterar nenhum pixel do conteúdo original.
+  function extendEdges(source, padPx) {
+    if (!padPx) return source;
+    var sw = source.width, sh = source.height;
+    var out = document.createElement("canvas");
+    out.width = sw + 2 * padPx;
+    out.height = sh + 2 * padPx;
+    var octx = out.getContext("2d");
+    octx.drawImage(source, 0, 0, 1, 1, 0, 0, padPx, padPx);
+    octx.drawImage(source, sw - 1, 0, 1, 1, padPx + sw, 0, padPx, padPx);
+    octx.drawImage(source, 0, sh - 1, 1, 1, 0, padPx + sh, padPx, padPx);
+    octx.drawImage(source, sw - 1, sh - 1, 1, 1, padPx + sw, padPx + sh, padPx, padPx);
+    octx.drawImage(source, 0, 0, sw, 1, padPx, 0, sw, padPx);
+    octx.drawImage(source, 0, sh - 1, sw, 1, padPx, padPx + sh, sw, padPx);
+    octx.drawImage(source, 0, 0, 1, sh, 0, padPx, padPx, sh);
+    octx.drawImage(source, sw - 1, 0, 1, sh, padPx + sw, padPx, padPx, sh);
+    octx.drawImage(source, padPx, padPx);
+    return out;
+  }
+
+  // Acrescenta a moldura branca por fora do arquivo (fora da sangria), sem tocar na arte.
+  function addWhiteMargin(source, padPx) {
+    if (!padPx) return source;
+    var out = document.createElement("canvas");
+    out.width = source.width + 2 * padPx;
+    out.height = source.height + 2 * padPx;
+    var octx = out.getContext("2d");
+    octx.fillStyle = "#fff";
+    octx.fillRect(0, 0, out.width, out.height);
+    octx.drawImage(source, padPx, padPx);
+    return out;
+  }
 
   // Reamostra o canvas (renderizado em alta resolução para nitidez na tela) para os pixels
   // exatos que resultam em EXPORT_DPI no tamanho físico real do cartão.
@@ -941,17 +1059,17 @@
     return target;
   }
 
-  async function buildCmykPdf(canvasElement) {
-    var exportCanvas = dpiScaledCanvas(canvasElement, PDF_WIDTH_PT, PDF_HEIGHT_PT, EXPORT_DPI);
+  async function buildCmykPdf(canvasElement, widthPt, heightPt) {
+    var exportCanvas = dpiScaledCanvas(canvasElement, widthPt, heightPt, EXPORT_DPI);
     var image = await compressPdfStream(canvasToCmyk(exportCanvas));
     var profileBytes = base64ToBytes(window.BusinessCardPrintProfile || "");
     if (!profileBytes.length) throw new Error("Perfil ICC CoatedFOGRA39 não carregado.");
     var profile = await compressPdfStream(profileBytes);
-    var content = asciiBytes("q\n" + PDF_WIDTH_PT + " 0 0 " + PDF_HEIGHT_PT + " 0 0 cm\n/Im0 Do\nQ\n");
+    var content = asciiBytes("q\n" + widthPt + " 0 0 " + heightPt + " 0 0 cm\n/Im0 Do\nQ\n");
     var objects = [
       asciiBytes("<< /Type /Catalog /Pages 2 0 R /OutputIntents [6 0 R] >>"),
       asciiBytes("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
-      asciiBytes("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + PDF_WIDTH_PT + " " + PDF_HEIGHT_PT + "] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>"),
+      asciiBytes("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + widthPt + " " + heightPt + "] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>"),
       concatBytes([
         asciiBytes("<< /Type /XObject /Subtype /Image /Width " + exportCanvas.width + " /Height " + exportCanvas.height + " /ColorSpace /DeviceCMYK /BitsPerComponent 8" + image.filter + " /Length " + image.bytes.length + " >>\nstream\n"),
         image.bytes,
@@ -999,12 +1117,20 @@
 
   async function cardPdfDoc(record) {
     var scratch = document.createElement("canvas");
-    scratch.width = Math.ceil(PDF_WIDTH_PT / 72 * EXPORT_DPI);
-    scratch.height = Math.ceil(PDF_HEIGHT_PT / 72 * EXPORT_DPI);
+    scratch.width = Math.ceil(DESIGN_WIDTH_PT / 72 * EXPORT_DPI);
+    scratch.height = Math.ceil(DESIGN_HEIGHT_PT / 72 * EXPORT_DPI);
     // Renderiza diretamente nos pixels finais de impressão, mantendo o sistema lógico 1880 × 1080
     // para preservar todas as posições aprovadas sem uma etapa posterior de ampliação.
     await renderCanvas(record, scratch, { width: 1880, height: 1080 });
-    return buildCmykPdf(scratch);
+    // Pós-processamento: estica 1 mm extra de sangria (2 → 3 mm) e acrescenta 8 mm de margem
+    // branca por fora do arquivo, sem alterar nenhum pixel do cartão de 90 × 50 mm já renderizado.
+    var bleedPadPx = Math.round(BLEED_EXTRA_MM / 25.4 * EXPORT_DPI);
+    var marginPadPx = Math.round(WHITE_MARGIN_MM / 25.4 * EXPORT_DPI);
+    var withExtraBleed = extendEdges(scratch, bleedPadPx);
+    var withMargin = addWhiteMargin(withExtraBleed, marginPadPx);
+    var pageWidthPt = withMargin.width / EXPORT_DPI * 72;
+    var pageHeightPt = withMargin.height / EXPORT_DPI * 72;
+    return buildCmykPdf(withMargin, pageWidthPt, pageHeightPt);
   }
 
   function triggerBlob(blob, name) {
@@ -1147,7 +1273,7 @@
   }
 
   function addManual() {
-    var r = recordFrom({ name: "Novo cartão", role: "Cargo", address: "Endereço", phone: "", email: "", website: "" });
+    var r = recordFrom({ name: "", role: "", address: "", landline: "", phone: "", email: "", website: "" });
     state.records.push(r);
     state.activeId = r.id;
     save();
@@ -1156,7 +1282,7 @@
 
   function loadDemo() {
     var demo = [
-      { name: "Mariana Alves", role: "Supervisora de Vendas Externas", address: "Av. Antônio Gazzola, 1001 | Jardim Corazza\nItu | SP | CEP 13301-245", phone: "(11) 99999-0000", email: "mariana.alves@empresa.com.br", website: "www.empresa.com.br" },
+      { name: "Mariana Alves", role: "Supervisora de Vendas Externas", address: "Av. Antônio Gazzola, 1001 | Jardim Corazza\nItu | SP | CEP 13301-245", landline: "(11) 3333-4444", phone: "(11) 99999-0000", email: "mariana.alves@empresa.com.br", website: "www.empresa.com.br" },
       { name: "Lucas Ribeiro", role: "Especialista de Produtos", address: "Rua Voluntários da Pátria, 3223 | São Geraldo\nPorto Alegre | RS | CEP 90230-011", phone: "(51) 98888-0000", email: "lucas.ribeiro@empresa.com.br", website: "www.empresa.com.br" }
     ];
     state.records = demo.map(recordFrom);
@@ -1172,6 +1298,7 @@
     $("logoVariantField").hidden = template.style !== "fg";
     $("spreadsheetFile").addEventListener("change", function () { handleFile(this.files[0]); this.value = ""; });
     $("replaceFile").addEventListener("click", function () { $("spreadsheetFile").click(); });
+    $("startManual").addEventListener("click", addManual);
     $("addRecord").addEventListener("click", addManual);
     $("deleteSelected").addEventListener("click", deleteSelected);
     $("backToWorkspace").addEventListener("click", function () { goToStep("edit"); });
@@ -1220,6 +1347,8 @@
     exportPdf: exportPdf,
     createPdf: cardPdfDoc,
     buildVCard: contactVCard,
+    formatPhone: formatPhone,
+    validatePhone: validatePhone,
     deleteRecord: deleteRecord,
     deleteSelected: deleteSelected,
     goToStep: goToStep,
