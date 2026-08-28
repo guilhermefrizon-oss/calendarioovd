@@ -94,7 +94,8 @@
 
   var template = BRAND_TEMPLATES[brand.id] || { label: "Institucional " + brand.name, source: "Identidade exclusiva da marca", accent: "#4b5563", ink: "#202124", style: "corner" };
   var STORAGE_KEY = "business_card_generator_v1__" + brand.id;
-  var state = { records: [], activeId: null };
+  var state = { records: [], activeId: null, currentStep: "import" };
+  var returnToImportTrigger = null;
   var canvas = $("cardCanvas");
   var ctx = canvas.getContext("2d");
   var W = canvas.width;
@@ -163,8 +164,8 @@
     } catch (e) {}
     if (state.records.length) {
       state.activeId = state.records[0].id;
-      showWorkspace();
     }
+    showImport(false);
   }
 
   function current() {
@@ -172,10 +173,20 @@
   }
 
   function showWorkspace() {
+    state.currentStep = "edit";
     $("importPanel").hidden = true;
     $("workspace").hidden = false;
     $("exportBar").hidden = false;
     renderAll();
+  }
+
+  function showImport(showExistingShortcut) {
+    state.currentStep = "import";
+    $("workspace").hidden = true;
+    $("exportBar").hidden = true;
+    $("importPanel").hidden = false;
+    $("backToWorkspace").hidden = !showExistingShortcut || !state.records.length;
+    updateFlow();
   }
 
   function toast(message) {
@@ -193,7 +204,7 @@
     document.querySelectorAll(".bc-flow-step").forEach(function (el) {
       var step = el.getAttribute("data-step");
       var complete = (step === "import" && any) || (step === "edit" && reviewed) || (step === "review" && approved);
-      var active = (!any && step === "import") || (any && !reviewed && step === "edit") || (reviewed && !approved && step === "review") || (approved && step === "export");
+      var active = step === state.currentStep;
       el.classList.toggle("is-complete", complete);
       el.classList.toggle("is-active", active);
     });
@@ -319,10 +330,7 @@
 
   function backToImportIfEmpty() {
     if (state.records.length) return;
-    $("workspace").hidden = true;
-    $("exportBar").hidden = true;
-    $("importPanel").hidden = false;
-    $("backToWorkspace").hidden = true;
+    showImport(false);
   }
 
   function deleteRecord(id) {
@@ -363,11 +371,11 @@
 
   function goToStep(step) {
     if (step === "import") {
-      $("workspace").hidden = true;
-      $("exportBar").hidden = true;
-      $("importPanel").hidden = false;
-      $("backToWorkspace").hidden = !state.records.length;
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (state.currentStep !== "import" && state.records.length) openReturnToImportModal();
+      else {
+        showImport(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
       return;
     }
     if (!state.records.length) {
@@ -377,6 +385,8 @@
     $("importPanel").hidden = true;
     $("workspace").hidden = false;
     $("exportBar").hidden = false;
+    state.currentStep = step;
+    updateFlow();
     if (step === "edit") {
       var target = document.querySelector(".bc-editor-panel");
       if (target) {
@@ -396,6 +406,31 @@
         flashElement(bar);
       }
     }
+  }
+
+  function openReturnToImportModal() {
+    var modal = $("returnToImportModal");
+    returnToImportTrigger = document.activeElement;
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    $("cancelReturnToImport").focus();
+  }
+
+  function closeReturnToImportModal() {
+    $("returnToImportModal").hidden = true;
+    document.body.style.overflow = "";
+    if (returnToImportTrigger && returnToImportTrigger.focus) returnToImportTrigger.focus();
+    returnToImportTrigger = null;
+  }
+
+  function confirmReturnToImport() {
+    closeReturnToImportModal();
+    state.records = [];
+    state.activeId = null;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    showImport(false);
+    renderCanvas(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function hasBlocking(r) {
@@ -432,6 +467,7 @@
     r.reviewed = true;
     r.approved = false;
     r.issues = issues;
+    state.currentStep = "review";
     save();
     renderAll();
     toast(issues.length ? issues.length + " ponto" + (issues.length === 1 ? "" : "s") + " para conferir." : "Revisão concluída sem alertas.");
@@ -1302,6 +1338,13 @@
     $("addRecord").addEventListener("click", addManual);
     $("deleteSelected").addEventListener("click", deleteSelected);
     $("backToWorkspace").addEventListener("click", function () { goToStep("edit"); });
+    $("cancelReturnToImport").addEventListener("click", closeReturnToImportModal);
+    $("cancelReturnToImportIcon").addEventListener("click", closeReturnToImportModal);
+    $("confirmReturnToImport").addEventListener("click", confirmReturnToImport);
+    $("returnToImportModal").addEventListener("click", function (ev) { if (ev.target === this) closeReturnToImportModal(); });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape" && !$("returnToImportModal").hidden) closeReturnToImportModal();
+    });
     document.querySelectorAll(".bc-flow-step").forEach(function (el) {
       el.addEventListener("click", function () { goToStep(el.getAttribute("data-step")); });
       el.addEventListener("keydown", function (ev) {
@@ -1321,6 +1364,7 @@
         return;
       }
       r.approved = this.checked;
+      state.currentStep = this.checked ? "export" : "review";
       save();
       renderRecords();
       renderStats();

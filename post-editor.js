@@ -218,7 +218,7 @@ function chooseCatalogProduct(item){
  }).catch(function(){if(selectedProduct!==item)return;$('#backgroundFileName').textContent='Envie a foto de fundo manualmente';status('Produto carregado; a foto de aplicação não abriu',false)})}else{$('#backgroundFileName').textContent='Clique ou arraste uma imagem'}
  var urls=itemImageUrls(item,CATALOG_PRODUCT_WIDTH);if(!urls.length){status('Dados preenchidos; envie a foto do produto',false);return}status(bgUrl?'Carregando produto e foto de aplicação…':'Carregando e recortando a foto do catálogo…',true);$('#productFileName').textContent='Foto do catálogo · '+(codes[0]?codes[0].code:'produto')+' · clique para alterar';
  loadExportSafeImage(urls).then(function(im){if(selectedProduct!==item)return;
-  state.product=im;$('#removeWhite').checked=true;updateProduct()
+  state.product=im;$('#productFileName').textContent='Foto do catálogo carregada · clique para alterar';$('#removeWhite').checked=true;updateProduct()
  }).catch(function(){if(selectedProduct!==item)return;var localHint=location.protocol==='file:'?' Abra pelo arquivo “Abrir Calendario.cmd” para ativar o recorte automático.':'';status('Dados preenchidos; não foi possível carregar a foto automaticamente.'+localHint,false);$('#productFileName').textContent='Foto visível, mas o recorte automático precisa do lançador'})
 }
 // resultados que começam pelo termo buscado (no nome ou em algum código) vêm antes dos que só
@@ -274,7 +274,17 @@ function loadImage(src){return new Promise(function(resolve,reject){
  try{var xhr=new XMLHttpRequest();xhr.open('GET',src,true);xhr.responseType='blob';xhr.onload=function(){if(!xhr.response||(xhr.status&&xhr.status>=400)){direct(false);return}var u=URL.createObjectURL(xhr.response),im=new Image();im.onload=function(){URL.revokeObjectURL(u);im.exportSafe=true;resolve(im)};im.onerror=function(){URL.revokeObjectURL(u);direct(false)};im.src=u};xhr.onerror=function(){direct(false)};xhr.send()}catch(e){direct(false)}
 })}
 function loadExportSafeImage(urls){return new Promise(function(resolve,reject){
- var index=0;function next(){if(index>=urls.length){reject(new Error('Nenhuma origem exportável'));return}loadImage(urls[index++]).then(function(im){if(im.exportSafe)resolve(im);else next()}).catch(next)}next()
+ var list=(urls||[]).filter(Boolean),local=list.filter(function(url){return /^http:\/\/127\.0\.0\.1:8765\//.test(url)}),others=list.filter(function(url){return local.indexOf(url)<0}),round=0;
+ // O lançador inicia o auxiliar de imagens e abre o calendário em seguida. Em máquinas
+ // mais lentas, o editor podia pedir a foto durante essa pequena janela de inicialização:
+ // a miniatura externa aparecia, mas o canvas desistia na primeira conexão recusada. Tenta
+ // novamente apenas o endereço local (barato e seguro para exportação) antes dos fallbacks.
+ function tryList(candidates){return new Promise(function(ok,fail){var index=0;function next(){if(index>=candidates.length){fail(new Error('Nenhuma origem exportável'));return}loadImage(candidates[index++]).then(function(im){if(im.exportSafe)ok(im);else next()}).catch(next)}next()})}
+ function tryLocal(){
+  if(!local.length||round>=5)return tryList(others);
+  return tryList(local).catch(function(){var delay=[250,500,900,1400,2200][round++];return new Promise(function(done){setTimeout(done,delay)}).then(tryLocal)})
+ }
+ tryLocal().then(resolve,reject)
 })}
 function trimBackgroundMargins(im){var c=document.createElement('canvas');c.width=im.width;c.height=im.height;var ctx=c.getContext('2d');ctx.drawImage(im,0,0);var pixels=ctx.getImageData(0,0,c.width,c.height).data,minX=c.width,minY=c.height,maxX=-1,maxY=-1;for(var y=0;y<c.height;y++)for(var x=0;x<c.width;x++){var i=(y*c.width+x)*4;if(pixels[i+3]>8&&(pixels[i]<245||pixels[i+1]<245||pixels[i+2]<245)){if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y}}if(maxX<minX||maxY<minY)return im;var cropW=maxX-minX+1,cropH=maxY-minY+1;if(cropW>=c.width*.98&&cropH>=c.height*.98)return im;var inset=3;minX=Math.min(maxX,minX+inset);minY=Math.min(maxY,minY+inset);maxX=Math.max(minX,maxX-inset);maxY=Math.max(minY,maxY-inset);cropW=maxX-minX+1;cropH=maxY-minY+1;var out=document.createElement('canvas');out.width=cropW;out.height=cropH;out.getContext('2d').drawImage(c,minX,minY,cropW,cropH,0,0,cropW,cropH);return out}
 function drawPlaceholder(ctx,t){
